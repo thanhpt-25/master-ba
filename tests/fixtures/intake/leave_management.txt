@@ -1,0 +1,5 @@
+Leave request system
+Employees submit leave requests in the system and their manager approves or rejects them.
+The remaining paid leave days must be shown to the employee before submitting.
+Payroll integration is out of scope for this phase.
+Approvals must be completed within 3 business days.

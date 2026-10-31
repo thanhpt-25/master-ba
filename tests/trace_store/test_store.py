@@ -25,12 +25,14 @@ from masterba.trace_store import (
     ProjectStore,
     add_decision_record,
     add_document,
+    add_intake,
     add_requirement,
     add_trace_link,
     create_project,
     get_config,
     get_decision_record,
     get_document,
+    get_intake,
     get_requirement,
     get_trace_links,
     open_project,
@@ -258,3 +260,26 @@ def test_decision_record_roundtrip(
         add_decision_record(store, dr)
     with pytest.raises(NotFoundError):
         get_decision_record(store, "DR-0008")
+
+
+def test_add_intake_commits_normalises_newlines_and_is_immutable(
+    store: ProjectStore, commit_log: Callable[[], list[str]]
+) -> None:
+    assert add_intake(store, "mail-1.txt", "line one\r\nline two\r") == "intake/mail-1.txt"
+    assert commit_log()[0] == "intake(PRJ-001): add mail-1.txt"
+    assert get_intake(store, "mail-1.txt") == "line one\nline two\n"
+    with pytest.raises(DuplicateIdError):
+        add_intake(store, "mail-1.txt", "changed")
+
+
+@pytest.mark.parametrize(
+    "name", ["../x.txt", "a/b.txt", ".hidden.txt", "doc.docx", "", "x" * 70 + ".txt"]
+)
+def test_add_intake_rejects_unsafe_names(store: ProjectStore, name: str) -> None:
+    with pytest.raises(InvalidDocumentError, match="invalid intake name"):
+        add_intake(store, name, "text")
+
+
+def test_get_missing_intake_fails(store: ProjectStore) -> None:
+    with pytest.raises(NotFoundError):
+        get_intake(store, "nope.txt")

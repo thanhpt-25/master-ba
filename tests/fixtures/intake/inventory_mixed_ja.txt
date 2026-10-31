@@ -1,0 +1,5 @@
+件名: 在庫管理システム刷新のご依頼
+Our warehouse needs a new inventory system.
+倉庫ごとの在庫数をリアルタイムで確認できること。
+Stock below the safety level must trigger an alert to the purchasing team.
+発注は月末に締めて一括で行う（詳細は別途相談）。

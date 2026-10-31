@@ -9,6 +9,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from masterba.agents import BrdDraft
 from masterba.diff import ItemChange
 from masterba.models import (
     BasicDesignContent,
@@ -41,6 +42,7 @@ SCHEMA_MODELS: tuple[type[BaseModel], ...] = (
     DetailDesignContent,
     TestSpecContent,
     ItemChange,
+    BrdDraft,
 )
 
 

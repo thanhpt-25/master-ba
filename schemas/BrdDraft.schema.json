@@ -1,0 +1,118 @@
+{
+  "$defs": {
+    "DraftRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/ReqCategory"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "evidence_quote": {
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "category",
+        "scope",
+        "start_line",
+        "end_line",
+        "evidence_quote"
+      ],
+      "title": "DraftRequirement",
+      "type": "object"
+    },
+    "OpenQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "question",
+        "start_line",
+        "end_line"
+      ],
+      "title": "OpenQuestion",
+      "type": "object"
+    },
+    "ReqCategory": {
+      "enum": [
+        "business",
+        "functional",
+        "non_functional"
+      ],
+      "title": "ReqCategory",
+      "type": "string"
+    },
+    "Scope": {
+      "enum": [
+        "in",
+        "out"
+      ],
+      "title": "Scope",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "open_questions": {
+      "items": {
+        "$ref": "#/$defs/OpenQuestion"
+      },
+      "title": "Open Questions",
+      "type": "array"
+    },
+    "requirements": {
+      "items": {
+        "$ref": "#/$defs/DraftRequirement"
+      },
+      "minItems": 1,
+      "title": "Requirements",
+      "type": "array"
+    }
+  },
+  "required": [
+    "requirements"
+  ],
+  "title": "BrdDraft",
+  "type": "object"
+}

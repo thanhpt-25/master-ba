@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Phases 0 (scaffold), 1 (data contracts: models, `trace_store`, diff) and 2 (Excel rendering) are done; there is no agent or orchestrator code yet (Phase 3+). Conventions (toolchain, repo layout, ID scheme, ID Stability Rule, document versioning, commit format) are binding and defined in `specs/00-constitution.md` — read it before adding code.
+Phases 0 (scaffold), 1 (data contracts: models, `trace_store`, diff), 2 (Excel rendering) and 3 (BRD walking skeleton: LLM adapter, `requirements-analyst` agent, pipeline, CLI) are done; the Phase 3 live-model review is still pending. There is no team runtime, SRS or later stage yet (Phase 4+). Conventions (toolchain, repo layout, ID scheme, ID Stability Rule, document versioning, commit format) are binding and defined in `specs/00-constitution.md` — read it before adding code.
 
 ## Commands
 
@@ -16,17 +16,21 @@ uv run pytest                    # all tests; coverage report is on by default, 
 uv run pytest tests/trace_store/test_store.py::test_add_requirement_commits_and_rejects_reuse   # single test
 uv run ruff check . && uv run ruff format --check .
 uv run mypy src tests            # strict mode
-PYTHONPATH=src uv run python -m masterba.schema_export   # regenerate schemas/*.schema.json after changing a model
-PYTHONPATH=src uv run python -m masterba.rendering.shells # regenerate templates/default/* after editing rendering/catalog.py
+uv run python -m masterba.schema_export   # regenerate schemas/*.schema.json after changing a model
+uv run python -m masterba.rendering.shells # regenerate templates/default/* after editing rendering/catalog.py
 ```
 
-## Architecture (Phase 2 state)
+## Architecture (Phase 3 state)
 
 Code lives in `src/masterba/`:
 - `models/`: frozen Pydantic v2 models are the single source of truth; `schemas/*.schema.json` are generated from them and a test fails if they drift.
 - `trace_store/`: file-based project store under `projects/<project_id>/`. Each business action is exactly one git commit (`commit_paths` commits only the files it wrote), and the store must run inside a git repo. `add_document` enforces the ID Stability Rule (a new version may not drop or revive item ids) and raises `IdStabilityError`.
 - `trace_store/graph.py`: trace links point upstream to downstream; test case ids (`TC-...`) are aliases of their test item ref. `query_impact` and `rtm` walk only trace edges, not document containment edges.
 - `rendering/`: JSON to `.xlsx`, no LLM. `catalog.py` is the single source for the 8 baseline templates; `shells.py` generates `templates/default/<TYPE>.xlsx` and `<TYPE>.template.json` from it (a test fails if the committed files drift). Bindings in `TemplateDefinition.cell_bindings` are parsed into typed models in `bindings.py` at load time. Output is byte-deterministic (`xlsxio.workbook_bytes` fixes zip timestamps), so re-rendering unchanged content makes no git commit. Every string is written as text, never as a formula.
+- `llm/`: `LLM` protocol (`generate(system, user, output, tool_name)`), `AnthropicLLM` (forced tool call, key only from `ANTHROPIC_API_KEY`) and `FakeLLM`; every automated test uses the fake.
+- `agents/requirements_analyst.py` + `agents/requirements-analyst.md` (prompt) + `skills/brd-from-intake/`: the model returns a `BrdDraft` without ids; `validate_draft` is the deterministic gate (citations in range, quote is a substring of the cited lines, unique titles), one retry, never repairs output.
+- `pipeline/brd.py`: `run_brd` = intake commit, agent, `assign_ids` (the model never chooses ids), requirements, document, trace links, render, one commit each. Refuses when a BRD already exists.
+- `cli.py`: `masterba init-project`, `masterba run brd --project PRJ-001 --input file.txt` (installed console script; `--root` is the git work tree, default cwd). Live-model test: `uv run pytest -m live` with `ANTHROPIC_API_KEY`.
 - `diff/`: structural diff by stable item id plus `classify_change` (pure similarity, no LLM; numeric edits always count as structural).
 
 ## Intended purpose

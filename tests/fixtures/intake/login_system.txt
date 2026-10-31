@@ -1,0 +1,10 @@
+Subject: Customer portal login
+Hello team,
+We need a customer portal where registered customers can sign in with their email address and a password.
+Customers who forget the password must be able to reset it by email.
+The portal must stay available 24 hours a day, 365 days a year.
+We also want customers to see their order history after signing in.
+Staff will manage the customer accounts through the existing admin tool, so no admin screen is needed in this project.
+Please make it fast.
+Thanks,
+Mr. Tanaka

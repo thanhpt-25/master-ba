@@ -1,6 +1,6 @@
 # Spec 03 — Walking Skeleton: `requirements-analyst-agent` (BRD only)
 
-Status: v0.1 (2026-10-31), draft for review. Sources: [concept-design.md](../docs/concept-design.md) sections 0, 4, 9, 14.7 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 3, [00-constitution.md](00-constitution.md), [01-data-contracts.md](01-data-contracts.md), [02-excel-rendering.md](02-excel-rendering.md).
+Status: v0.2 (2026-10-31), implemented; Acceptance Criteria pass except the live-model review in section 9, which needs `ANTHROPIC_API_KEY`. Section 11 records decisions taken while implementing. Sources: [concept-design.md](../docs/concept-design.md) sections 0, 4, 9, 14.7 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 3, [00-constitution.md](00-constitution.md), [01-data-contracts.md](01-data-contracts.md), [02-excel-rendering.md](02-excel-rendering.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -81,8 +81,11 @@ class LLMResult(Generic[T]):
     input_tokens: int
     output_tokens: int
 
+
 class LLM(Protocol):
-    def generate(self, *, system: str, user: str, output: type[T], tool_name: str) -> LLMResult[T]: ...
+    def generate(
+        self, *, system: str, user: str, output: type[T], tool_name: str
+    ) -> LLMResult[T]: ...
 ```
 
 - `AnthropicLLM(model, max_tokens=16000)`: calls the Messages API with one tool named `tool_name` whose `input_schema` is `output.model_json_schema()` and `tool_choice` forcing that tool; validates the tool input with `output.model_validate`. Reads `ANTHROPIC_API_KEY` from the environment only (never from a file, never logged or written). A missing key is a clear `LLMConfigError` before any request.
@@ -145,22 +148,22 @@ tests/
 
 ## 8. Acceptance Criteria
 
-- [ ] `masterba run brd --project PRJ-001 --input <intake>` (with a fake LLM in tests) produces `json/brd/DOC-BRD-0001.v1.json` valid against the Phase 1 schema and `xlsx/brd/DOC-BRD-0001.v1.xlsx` whose cell values match the JSON.
-- [ ] Git history of the project shows, in order, commits for: intake, each requirement, the document, each trace link, the render; none squashed, all in the spec 00 message format.
-- [ ] Every stored requirement and BRD item has a `source_ref` citation that points inside the stored intake, and its quote was verified as a substring of the cited lines.
-- [ ] Requirement ids continue after existing ones and are never reused (test with a project that already has `REQ-0001..0003`, one of them `removed`).
-- [ ] A draft with a quote that is not in the cited lines is rejected and retried once with the error list in the retry prompt; a second bad draft aborts with exit code 1 and **no** requirement, document, link or render is written.
-- [ ] A run on a project that already has a BRD refuses and writes nothing.
-- [ ] `RTM` query from a created `REQ-####` returns a path to its BRD item (`rtm` / `query_impact`).
-- [ ] The three intake fixtures each run through the fake LLM and produce a rendering that opens with `openpyxl`.
-- [ ] `ANTHROPIC_API_KEY` is never written to a file or printed; a missing key fails with `LLMConfigError` before any request; the AnthropicLLM request building is unit-tested with a stubbed client (no network).
+- [x] `masterba run brd --project PRJ-001 --input <intake>` (with a fake LLM in tests) produces `json/brd/DOC-BRD-0001.v1.json` valid against the Phase 1 schema and `xlsx/brd/DOC-BRD-0001.v1.xlsx` whose cell values match the JSON.
+- [x] Git history of the project shows, in order, commits for: intake, each requirement, the document, each trace link, the render; none squashed, all in the spec 00 message format.
+- [x] Every stored requirement and BRD item has a `source_ref` citation that points inside the stored intake, and its quote was verified as a substring of the cited lines.
+- [x] Requirement ids continue after existing ones and are never reused (test with a project that already has `REQ-0001..0003`, one of them `removed`).
+- [x] A draft with a quote that is not in the cited lines is rejected and retried once with the error list in the retry prompt; a second bad draft aborts with exit code 1 and **no** requirement, document, link or render is written.
+- [x] A run on a project that already has a BRD refuses and writes nothing.
+- [x] `RTM` query from a created `REQ-####` returns a path to its BRD item (`rtm` / `query_impact`).
+- [x] The three intake fixtures each run through the fake LLM and produce a rendering that opens with `openpyxl`.
+- [x] `ANTHROPIC_API_KEY` is never written to a file or printed; a missing key fails with `LLMConfigError` before any request; the AnthropicLLM request building is unit-tested with a stubbed client (no network).
 - [ ] An optional live test (`pytest -m live`, skipped by default and when no key is set) runs the real model on `login_system.txt` and asserts only structural properties; its output is reviewed by hand once and the verdict is recorded in section 9.
-- [ ] `schemas/BrdDraft.schema.json` is generated and a test fails when it drifts.
-- [ ] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; `masterba --help` works after `uv sync`.
+- [x] `schemas/BrdDraft.schema.json` is generated and a test fails when it drifts.
+- [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; `masterba --help` works after `uv sync`.
 
 ## 9. Manual review record
 
-To be filled after the first live run (date, model, intake, requirement count, tokens, verdict, problems found).
+Pending: the first live run has not happened yet (no `ANTHROPIC_API_KEY` in the implementation environment). Run `ANTHROPIC_API_KEY=... uv run pytest -m live tests/pipeline`, open `projects/live-review.xlsx` under the pytest temp folder, and record here: date, model, intake, requirement count, tokens, verdict, problems found.
 
 ## 10. Open points (do not block implementation)
 
@@ -168,3 +171,12 @@ To be filled after the first live run (date, model, intake, requirement count, t
 2. **Non-text intake** (`.docx`, `.pdf`, email) needs a converter that produces numbered text; citations then refer to the converted text. Decided with the dashboard upload design.
 3. **Cost control.** Token counts are recorded in the stdout summary only; enforcement via `team_token_budget` starts in Phase 4.
 4. **Placeholder BRD sheets** (背景・目的, 制約事項) stay empty until a document-level text section exists in the payload (spec 02 open point 1).
+
+## 11. Decisions taken while implementing
+
+1. **Intake helpers in `trace_store`**: besides `add_intake`, a `get_intake` reader, a public `normalize_text` and `git.ensure_ready` (work tree and committer identity check) were added.
+2. **Retry also covers unparseable output.** An `LLMOutputError` (no tool call, or JSON that does not fit `BrdDraft`) counts as a rejected attempt and is retried with its message; token counts of such an attempt are unknown and not summed.
+3. **`BrdRunResult` carries `open_questions` and `uncovered_lines` separately** instead of one `warnings` list, so the CLI JSON stays structured.
+4. **Live test location**: `tests/pipeline/test_brd_pipeline.py::test_live_model_produces_a_structurally_valid_brd`; default `addopts` excludes the `live` marker.
+5. **Prompt location**: `agents/requirements-analyst.md` is read from the repository root (editable install); packaging the prompt into a wheel is deferred.
+6. **Duplicate-title check** normalises case and whitespace; titles alone identify duplicates, descriptions are not compared.

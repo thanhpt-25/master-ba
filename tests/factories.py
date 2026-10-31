@@ -1,5 +1,8 @@
 """Builders for contract objects used across tests."""
 
+from pathlib import Path
+
+from masterba.agents import BrdDraft, DraftRequirement, OpenQuestion
 from masterba.models import (
     BasicDesignContent,
     BasicDesignItem,
@@ -127,3 +130,118 @@ def make_test_item(doc: str, i: int, tc: str, level: Level) -> TestCaseItem:
 
 def make_test_spec(*items: TestCaseItem) -> TestSpecContent:
     return TestSpecContent(items=list(items))
+
+
+INTAKE_DIR = Path(__file__).parent / "fixtures" / "intake"
+FUNCTIONAL, NON_FUNCTIONAL, BUSINESS = (
+    ReqCategory.FUNCTIONAL,
+    ReqCategory.NON_FUNCTIONAL,
+    ReqCategory.BUSINESS,
+)
+
+
+def intake_path(name: str) -> Path:
+    return INTAKE_DIR / name
+
+
+def draft_req(
+    title: str,
+    category: ReqCategory,
+    line: int,
+    quote: str,
+    scope: Scope = Scope.IN,
+    end: int | None = None,
+) -> DraftRequirement:
+    return DraftRequirement(
+        title=title,
+        description=f"{title}: {quote}",
+        category=category,
+        scope=scope,
+        start_line=line,
+        end_line=end or line,
+        evidence_quote=quote,
+    )
+
+
+DRAFTS: dict[str, BrdDraft] = {
+    "login_system.txt": BrdDraft(
+        requirements=[
+            draft_req(
+                "Customer sign-in",
+                FUNCTIONAL,
+                3,
+                "registered customers can sign in with their email address and a password",
+            ),
+            draft_req("Password reset", FUNCTIONAL, 4, "must be able to reset it by email"),
+            draft_req(
+                "Availability", NON_FUNCTIONAL, 5, "available 24 hours a day, 365 days a year"
+            ),
+            draft_req("Order history", FUNCTIONAL, 6, "see their order history after signing in"),
+            draft_req(
+                "Account administration",
+                BUSINESS,
+                7,
+                "Staff will manage the customer accounts through the existing admin tool",
+                scope=Scope.OUT,
+            ),
+        ],
+        open_questions=[
+            OpenQuestion(question="What response time counts as fast?", start_line=8, end_line=8)
+        ],
+    ),
+    "leave_management.txt": BrdDraft(
+        requirements=[
+            draft_req(
+                "Leave request approval",
+                FUNCTIONAL,
+                2,
+                "Employees submit leave requests in the system",
+            ),
+            draft_req(
+                "Remaining leave display",
+                FUNCTIONAL,
+                3,
+                "remaining paid leave days must be shown to the employee before submitting",
+            ),
+            draft_req(
+                "Payroll integration",
+                BUSINESS,
+                4,
+                "Payroll integration is out of scope for this phase",
+                scope=Scope.OUT,
+            ),
+            draft_req("Approval time limit", NON_FUNCTIONAL, 5, "completed within 3 business days"),
+        ],
+    ),
+    "inventory_mixed_ja.txt": BrdDraft(
+        requirements=[
+            draft_req("新在庫システム", BUSINESS, 2, "Our warehouse needs a new inventory system"),
+            draft_req(
+                "在庫数のリアルタイム確認",
+                FUNCTIONAL,
+                3,
+                "倉庫ごとの在庫数をリアルタイムで確認できること",
+            ),
+            draft_req(
+                "Safety stock alert",
+                FUNCTIONAL,
+                4,
+                "Stock below the safety level must trigger an alert to the purchasing team",
+            ),
+        ],
+        open_questions=[
+            OpenQuestion(question="一括発注の締め処理の詳細は？", start_line=5, end_line=5)
+        ],
+    ),
+}
+
+
+def draft_for(name: str) -> BrdDraft:
+    return DRAFTS[name]
+
+
+def bad_draft() -> BrdDraft:
+    """A draft whose quote is not in the cited line."""
+    return BrdDraft(
+        requirements=[draft_req("Invented", FUNCTIONAL, 3, "the portal shall read minds")]
+    )

@@ -35,6 +35,7 @@ from masterba.trace_store.errors import (
 from masterba.trace_store.git import commit_paths
 
 _DOC_FILE = re.compile(r"^(?P<id>DOC-[A-Z_]+-\d{4})\.v(?P<version>\d+)\.json$")
+_INTAKE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.(txt|md)$")
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,34 @@ def open_project(root: Path, project_id: str) -> ProjectStore:
 
 def get_config(store: ProjectStore) -> ProjectConfig:
     return ProjectConfig.model_validate(_read_json(store.path / "project.json"))
+
+
+def normalize_text(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _intake_path(store: ProjectStore, name: str) -> Path:
+    if not _INTAKE_NAME.match(name):
+        raise InvalidDocumentError(f"invalid intake name {name!r}; use a .txt or .md file name")
+    return store.path / "intake" / name
+
+
+def add_intake(store: ProjectStore, name: str, text: str) -> str:
+    """Store an immutable intake text; return its project-relative path ``intake/<name>``."""
+    path = _intake_path(store, name)
+    if path.exists():
+        raise DuplicateIdError(f"intake {name} already exists (intake is immutable)")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(normalize_text(text), encoding="utf-8")
+    _commit(store, [path], f"intake({store.project_id}): add {name}")
+    return f"intake/{name}"
+
+
+def get_intake(store: ProjectStore, name: str) -> str:
+    path = _intake_path(store, name)
+    if not path.exists():
+        raise NotFoundError(f"intake {name} does not exist")
+    return path.read_text(encoding="utf-8")
 
 
 def _requirement_path(store: ProjectStore, req_id: str) -> Path:

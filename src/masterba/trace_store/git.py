@@ -25,3 +25,13 @@ def commit_paths(cwd: Path, paths: list[Path], message: str) -> bool:
     if committed.returncode != 0:
         raise GitError(committed.stderr.strip() or committed.stdout.strip())
     return True
+
+
+def ensure_ready(cwd: Path) -> None:
+    """Fail early unless `cwd` is in a git work tree that can make commits."""
+    inside = _run(["rev-parse", "--is-inside-work-tree"], cwd)
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        raise GitError(f"{cwd} is not inside a git work tree")
+    for key in ("user.name", "user.email"):
+        if not _run(["config", key], cwd).stdout.strip():
+            raise GitError(f"git {key} is not configured")
