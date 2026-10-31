@@ -49,7 +49,7 @@ The design-test loop already keeps `unresolved` customer questions. The writer-r
 
 Dry-run 4 (10.3): on 30 requirements the Basic Design team raised about ten new blocking points in every round, some contradicting each other, and did not converge in 7 rounds and 378,007 tokens. A reviewer that samples a different part of the same draft each time never runs out of new points.
 
-The rule, applied by the code and not told to the model: for each reviewed artifact (`draft`, `design`, `tests`) the first QA review of a run may raise any blocking issue. In every later review of that artifact, a blocking issue stays blocking only if the same pair (checklist id, item reference) was blocking in an earlier review; any other blocking issue becomes advisory with the note `[id] ref: downgraded (new after the first review)`. It stays in `advisory_issues` and in the mailbox. A resumed run starts again at its first review: the owner chose to continue and nothing about the earlier attempt's reviews is stored.
+The rule, applied by the code and not told to the model: for each reviewed artifact (`draft`, `design`, `tests`) the first QA review of a run may raise any blocking issue. In every later review of that artifact, a blocking issue stays blocking only if the same pair (checklist id, item reference) was blocking in an earlier review; any other blocking issue becomes advisory with the note `[id] ref: downgraded (new after the first review)`. It stays in `advisory_issues` and in the mailbox. The pairs are saved in the checkpoint (`blocking_seen`, an additive field with an empty default), so a resumed run does not get a second first review: in dry-run 4 a resume that did restored the flood, with 35 new blocking points in one review.
 
 The cost is accepted: a problem that a revision introduces and QA notices only later is reported but does not block, so a person reads the advisory issues. The gain is that a run ends when the issues of its first review are fixed.
 
@@ -201,7 +201,7 @@ The README setup section gains the `doctor` step and the Docker Compose quick st
 - [x] `normalise_report` has unit tests for both downgrade rules and the note it posts; a regression test replays the spec 05 run 4 issue ("acceptable as written", no action) and the run finishes `done`; the `QaReport` and `TeamRun` schemas are regenerated and drift-tested.
 - [x] Customer questions from both loops reach `TeamRun.customer_questions`, and the SRS stage merges them with `open_questions`.
 - [x] `team_max_rounds_by_stage` overrides the default per stage and is set through `init-project --rounds`.
-- [ ] A blocking issue that is new after the first review of an artifact is downgraded to advisory, and a schema-invalid model answer is fed back to its role instead of ending the run (1.5, 1.6). *Open until implemented.*
+- [x] A blocking issue that is new after the first review of an artifact is downgraded to advisory, and a schema-invalid model answer is fed back to its role instead of ending the run (1.5, 1.6). *Implemented and unit tested; the first-review limit was checked on a live run (10.3, dry-run 5), the schema retry was not seen live.*
 - [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Open: dry-run 3 reached `done` for both stages, but dry-run 4 (30 requirements) escalated in Basic Design after 7 rounds (10.3); awaits the owner's acceptance.*
 - [x] `--resume` continues an escalated run with the fake model for every stage; it refuses a run that is done, of another stage, without a checkpoint, with a changed upstream version, or whose target document exists; the commit subject says `(resumed)`.
 - [x] The CI jobs `quick`, `full` and `image` are green on `main`, and `quick` runs in under one minute. *(2026-10-31: run 41208337518, `quick` 32 s; 10.4.)*
@@ -279,6 +279,16 @@ Dry-run 4, same gateway model, on a Japanese HRM intake: `tests/fixtures/intake/
 
 The BRD and SRS workbooks were opened and checked: the three sheets of the company layout are kept, the document-info cells hold the ID, version, project and status, the header keeps its fill, font, borders, freeze pane and landscape A4 setting, and 対象範囲 shows 対象. Findings are in section 11, items 4 to 6.
 
+Dry-run 5, same intake and model, after the code changes of 1.5 and 1.6 (Basic Design only; the schema error did not recur, it is covered by unit tests):
+
+| Attempt | Rounds | Issues raised / resolved | Tokens | Blocking left |
+|---|---|---|---|---|
+| `RUN-0007` before the change, resumed to 7 rounds | 7 | 56 / 45 | 378,007 | 25 QA issues |
+| `RUN-0008` fresh, after the change | 3 | 18 / 13 | 172,418 | 5 QA issues; 41 advisory |
+| `RUN-0009` fresh, then resumed three times | 12 | 25 / 22 | 513,292 | gate errors only: `exclusion n: ... is also tested` |
+
+The first-review limit works: QA stopped producing a new set of blocking points each round (25 in 12 rounds against 56 in 7). What remained was a different loop: the tester rewrote the whole test list each round and, answering one gate error, broke another (an item tested and excluded at once, then an item with neither). `RUN-0009` did not reach `done`.
+
 Still open: the runs used a gateway model on a synthetic intake; the owner accepts this record or repeats the runs with the model intended for production.
 
 ### 10.4 CI timings (4)
@@ -294,6 +304,7 @@ Docker 29.9.2, 2026-10-31: the image builds; `docker run ... doctor --init` on a
 1. Checkpoints stay on one machine. Committing them on escalation would let another machine resume, at the cost of drafts in git history; decide when a team works from more than one machine.
 2. A second QA opinion when the same item is flagged twice in a row was another candidate from spec 05 finding 5. It is left out until the structured fields of section 1 have been tried on live runs.
 3. Publishing the image to a registry is not covered; images are built locally or in CI.
-4. A model answer that does not fit its schema (dry-run 4: a design item without `realizes`) ends the whole run with an error. The stage loops could treat it as a gate error, send it back to the writer and spend one round, as QA already does with one retry.
-5. On 30 requirements the Basic Design team did not converge in 7 rounds and 378,007 tokens: every round QA raised about ten new points, some contradicting each other (boundary cases for a response time against not testing behaviour the design leaves open). Candidates: a round limit scaled to the number of items, a second QA opinion when an item is flagged twice (item 2), or reviewing design and tests in separate runs.
+4. *Done (1.6).* A model answer that does not fit its schema is fed back to its role. Not yet seen again in a live run.
+5. *Done (1.5).* New blocking issues after the first review are advisory. On 30 requirements QA now settles, but see item 7.
+7. The tester can oscillate between gate errors (dry-run 5: `also tested`, then `no IT case and no exclusion`) because it rewrites the whole list in each round. The gate message could name what to do (an item with a case needs no exclusion), or the code could drop an exclusion for an item that has a case and record it, which departs from the rule that gates never repair a draft. The owner decides.
 6. The rendered workbook shows enum values in English (`functional`, `draft`) where a Japanese SIer document expects 機能 or 草稿, and the cover sheet is not filled; only the `scope` value map exists.
