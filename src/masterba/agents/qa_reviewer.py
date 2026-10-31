@@ -5,6 +5,7 @@ report that contradicts itself cannot exist. Only the checklist differs between 
 """
 
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Self
@@ -80,8 +81,10 @@ class QaReview:
     attempts: int
 
 
-def checklist_path(stage: DocType) -> Path:
-    return CHECKLIST_DIR / f"{stage.value.lower()}.toml"
+def checklist_path(stage: DocType | str) -> Path:
+    """Checklist file of a document type, or of a named checklist such as ``"tests"``."""
+    stem = stage.value.lower() if isinstance(stage, DocType) else stage
+    return CHECKLIST_DIR / f"{stem}.toml"
 
 
 def load_checklist(path: Path) -> Checklist:
@@ -89,7 +92,7 @@ def load_checklist(path: Path) -> Checklist:
 
 
 def validate_report(
-    report: QaReport, checklist: Checklist, doc_id: str, item_count: int
+    report: QaReport, checklist: Checklist, item_counts: Mapping[str, int]
 ) -> list[str]:
     known = {c.id for c in checklist.checks}
     errors: list[str] = []
@@ -98,7 +101,7 @@ def validate_report(
             errors.append(f"issue {index}: unknown checklist_id {issue.checklist_id!r}")
         if issue.ref is not None:
             head, _, number = issue.ref.partition("#item.")
-            if head != doc_id or not 1 <= int(number) <= item_count:
+            if not 1 <= int(number) <= item_counts.get(head, 0):
                 errors.append(f"issue {index}: ref {issue.ref} is not an item of the draft")
     return errors
 
@@ -136,8 +139,7 @@ def review(
     llm: LLM,
     *,
     checklist: Checklist,
-    doc_id: str,
-    item_count: int,
+    item_counts: Mapping[str, int],
     upstream: str,
     draft_view: str,
     language: DocLanguage,
@@ -160,7 +162,7 @@ def review(
             continue
         tokens_in += result.input_tokens
         tokens_out += result.output_tokens
-        errors = validate_report(result.value, checklist, doc_id, item_count)
+        errors = validate_report(result.value, checklist, item_counts)
         if not errors:
             return QaReview(cap_severity(result.value, checklist), tokens_in, tokens_out, attempt)
     raise QaOutputInvalidError(errors, tokens_in, tokens_out)

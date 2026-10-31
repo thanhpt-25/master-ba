@@ -1,5 +1,12 @@
 """Content agents: each turns upstream material into a schema-validated draft."""
 
+from masterba.agents.design_writer import (
+    BasicDesignDraft,
+    DesignAnswer,
+    DraftDesignItem,
+    validate_design_draft,
+    write_design,
+)
 from masterba.agents.qa_reviewer import (
     Check,
     Checklist,
@@ -32,8 +39,27 @@ from masterba.agents.srs_writer import (
     validate_srs_draft,
     write_srs,
 )
+from masterba.agents.test_writer import (
+    DesignQuestion,
+    DraftExclusion,
+    DraftTestCase,
+    TestDraft,
+    validate_test_draft,
+    write_tests,
+)
 
 __all__ = [
+    "BasicDesignDraft",
+    "DesignAnswer",
+    "DraftDesignItem",
+    "DraftExclusion",
+    "DraftTestCase",
+    "TestDraft",
+    "DesignQuestion",
+    "validate_design_draft",
+    "validate_test_draft",
+    "write_design",
+    "write_tests",
     "BrdDraft",
     "BrdRequirement",
     "Check",

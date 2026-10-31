@@ -124,8 +124,7 @@ def run_srs(
         review=lambda d: review(
             reviewer,
             checklist=checklist,
-            doc_id=SRS_DOC_ID,
-            item_count=len(d.items),
+            item_counts={SRS_DOC_ID: len(d.items)},
             upstream=brd_view(brd),
             draft_view=draft_view(d, SRS_DOC_ID),
             language=language,

@@ -1,6 +1,6 @@
 # Spec 05 — Basic Design and IT/ST tests (three-member team)
 
-Status: v0.1 (2026-10-31), draft for review. Sources: [concept-design.md](../docs/concept-design.md) sections 2, 7, 14 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 5, [01-data-contracts.md](01-data-contracts.md), [02-excel-rendering.md](02-excel-rendering.md), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md).
+Status: v0.2 (2026-10-31), implemented; all Acceptance Criteria pass except the live run, which did not reach `done` (section 9). Section 11 records the decisions taken while implementing. Sources: [concept-design.md](../docs/concept-design.md) sections 2, 7, 14 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 5, [01-data-contracts.md](01-data-contracts.md), [02-excel-rendering.md](02-excel-rendering.md), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -204,26 +204,43 @@ tests/ ...
 
 ## 8. Acceptance Criteria
 
-- [ ] `brd -> srs -> basic` runs end `done` on a demo project (fake models) and writes the three documents, links, three workbooks that open with `openpyxl`, and one committed run record; commit order as in section 6.
-- [ ] `rtm(REQ-####)` returns paths ending at both an IT case and an ST case; `query_impact(upstream)` from a `TC-ST-####` reaches the requirement through the SRS item.
-- [ ] Every design item has an IT case or an exclusion, and every SRS item has an ST case or an exclusion, in the stored JSON (a gate failure otherwise); an item both tested and excluded is rejected.
-- [ ] A tester question reaches the designer as a `question` message with a design item ref; the designer's reply is an `answer` message and appears in the revised description; the tester then revises the tests within the same cycle (one exchange), and the run ends `done`.
-- [ ] After two exchanges in one cycle, further questions end the cycle and carry over to the next round; unanswered questions at the round limit are listed in `escalations`.
-- [ ] A blocking QA issue on a design ref goes to the designer and one on a test ref goes to the tester (mailbox `to` is correct); the next cycle revises only what was criticised and the run ends `done` with `issues_raised == issues_resolved`.
-- [ ] Exceeding `team_max_rounds` or reaching `team_token_budget` ends `escalated` (exit code 3) with no business artifact written.
-- [ ] The QA reviewer code is unchanged in stage-neutrality (no `DocType` branch), and one review validates refs of several documents; an unknown document in a `ref` is rejected.
-- [ ] Single-writer is enforced for `design-draft` and `test-draft`.
-- [ ] `TestSpecContent.exclusions` round-trips through the store and a document stored without it still loads; `schemas/*.schema.json` for the new draft models and the changed payload are regenerated and drift-tested.
+- [x] `brd -> srs -> basic` runs end `done` on a demo project (fake models) and writes the three documents, links, three workbooks that open with `openpyxl`, and one committed run record; commit order as in section 6.
+- [x] `rtm(REQ-####)` returns paths ending at both an IT case and an ST case; `query_impact(upstream)` from a `TC-ST-####` reaches the requirement through the SRS item.
+- [x] Every design item has an IT case or an exclusion, and every SRS item has an ST case or an exclusion, in the stored JSON (a gate failure otherwise); an item both tested and excluded is rejected.
+- [x] A tester question reaches the designer as a `question` message with a design item ref; the designer's reply is an `answer` message and appears in the revised description; the tester then revises the tests within the same cycle (one exchange), and the run ends `done`.
+- [x] After two exchanges in one cycle, further questions end the cycle and carry over to the next round; unanswered questions at the round limit are listed in `escalations`.
+- [x] A blocking QA issue on a design ref goes to the designer and one on a test ref goes to the tester (mailbox `to` is correct); the next cycle revises only what was criticised and the run ends `done` with `issues_raised == issues_resolved`.
+- [x] Exceeding `team_max_rounds` or reaching `team_token_budget` ends `escalated` (exit code 3) with no business artifact written.
+- [x] The QA reviewer code is unchanged in stage-neutrality (no `DocType` branch), and one review validates refs of several documents; an unknown document in a `ref` is rejected.
+- [x] Single-writer is enforced for `design-draft` and `test-draft`.
+- [x] `TestSpecContent.exclusions` round-trips through the store and a document stored without it still loads; `schemas/*.schema.json` for the new draft models and the changed payload are regenerated and drift-tested.
 - [ ] A live run (`pytest -m live` / the CLI with a key) completes the stage on the login demo; the result is reviewed by hand and recorded in section 9.
-- [ ] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass.
+- [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass.
 
 ## 9. Manual review record
 
-To be filled after the first live run.
+**2026-10-31, local Anthropic-compatible gateway, project language `en`, demo login BRD/SRS (4 SRS items), designer and tester `auto/best-coding`, QA `auto/best-reasoning`.** Four runs on the same input, none reached `done`; the machinery behaved as designed every time (nothing business-related written, run record committed, reasons in `escalations`).
+
+1. **Run 1 (3 rounds):** the tester asked a question about every design item; the designer could not answer because the customer never gave the details, so the exchange never converged (51,612 tokens). Fix (section 11, item 2): a question about an item the designer already answered stops blocking and is reported to the customer (`open_questions`, mailbox message to `customer`); the tester prompt now says to ask at most one question per item, to write the cases the design supports and not to ask about customer-only facts.
+2. **Run 2 (3 rounds):** no more question loops; 6 blocking QA issues, 5 resolved; ended because the tester left a design item without an IT case after the design grew (the gate caught it).
+3. **Runs 3 and 4 (6 rounds):** 50 and 43 blocking issues raised over the rounds, so the QA reviewer is very strict on this input. TS-04 (IT cases must check design-level interactions, ST black-box) was the most frequent and most subjective issue and is now `advisory`. In run 4, 42 of 43 issues were resolved; the last open blocking issue was a TS-02 report whose own message says the case "is acceptable as written", i.e. the model marked it blocking against its own reasoning.
+
+Conclusion: the team loop, Q&A exchange, routing, gates, budget and escalation work on a real model. Reaching `done` on this input needs either stronger models for the three roles or a more reliable QA signal (open point 5). The live Acceptance Criterion stays open.
 
 ## 10. Open points (do not block implementation)
 
 1. **Exclusions in Excel.** They live in the JSON only; a sheet (除外項目) needs the renderer to read `$content.exclusions`, which is a small spec 02 extension for a later phase.
 2. **Round budget.** Three members need more cycles than the default `team_max_rounds = 3` for hard inputs; the setting stays project-wide and `init-project --team-max-rounds` raises it. Whether the default should differ per stage is a tuning question for after the live review.
 3. **Test depth.** The checklist asks for boundary and error cases only where the design states limits or errors; coverage metrics (for example case-per-condition) are a later refinement.
+5. **QA signal reliability.** A blocking issue whose text says the item is acceptable cannot be detected by code. Candidates: an explicit `action_required` field the model must justify, a second opinion when the same ref is flagged twice, or treating an unchanged item flagged again as advisory. To be decided after more live data.
 4. **IT/ST in one pass.** Both levels are written by one tester call; splitting them into two agents or two calls is possible without changing the stored documents.
+
+## 11. Decisions taken while implementing
+
+1. **Naming.** `TesterQuestion` became `DesignQuestion` and `tests_view` became `cases_view`, because pytest collects `Test*` classes and `test*` functions imported into test modules.
+2. **Questions that cannot be settled.** The loop remembers which design refs the designer answered (`answers`). A question about an already answered ref no longer blocks: it is recorded as an `unresolved` customer question (mailbox message from `tester` to `customer`, `DesignTestResult.unresolved`, `StageResult.open_questions`), and the cycle goes on to QA. Found in the first live run.
+3. **TS-04 is advisory.** The IT-versus-ST distinction is subjective and caused most of the churn in the live runs.
+4. **Task titles.** The loop creates `Draft design`, `Write tests`, `Revise design (round n)`, `Revise tests (round n)`, `Review design (round n)`, `Review tests (round n)`; the exchange-time revisions use the current round number.
+5. **`Team.exchanges`** counts designer-tester exchanges and appears in the CLI JSON as `exchanges`; `StageResult.document_ids` lists all documents of a stage and `document_id` is the first one.
+6. **Reviewer API.** `review(..., item_counts=...)` and `validate_report(report, checklist, item_counts)` replace `doc_id` and `item_count`; `checklist_path` takes a stem as well as a `DocType`.
+7. **Links.** `tests` is used for both `design item -> TC-IT` and `SRS item -> TC-ST`; `verifies` stays reserved for UAT. Duplicate `verifies` entries in a case are collapsed before links are written.

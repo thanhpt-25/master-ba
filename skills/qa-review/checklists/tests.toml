@@ -1,0 +1,31 @@
+stage = "TESTS"
+
+[[checks]]
+id = "TS-01"
+severity = "blocking"
+text = "Each case has a concrete precondition, input and steps (one operation per step) and an observable expected result a tester can judge OK or NG."
+
+[[checks]]
+id = "TS-02"
+severity = "blocking"
+text = "Where a design or SRS item states a limit or an error behaviour, boundary cases (at, just inside, just outside) and error cases exist, not only the normal case."
+
+[[checks]]
+id = "TS-03"
+severity = "blocking"
+text = "Each case verifies exactly the items it names and relies on no behaviour, figure or message that the design or the SRS does not state."
+
+[[checks]]
+id = "TS-04"
+severity = "advisory"
+text = "ST cases are black-box and written from the user's or operator's point of view against SRS items; IT cases check design-level interactions between design items."
+
+[[checks]]
+id = "TS-05"
+severity = "blocking"
+text = "Every exclusion has a convincing reason, and no item that can be tested is excluded."
+
+[[checks]]
+id = "TS-06"
+severity = "advisory"
+text = "Cases are not duplicated and do not test several unrelated things at once."

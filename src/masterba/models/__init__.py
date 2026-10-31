@@ -23,6 +23,7 @@ from masterba.models.payloads import (
     SrsContent,
     SrsItem,
     TestCaseItem,
+    TestExclusion,
     TestSpecContent,
     payload_items,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "TeamRun",
     "TemplateDefinition",
     "TestCaseItem",
+    "TestExclusion",
     "TestSpecContent",
     "TraceLink",
     "payload_items",

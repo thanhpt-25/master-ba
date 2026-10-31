@@ -160,8 +160,7 @@ def run_brd(
         review=lambda d: review(
             reviewer,
             checklist=checklist,
-            doc_id=BRD_DOC_ID,
-            item_count=len(d.requirements),
+            item_counts={BRD_DOC_ID: len(d.requirements)},
             upstream=number_lines(stored),
             draft_view=brd_draft_view(d, BRD_DOC_ID),
             language=language,

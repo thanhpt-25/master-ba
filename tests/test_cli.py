@@ -6,7 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from factories import bad_draft, draft_for, intake_path, login_srs_draft, qa_block, qa_pass
+from factories import (
+    bad_draft,
+    draft_for,
+    intake_path,
+    login_design_draft,
+    login_srs_draft,
+    login_test_draft,
+    qa_block,
+    qa_pass,
+)
 from masterba.agents import QaIssue, QaReport
 from masterba.cli import main
 from masterba.llm import LLM, FakeLLM
@@ -218,3 +227,50 @@ def test_a_japanese_project_rejects_english_drafts_until_rounds_run_out(
     assert run_cli(root, *BRD_ARGS, llm=llm) == 3
     assert "no Japanese characters" in capsys.readouterr().out
     assert [c.tool_name for c in llm.calls] == ["submit_brd", "submit_brd"]
+
+
+def test_basic_stage_through_the_cli_with_separate_models(
+    root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    init(root)
+    assert run_cli(root, *BRD_ARGS, llm=FakeLLM([draft_for(LOGIN), qa_pass()])) == 0
+    assert (
+        run_cli(
+            root, "run", "srs", "--project", "PRJ-001", llm=FakeLLM([login_srs_draft(), qa_pass()])
+        )
+        == 0
+    )
+    capsys.readouterr()
+    designer = FakeLLM([login_design_draft()])
+    tester = FakeLLM([login_test_draft()])
+    reviewer = FakeLLM([qa_pass(), qa_pass()])
+
+    def factory(model: str) -> LLM:
+        return {"d": designer, "t": tester, "q": reviewer}[model]
+
+    args = ["--root", str(root), "run", "basic", "--project", "PRJ-001"]
+    code = main(
+        [*args, "--model", "d", "--test-model", "t", "--qa-model", "q"], llm_factory=factory
+    )
+    assert code == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert (summary["stage"], summary["status"], summary["run_id"]) == (
+        "BASIC_DESIGN",
+        "done",
+        "RUN-0003",
+    )
+    assert summary["document_ids"] == [
+        "DOC-BASIC_DESIGN-0001",
+        "DOC-TEST_IT-0001",
+        "DOC-TEST_ST-0001",
+    ]
+    assert summary["exchanges"] == 0
+    assert [c.tool_name for c in designer.calls] == ["submit_basic_design"]
+    assert [c.tool_name for c in tester.calls] == ["submit_tests"]
+    assert [c.tool_name for c in reviewer.calls] == ["submit_qa_report"] * 2
+
+
+def test_basic_stage_without_an_srs_exits_1(root: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    init(root)
+    assert run_cli(root, "run", "basic", "--project", "PRJ-001", llm=FakeLLM([])) == 1
+    assert "run the srs stage first" in capsys.readouterr().err

@@ -1,5 +1,13 @@
 """Deterministic pipelines connecting agents, team runtime, trace store and renderer."""
 
+from masterba.pipeline.basic import (
+    DESIGN_DOC_ID,
+    IT_DOC_ID,
+    ST_DOC_ID,
+    BasicArtifacts,
+    assign_basic_ids,
+    run_basic_design,
+)
 from masterba.pipeline.brd import (
     BRD_DOC_ID,
     BrdArtifacts,
@@ -11,6 +19,12 @@ from masterba.pipeline.srs import SRS_DOC_ID, SrsArtifacts, assign_srs_ids, run_
 from masterba.pipeline.stage import StageResult
 
 __all__ = [
+    "DESIGN_DOC_ID",
+    "IT_DOC_ID",
+    "ST_DOC_ID",
+    "BasicArtifacts",
+    "assign_basic_ids",
+    "run_basic_design",
     "BRD_DOC_ID",
     "SRS_DOC_ID",
     "BrdArtifacts",

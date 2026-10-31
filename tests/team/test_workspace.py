@@ -153,3 +153,16 @@ def test_recording_llm_logs_request_and_response(store: ProjectStore) -> None:
 
 def test_qa_pass_helper_is_an_empty_report() -> None:
     assert qa_pass().passed
+
+
+def test_design_and_test_drafts_have_their_own_owners(store: ProjectStore) -> None:
+    team = open_team(store)
+    draft = draft_for("login_system.txt")
+    team.write("designer", "design-draft", draft)
+    team.write("tester", "test-draft", draft)
+    with pytest.raises(SingleWriterError):
+        team.write("tester", "design-draft", draft)
+    with pytest.raises(SingleWriterError):
+        team.write("designer", "test-draft", draft)
+    with pytest.raises(SingleWriterError):
+        team.write("designer", "draft", draft)

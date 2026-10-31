@@ -42,8 +42,7 @@ def run_review(llm: FakeLLM, checklist: Checklist = SRS, items: int = 3) -> QaRe
     return review(
         llm,
         checklist=checklist,
-        doc_id=DOC,
-        item_count=items,
+        item_counts={DOC: items},
         upstream="UPSTREAM TEXT",
         draft_view="DRAFT TEXT",
         language=DocLanguage.EN,
@@ -105,13 +104,13 @@ def test_unknown_checklist_id_or_foreign_ref_is_reported() -> None:
     report = QaReport(
         issues=[issue("SRS-99"), issue(ref="DOC-BRD-0001#item.1"), issue(ref=f"{DOC}#item.9")]
     )
-    errors = validate_report(report, SRS, DOC, item_count=3)
+    errors = validate_report(report, SRS, {DOC: 3})
     assert errors == [
         "issue 1: unknown checklist_id 'SRS-99'",
         "issue 2: ref DOC-BRD-0001#item.1 is not an item of the draft",
         f"issue 3: ref {DOC}#item.9 is not an item of the draft",
     ]
-    assert validate_report(QaReport(issues=[issue(ref=None)]), SRS, DOC, 3) == []
+    assert validate_report(QaReport(issues=[issue(ref=None)]), SRS, {DOC: 3}) == []
 
 
 def test_an_unusable_report_is_retried_once_and_the_errors_are_sent_back() -> None:
@@ -147,3 +146,26 @@ def test_the_model_cannot_raise_a_severity_above_the_checklist() -> None:
 def test_review_applies_the_severity_cap() -> None:
     outcome = run_review(FakeLLM([QaReport(issues=[issue("SRS-07", "blocking")])]))
     assert outcome.report.passed
+
+
+def test_one_review_validates_refs_of_several_documents() -> None:
+    counts = {"DOC-TEST_IT-0001": 2, "DOC-TEST_ST-0001": 1}
+    report = QaReport(
+        issues=[
+            issue("SRS-01", ref="DOC-TEST_IT-0001#item.2"),
+            issue("SRS-01", ref="DOC-TEST_ST-0001#item.1"),
+            issue("SRS-01", ref="DOC-TEST_ST-0001#item.2"),
+            issue("SRS-01", ref="DOC-OTHER-0001#item.1".replace("OTHER", "BRD")),
+        ]
+    )
+    assert validate_report(report, SRS, counts) == [
+        "issue 3: ref DOC-TEST_ST-0001#item.2 is not an item of the draft",
+        "issue 4: ref DOC-BRD-0001#item.1 is not an item of the draft",
+    ]
+
+
+def test_checklists_can_be_found_by_stem_and_the_stage_ones_exist() -> None:
+    assert checklist_path("tests").name == "tests.toml"
+    assert checklist_path(DocType.BASIC_DESIGN).name == "basic_design.toml"
+    assert load_checklist(checklist_path("tests")).stage == "TESTS"
+    assert load_checklist(checklist_path(DocType.BASIC_DESIGN)).stage == "BASIC_DESIGN"

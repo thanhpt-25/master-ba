@@ -247,3 +247,7 @@ tests/ team/  agents/  pipeline/  fixtures/
 6. **Transcripts.** `RecordingLLM` writes each request and response, and `Team.write` the draft and QA report of every round, to `transcripts/` (numbered files).
 7. **Latent Phase 2 bug fixed.** openpyxl overwrites the workbook `modified` time during `save`, which made re-rendering unchanged content produce different bytes about once in six runs; `xlsxio.workbook_bytes` now patches `docProps/core.xml` (spec 02 decision 9).
 8. **`init-project` options** `--team-max-rounds` and `--team-token-budget` set the corresponding `ProjectConfig` fields.
+
+## 12. Changes made by Phase 5
+
+`qa_reviewer.review` and `validate_report` now take `item_counts` (a map from document id to item count) instead of `doc_id` and `item_count`, so one review can cover several documents; `checklist_path` accepts a checklist stem. Behaviour for the BRD and SRS stages is unchanged. See spec 05 section 5 and 11.

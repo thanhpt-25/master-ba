@@ -20,6 +20,8 @@ class StageResult:
     escalations: tuple[str, ...]
     tokens_used: int
     document_id: str | None = None
+    document_ids: tuple[str, ...] = ()
+    exchanges: int = 0
     requirement_ids: tuple[str, ...] = ()
     xlsx_path: Path | None = None
     open_questions: tuple[str, ...] = ()
@@ -31,6 +33,7 @@ def stage_result(
     run: TeamRun,
     *,
     document_id: str | None = None,
+    document_ids: tuple[str, ...] = (),
     requirement_ids: tuple[str, ...] = (),
     xlsx_path: Path | None = None,
     open_questions: tuple[str, ...] = (),
@@ -46,7 +49,9 @@ def stage_result(
         advisory=tuple(team.advisory),
         escalations=tuple(run.escalations),
         tokens_used=run.tokens_used or 0,
-        document_id=document_id,
+        document_id=document_id or (document_ids[0] if document_ids else None),
+        document_ids=document_ids or ((document_id,) if document_id else ()),
+        exchanges=team.exchanges,
         requirement_ids=requirement_ids,
         xlsx_path=xlsx_path,
         open_questions=open_questions,

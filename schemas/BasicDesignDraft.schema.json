@@ -1,0 +1,94 @@
+{
+  "$defs": {
+    "BasicDesignKind": {
+      "enum": [
+        "function",
+        "screen",
+        "interface",
+        "data_entity"
+      ],
+      "title": "BasicDesignKind",
+      "type": "string"
+    },
+    "DesignAnswer": {
+      "additionalProperties": false,
+      "description": "The designer's reply to a tester question about one design item.",
+      "properties": {
+        "ref": {
+          "pattern": "^DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}#item\\.\\d+$",
+          "title": "Ref",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "text"
+      ],
+      "title": "DesignAnswer",
+      "type": "object"
+    },
+    "DraftDesignItem": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/BasicDesignKind"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "realizes": {
+          "items": {
+            "pattern": "^DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}#item\\.\\d+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Realizes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "description",
+        "realizes"
+      ],
+      "title": "DraftDesignItem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "answers": {
+      "items": {
+        "$ref": "#/$defs/DesignAnswer"
+      },
+      "title": "Answers",
+      "type": "array"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/DraftDesignItem"
+      },
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "BasicDesignDraft",
+  "type": "object"
+}

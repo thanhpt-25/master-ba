@@ -13,7 +13,7 @@ from masterba.llm import DEFAULT_MODEL, LLM, AnthropicLLM, LLMError
 from masterba.models import ProjectConfig
 from masterba.models.enums import DocLanguage, TeamRunStatus
 from masterba.models.ids import PROJECT_ID_PATTERN
-from masterba.pipeline import StageResult, run_brd, run_srs
+from masterba.pipeline import StageResult, run_basic_design, run_brd, run_srs
 from masterba.rendering import RenderError
 from masterba.trace_store import TraceStoreError, create_project, open_project
 from masterba.trace_store.git import ensure_ready
@@ -59,6 +59,13 @@ def build_parser() -> argparse.ArgumentParser:
     srs.add_argument(
         "--qa-model", default=None, help="model for the QA reviewer (default: --model)"
     )
+    basic = stages.add_parser("basic", help="stored SRS -> Basic Design + IT/ST tests")
+    basic.add_argument("--project", type=_project_id, required=True)
+    basic.add_argument("--model", default=None, help="model for the designer")
+    basic.add_argument("--test-model", default=None, help="model for the tester (default: --model)")
+    basic.add_argument(
+        "--qa-model", default=None, help="model for the QA reviewer (default: --model)"
+    )
     return parser
 
 
@@ -100,8 +107,13 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
             qa_llm=reviewer,
             reuse_intake=args.reuse_intake,
         )
-    else:
+    elif args.stage == "srs":
         result = run_srs(store, root / "templates", writer, qa_llm=reviewer)
+    else:
+        tester = llm_factory(args.test_model) if args.test_model else None
+        result = run_basic_design(
+            store, root / "templates", writer, tester_llm=tester, qa_llm=reviewer
+        )
     _emit(_summary(result))
     return 3 if result.status is TeamRunStatus.ESCALATED else 0
 
@@ -118,6 +130,8 @@ def _summary(result: StageResult) -> dict[str, object]:
         "escalations": list(result.escalations),
         "tokens_used": result.tokens_used,
         "document_id": result.document_id,
+        "document_ids": list(result.document_ids),
+        "exchanges": result.exchanges,
         "requirement_ids": list(result.requirement_ids),
         "xlsx": str(result.xlsx_path) if result.xlsx_path else None,
         "open_questions": list(result.open_questions),

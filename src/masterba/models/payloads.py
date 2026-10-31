@@ -64,6 +64,15 @@ class TestCaseItem(PayloadItem):
     verifies: list[ReqOrItemRef] = Field(default_factory=list)
 
 
+class TestExclusion(FrozenModel):
+    """An item deliberately left without a test case, with the reason."""
+
+    __test__ = False  # not a pytest class
+
+    item_ref: ItemRef
+    reason: str = Field(min_length=1)
+
+
 class BrdContent(FrozenModel):
     items: list[BrdItem]
 
@@ -84,6 +93,7 @@ class TestSpecContent(FrozenModel):
     __test__ = False  # not a pytest class
 
     items: list[TestCaseItem]
+    exclusions: list[TestExclusion] = Field(default_factory=list)
 
 
 Payload = BrdContent | SrsContent | BasicDesignContent | DetailDesignContent | TestSpecContent

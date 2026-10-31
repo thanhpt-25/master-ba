@@ -1,0 +1,31 @@
+stage = "BASIC_DESIGN"
+
+[[checks]]
+id = "BD-01"
+severity = "blocking"
+text = "Every SRS item is realised by at least one design item, and every design item realises the SRS items it names; nothing is designed that no SRS item calls for."
+
+[[checks]]
+id = "BD-02"
+severity = "blocking"
+text = "Each design item is testable: inputs, outputs, limits (length, range, count, time) and error handling are stated as far as the SRS supports. A limit the SRS does not give is marked open, not invented."
+
+[[checks]]
+id = "BD-03"
+severity = "blocking"
+text = "No detail-design or implementation choice appears (class, method or table-column names, framework or library choices); the design stays at function, screen, interface and data-entity level."
+
+[[checks]]
+id = "BD-04"
+severity = "blocking"
+text = "Each item has the right kind and states its responsibility: a function says what it does, a screen what the user sees and does, an interface what is exchanged with whom, a data entity what is stored."
+
+[[checks]]
+id = "BD-05"
+severity = "blocking"
+text = "Names and terminology are consistent and no two items contradict each other."
+
+[[checks]]
+id = "BD-06"
+severity = "advisory"
+text = "Vague wording such as 'quickly', 'appropriate' or 'as needed' is not left undefined in a description."

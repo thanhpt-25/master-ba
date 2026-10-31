@@ -20,7 +20,12 @@ from masterba.team.models import MessageType, TaskStatus, TeamMessage, TeamTask
 from masterba.trace_store import ProjectStore
 from masterba.trace_store.git import commit_paths
 
-ARTIFACT_OWNERS = {"draft": "writer", "qa-report": "qa"}
+ARTIFACT_OWNERS = {
+    "draft": "writer",
+    "design-draft": "designer",
+    "test-draft": "tester",
+    "qa-report": "qa",
+}
 _RUN_DIR = re.compile(r"^RUN-(\d{4})$")
 _OPEN = {TaskStatus.TODO, TaskStatus.IN_PROGRESS}
 
@@ -50,6 +55,7 @@ class Team:
     tasks: list[TeamTask] = field(default_factory=list)
     messages: list[TeamMessage] = field(default_factory=list)
     log_count: int = 0
+    exchanges: int = 0
 
     @classmethod
     def open(

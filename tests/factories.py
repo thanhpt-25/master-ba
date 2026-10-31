@@ -3,13 +3,20 @@
 from pathlib import Path
 
 from masterba.agents import (
+    BasicDesignDraft,
     BrdDraft,
+    DesignAnswer,
+    DesignQuestion,
+    DraftDesignItem,
+    DraftExclusion,
     DraftRequirement,
     DraftSrsItem,
+    DraftTestCase,
     OpenQuestion,
     QaIssue,
     QaReport,
     SrsDraft,
+    TestDraft,
 )
 from masterba.models import (
     BasicDesignContent,
@@ -330,3 +337,113 @@ def login_srs_draft() -> SrsDraft:
 def incomplete_srs_draft() -> SrsDraft:
     """Leaves REQ-0003 and REQ-0004 uncovered."""
     return SrsDraft(items=login_srs_draft().items[:2])
+
+
+SRS_DOC = "DOC-SRS-0001"
+DESIGN_DOC = "DOC-BASIC_DESIGN-0001"
+
+
+def srs_ref(n: int) -> str:
+    return f"{SRS_DOC}#item.{n}"
+
+
+def design_ref(n: int) -> str:
+    return f"{DESIGN_DOC}#item.{n}"
+
+
+def design_item(
+    kind: BasicDesignKind, name: str, description: str, *realizes: int
+) -> DraftDesignItem:
+    return DraftDesignItem(
+        kind=kind,
+        name=name,
+        description=description,
+        realizes=[srs_ref(n) for n in realizes],
+    )
+
+
+def login_design_draft() -> BasicDesignDraft:
+    """Five design items realising the four SRS items of the login demo."""
+    return BasicDesignDraft(
+        items=[
+            design_item(
+                BasicDesignKind.SCREEN,
+                "Login screen",
+                "Form with email and password fields and a submit button.",
+                1,
+            ),
+            design_item(
+                BasicDesignKind.FUNCTION,
+                "Authentication",
+                "Checks the email and password of a registered customer and opens a session.",
+                1,
+            ),
+            design_item(
+                BasicDesignKind.FUNCTION,
+                "Password reset",
+                "Sends a reset link by email and stores the new password.",
+                2,
+            ),
+            design_item(
+                BasicDesignKind.FUNCTION,
+                "Availability",
+                "The portal runs around the clock; planned downtime is not allowed.",
+                3,
+            ),
+            design_item(
+                BasicDesignKind.FUNCTION,
+                "Order history",
+                "Lists the signed-in customer's past orders, newest first.",
+                4,
+            ),
+        ]
+    )
+
+
+def login_design_answered() -> BasicDesignDraft:
+    """The design after the tester asked about the password limits (item 2)."""
+    draft = login_design_draft()
+    items = list(draft.items)
+    items[1] = items[1].model_copy(
+        update={"description": items[1].description + " Passwords are 8 to 64 characters long."}
+    )
+    answer = DesignAnswer(ref=design_ref(2), text="Passwords are 8 to 64 characters long.")
+    return BasicDesignDraft(items=items, answers=[answer])
+
+
+def tcase(*verifies: str, expected: str = "The result is shown.") -> DraftTestCase:
+    return DraftTestCase(
+        precondition="A registered customer exists.",
+        input="valid data",
+        steps=["Open the page", "Submit the form"],
+        expected=expected,
+        verifies=list(verifies),
+    )
+
+
+def login_test_draft() -> TestDraft:
+    """One IT case per design item and one ST case per SRS item."""
+    return TestDraft(
+        it_cases=[tcase(design_ref(n)) for n in range(1, 6)],
+        st_cases=[tcase(srs_ref(n)) for n in range(1, 5)],
+    )
+
+
+def login_test_draft_with_question() -> TestDraft:
+    question = DesignQuestion(
+        ref=design_ref(2), question="What are the minimum and maximum password lengths?"
+    )
+    return login_test_draft().model_copy(update={"questions": [question]})
+
+
+def login_test_draft_with_exclusions() -> TestDraft:
+    """Availability has no ST case (excluded) and the availability design item no IT case."""
+    full = login_test_draft()
+    return TestDraft(
+        it_cases=[c for c in full.it_cases if design_ref(4) not in c.verifies],
+        st_cases=[c for c in full.st_cases if srs_ref(3) not in c.verifies],
+        exclusions=[
+            DraftExclusion(item_ref=design_ref(4), reason="Needs a production monitoring setup."),
+            DraftExclusion(item_ref=srs_ref(3), reason="Cannot be shown in a test period."),
+        ],
+    )

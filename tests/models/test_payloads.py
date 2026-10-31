@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from factories import make_brd, make_brd_item, make_test_item, make_test_spec
-from masterba.models import BrdContent, payload_items
+from masterba.models import BrdContent, TestExclusion, TestSpecContent, payload_items
 from masterba.models.enums import DocType, Level
 from masterba.models.payloads import LEVEL_BY_TEST_TYPE, PAYLOAD_BY_TYPE
 
@@ -49,3 +49,16 @@ def test_test_case_requires_valid_test_id() -> None:
     assert make_test_spec(item).items[0].test_id == "TC-UT-0001"
     with pytest.raises(ValidationError):
         make_test_item("DOC-TEST_UT-0001", 1, "TC-9-1", Level.UT)
+
+
+def test_test_spec_exclusions_default_to_empty_and_round_trip() -> None:
+    assert TestSpecContent.model_validate({"items": []}).exclusions == []
+    content = TestSpecContent(
+        items=[],
+        exclusions=[
+            TestExclusion(item_ref="DOC-BASIC_DESIGN-0001#item.2", reason="Not testable yet.")
+        ],
+    )
+    assert TestSpecContent.model_validate(content.model_dump(mode="json")) == content
+    with pytest.raises(ValidationError):
+        TestExclusion(item_ref="DOC-BASIC_DESIGN-0001#item.2", reason="")
