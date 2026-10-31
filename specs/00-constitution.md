@@ -96,6 +96,13 @@ Thư mục mới ngoài danh sách trên phải được thêm vào spec này (h
 - [x] `pytest` chạy được, kết quả "no tests collected", không lỗi — xác nhận wiring toolchain đúng. *(2026-10-31: `uv run pytest` → "collected 0 items / no tests ran", exit 5 = không có test; `ruff check` pass.)*
 - [ ] File này tồn tại và không có code nào ở phase sau mâu thuẫn với nó. *(tiêu chí liên tục — kiểm lại ở mỗi phase.)*
 
+## Sửa đổi
+
+- **2026-10-31 (spec 11 mục 4, 5, 7):**
+  - Frontend Phase 8 dùng ES module thuần, không có bước build (quyết định của spec 08), thay cho React + Next.js ghi ở bảng mục 1. Bảng mục 1 giữ nguyên để lưu lịch sử.
+  - Bỏ hai thư mục `backend/` và `mcp-configs/` khỏi mục 2. Backend nằm trong `src/masterba/api/`; hiện chưa có cấu hình MCP nào.
+  - Thêm ở thư mục gốc: `.github/workflows/` (CI), cùng các file `Dockerfile`, `.dockerignore`, `compose.yaml`, `.env.example`. `work/` (work tree mặc định của Docker Compose) và `.env` được gitignore.
+
 ## Rủi ro & rollback
 - ID scheme (mục 3) thiếu trường hợp (vd. cần ID cho "field" chứ không chỉ "item") → sửa spec này trước, bump version (`v0.1`→`v0.2`), rà soát lại `trace_store` ở Phase 1 — không patch ngầm ở Phase 7.
 - Đổi toolchain (vd. bỏ `ruff`) → phải sửa spec này trước, không đổi lặt vặt trong CI config mà không cập nhật spec.

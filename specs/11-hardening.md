@@ -1,6 +1,6 @@
 # Spec 11 — Hardening: QA signal, convergence, resume, CI, containers
 
-Status: v0.1 (2026-10-31), draft. Sources: [next-steps.md](../docs/next-steps.md) Phase 11 (owner decisions in 12.5, item 6 for containers), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md), [05-basic-design-and-tests.md](05-basic-design-and-tests.md) section 9 (live findings 3 and 5), [08-dashboard.md](08-dashboard.md), [00-constitution.md](00-constitution.md).
+Status: v0.2 (2026-10-31), implemented except the live runs (2.3) and CI on GitHub (4); see sections 9 and 10. Sources: [next-steps.md](../docs/next-steps.md) Phase 11 (owner decisions in 12.5, item 6 for containers), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md), [05-basic-design-and-tests.md](05-basic-design-and-tests.md) section 9 (live findings 3 and 5), [08-dashboard.md](08-dashboard.md), [00-constitution.md](00-constitution.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -186,21 +186,55 @@ The README setup section gains the `doctor` step and the Docker Compose quick st
 
 ## 9. Acceptance criteria
 
-- [ ] `normalise_report` has unit tests for both downgrade rules and the note it posts; a regression test replays the spec 05 run 4 issue ("acceptable as written", no action) and the run finishes `done`; the `QaReport` and `TeamRun` schemas are regenerated and drift-tested.
-- [ ] Customer questions from both loops reach `TeamRun.customer_questions`, and the SRS stage merges them with `open_questions`.
-- [ ] `team_max_rounds_by_stage` overrides the default per stage and is set through `init-project --rounds`.
-- [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3).
-- [ ] `--resume` continues an escalated run with the fake model for every stage; it refuses a run that is done, of another stage, without a checkpoint, with a changed upstream version, or whose target document exists; the commit subject says `(resumed)`.
-- [ ] The CI jobs `quick`, `full` and `image` are green on `main`, and `quick` runs in under one minute.
-- [ ] `docker compose up` serves the dashboard on 127.0.0.1:8000 and the health check passes; `docker compose run --rm masterba init-project ...` and a fake-model stage run create commits visible in the host work tree, authored with the configured name; the container runs as a non-root user; no key is in the image.
-- [ ] `masterba doctor` passes on a prepared root, reports each failing check with its fix, and `--init` prepares an empty folder but refuses a non-empty one.
-- [ ] `backend/` and `mcp-configs/` are gone, spec 00 carries the dated amendment, and `CLAUDE.md` describes the Phase 9 state.
-- [ ] Dashboard jobs survive a restart (interrupted jobs shown as such), and retention keeps 50 per project.
-- [ ] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass.
+- [x] `normalise_report` has unit tests for both downgrade rules and the note it posts; a regression test replays the spec 05 run 4 issue ("acceptable as written", no action) and the run finishes `done`; the `QaReport` and `TeamRun` schemas are regenerated and drift-tested.
+- [x] Customer questions from both loops reach `TeamRun.customer_questions`, and the SRS stage merges them with `open_questions`.
+- [x] `team_max_rounds_by_stage` overrides the default per stage and is set through `init-project --rounds`.
+- [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Open: no model key in this environment (10.3).*
+- [x] `--resume` continues an escalated run with the fake model for every stage; it refuses a run that is done, of another stage, without a checkpoint, with a changed upstream version, or whose target document exists; the commit subject says `(resumed)`.
+- [ ] The CI jobs `quick`, `full` and `image` are green on `main`, and `quick` runs in under one minute. *Open until the first push; locally the quick selection runs in 45 to 58 s (10.4).*
+- [x] `docker compose up` serves the dashboard on 127.0.0.1:8000 and the health check passes; `docker compose run --rm masterba init-project ...` and a fake-model stage run create commits visible in the host work tree, authored with the configured name; the container runs as a non-root user; no key is in the image. *A stage run in the container needs a model key and was not tried (10.5).*
+- [x] `masterba doctor` passes on a prepared root, reports each failing check with its fix, and `--init` prepares an empty folder but refuses a non-empty one.
+- [x] `backend/` and `mcp-configs/` are gone, spec 00 carries the dated amendment, and `CLAUDE.md` describes the current state (Phase 11).
+- [x] Dashboard jobs survive a restart (interrupted jobs shown as such), and retention keeps 50 per project.
+- [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass. *(2026-10-31: 597 passed, coverage 97.55%.)*
 
 ## 10. Manual review record
 
-To be filled while implementing: the prompt changes with the issue each targets (2.2), the live runs (2.3), the CI timings (4) and the container check (5).
+### 10.1 Implementation decisions
+
+1. The checkpoint is written after the gate passes, as specified, and written again after a QA review that blocks, so a resumed run gets QA's feedback and not only the draft.
+2. The BRD stage records its upstream as `intake/<file name>: 1`; a stored intake never changes, and resume requires the same `--input` file. The dashboard offers Resume for SRS, Basic and Detail only, because a BRD run needs its intake file again.
+3. A resumed run keeps the tasks and mailbox of the earlier attempt (its tasks stay `blocked`); the `done` check covers only the tasks of the resumed attempt. Escalation reasons start empty for each attempt, and the summary is rewritten.
+4. The `--rounds STAGE=N` option accepts `brd`, `srs`, `basic`, `detail` or a document type such as `BASIC_DESIGN`.
+5. `ensure_ready` accepts `GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL` in place of git config, which the container needs.
+6. `doctor --init` also writes a `.gitignore` with `.masterba/` (users, session secret, uploads) and copies the default templates; without the copy the templates check would fail right after `--init`.
+7. The image keeps the source at `/app` as an editable install, because prompts, skills, templates and the web app are found relative to the source tree. The image has no development tools, so the `image` CI job runs `doctor --init`, `init-project` and checks the commit author, the non-root user and the key scan, instead of the quick tests inside the image.
+8. The `full` and `image` jobs run on `main` and on every pull request, without path filters; they run more often than specified, never less.
+9. A job file that cannot be written is logged and does not fail the job; the run's results are already in git.
+
+### 10.2 Prompt changes (2.2)
+
+`scripts/qa_issue_stats.py` on the recorded spec 05 runs (RUN-0005 to RUN-0008, Basic Design): TS-04 18, TS-01 17, TS-02 15, TS-05 14, BD-01 12, TS-03 11, BD-04 8, BD-02 4.
+
+| Prompt | Change | Targets |
+|---|---|---|
+| `basic-test-design.md` rule 1 | An IT case says which design item passes what to which; a user's journey is an ST case | TS-04 (IT cases written as user flows) |
+| `basic-test-design.md` rule 3 | Where an item says wrong input or failure is rejected or handled, at least one error case on what is stated; every expected result is OK/NG | TS-02, TS-01 |
+| `basic-test-design.md` rule 4 (new) | Non-functional cases only with a stated figure, otherwise an exclusion `no measurable criterion: ...` | TS-01, TS-05 (availability and performance cases that only observe) |
+| `basic-design.md` rule 1 | `interface` only for a named external system, `data_entity` only for information an SRS item says is kept; non-functional items realised by the items they constrain | BD-01 (unrequested email interface and data entities) |
+| `unit-test-design.md` rule 3, `detail-design.md` rule 1 | The same two rules at detail level | carried over; no recorded detail runs |
+
+### 10.3 Live runs (2.3)
+
+Not run: `ANTHROPIC_API_KEY` is not set in the implementing environment. Open until the owner runs `masterba run basic` and `masterba run detail` with a named model (with `--resume` available now) or accepts the recorded escalation.
+
+### 10.4 CI timings (4)
+
+Measured locally (macOS, 2026-10-31): the full suite takes 304 s for 595 tests. The `slow` marker is set per module in `tests/conftest.py` (pipeline, propagation, CLI, API flow, permissions and security, calibration); the quick selection is 402 tests in 45 to 58 s. Not yet run on GitHub.
+
+### 10.5 Container check (5)
+
+Docker 29.9.2, 2026-10-31: the image builds; `docker run ... doctor --init` on an empty bind-mounted folder prepares it (git, author from `GIT_AUTHOR_*`, 8 templates) and `init-project` writes a commit visible on the host with the configured author; `docker compose up --wait` reports the service healthy on 127.0.0.1:8000 and `/api/health` returns the version; the container user is `masterba` (uid 1000); `docker history` and the image filesystem hold no key and no `.env`. A stage run inside the container was not tried, because the CLI has no fake model; it needs a key.
 
 ## 11. Open points (do not block implementation)
 
