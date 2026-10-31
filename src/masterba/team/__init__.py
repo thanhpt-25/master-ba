@@ -10,9 +10,10 @@ from masterba.team.design_test_loop import (
 )
 from masterba.team.loop import format_issue, run_writer_review
 from masterba.team.models import MessageType, TaskStatus, TeamMessage, TeamTask
-from masterba.team.workspace import RecordingLLM, SingleWriterError, Team
+from masterba.team.workspace import PROGRESS, RecordingLLM, SingleWriterError, Team
 
 __all__ = [
+    "PROGRESS",
     "MAX_EXCHANGES",
     "Answer",
     "DesignTestHooks",

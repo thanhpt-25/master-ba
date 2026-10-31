@@ -86,3 +86,25 @@ def document_exists(store: ProjectStore, doc_id: str) -> bool:
     except NotFoundError:
         return False
     return True
+
+
+def stage_summary(result: StageResult) -> dict[str, object]:
+    """The JSON summary of a stage run (printed by the CLI, returned by the API)."""
+    return {
+        "stage": result.stage.value,
+        "status": result.status.value,
+        "run_id": result.run_id,
+        "rounds": result.rounds,
+        "issues_raised": result.issues_raised,
+        "issues_resolved": result.issues_resolved,
+        "advisory_issues": list(result.advisory),
+        "escalations": list(result.escalations),
+        "tokens_used": result.tokens_used,
+        "document_id": result.document_id,
+        "document_ids": list(result.document_ids),
+        "exchanges": result.exchanges,
+        "requirement_ids": list(result.requirement_ids),
+        "xlsx": str(result.xlsx_path) if result.xlsx_path else None,
+        "open_questions": list(result.open_questions),
+        "uncovered_lines": list(result.uncovered_lines),
+    }

@@ -6,6 +6,8 @@ mailbox are committed once at the end; ``transcripts/`` stays local.
 
 import json
 import re
+from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -20,6 +22,8 @@ from masterba.team.models import MessageType, TaskStatus, TeamMessage, TeamTask
 from masterba.trace_store import ProjectStore
 from masterba.trace_store.git import commit_paths
 
+# A job runner (the dashboard) sets this to receive one-line progress messages.
+PROGRESS: ContextVar[Callable[[str], None] | None] = ContextVar("masterba_progress", default=None)
 ARTIFACT_OWNERS = {
     "draft": "writer",
     "design-draft": "designer",
@@ -83,8 +87,14 @@ class Team:
     def transcripts_dir(self) -> Path:
         return self.run_dir / "transcripts"
 
+    def emit(self, message: str) -> None:
+        listener = PROGRESS.get()
+        if listener is not None:
+            listener(message)
+
     def begin_round(self) -> int:
         self.rounds += 1
+        self.emit(f"{self.run_id} {self.stage.value}: round {self.rounds} started")
         return self.rounds
 
     def add_task(self, title: str, owner: str, depends_on: tuple[str, ...] = ()) -> str:
@@ -167,6 +177,7 @@ class Team:
         commit_paths(
             self.store.root, paths, f"run({self.store.project_id}): {self.run_id} {status.value}"
         )
+        self.emit(f"{self.run_id} {self.stage.value}: {status.value} after {self.rounds} round(s)")
         return summary
 
 

@@ -171,6 +171,11 @@ def _doc_versions(store: ProjectStore, doc_id: str) -> list[int]:
     return sorted(versions)
 
 
+def document_versions(store: ProjectStore, doc_id: str) -> list[int]:
+    """Stored version numbers of a document, ascending."""
+    return _doc_versions(store, doc_id)
+
+
 def get_document(
     store: ProjectStore, doc_id: str, version: int | None = None
 ) -> tuple[Document, Payload]:

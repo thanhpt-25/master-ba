@@ -1,6 +1,7 @@
 """Command line: ``masterba init-project`` and ``masterba run brd`` (spec 03 section 6)."""
 
 import argparse
+import getpass
 import json
 import os
 import re
@@ -10,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from masterba.agents import QaOutputInvalidError
+from masterba.api import create_app, settings_from_env
+from masterba.api.auth import ROLES, AuthError, UserStore
 from masterba.change import (
     LifecycleError,
     approve_dr,
@@ -26,11 +29,11 @@ from masterba.models import ProjectConfig
 from masterba.models.enums import DocLanguage, DrTrigger, TeamRunStatus
 from masterba.models.ids import PROJECT_ID_PATTERN
 from masterba.pipeline import (
-    StageResult,
     run_basic_design,
     run_brd,
     run_detail_design,
     run_srs,
+    stage_summary,
 )
 from masterba.rendering import RenderError
 from masterba.trace_store import (
@@ -102,6 +105,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--qa-model", default=None, help="model for the QA reviewer (default: --model)"
     )
     _add_dr_parsers(commands)
+    serve = commands.add_parser("serve", help="run the dashboard (API and web app)")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+    user = commands.add_parser("user", help="dashboard users")
+    users = user.add_subparsers(dest="user_command", required=True)
+    add = users.add_parser("add")
+    add.add_argument("name")
+    add.add_argument("--role", choices=ROLES, required=True)
+    add.add_argument("--password-stdin", action="store_true")
+    users.add_parser("list")
+    users.add_parser("remove").add_argument("name")
     return parser
 
 
@@ -186,22 +200,7 @@ def _dispatch_dr(
         reviser = llm_factory(model)
         reviewer = llm_factory(args.qa_model) if args.qa_model else None
         result = propagate_dr(store, root / "templates", args.dr_id, reviser, qa_llm=reviewer)
-        _emit(
-            {
-                "dr_id": result.dr_id,
-                "status": result.status.value,
-                "documents": [
-                    {
-                        "doc_id": d.doc_id,
-                        "outcome": d.outcome,
-                        "version": d.version,
-                        "run_id": d.run_id,
-                        "escalations": list(d.escalations),
-                    }
-                    for d in result.documents
-                ],
-            }
-        )
+        _emit(result.to_json())
         return 3 if result.escalated else 0
     return 0
 
@@ -214,9 +213,36 @@ def _emit(data: dict[str, object]) -> None:
     sys.stdout.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 
 
+def _dispatch_user(args: argparse.Namespace, root: Path) -> int:
+    settings = settings_from_env(root)
+    store = UserStore(settings.state_dir / "users.json", settings.hash_iterations)
+    if args.user_command == "add":
+        if args.password_stdin:
+            password = sys.stdin.readline().rstrip("\n")
+        else:
+            password = getpass.getpass("Password: ")
+            if getpass.getpass("Repeat password: ") != password:
+                raise AuthError("the passwords differ")
+        user = store.add(args.name, args.role, password)
+        _emit({"name": user.name, "role": user.role})
+    elif args.user_command == "list":
+        _emit({"users": [{"name": u.name, "role": u.role} for u in store.list()]})
+    else:
+        store.remove(args.name)
+        _emit({"removed": args.name})
+    return 0
+
+
 def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
     root: Path = args.root
+    if args.command == "user":
+        return _dispatch_user(args, root)
     ensure_ready(root)
+    if args.command == "serve":
+        import uvicorn
+
+        uvicorn.run(create_app(settings_from_env(root)), host=args.host, port=args.port)
+        return 0
     projects = root / "projects"
     if args.command == "init-project":
         store = create_project(
@@ -252,29 +278,8 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
         tester = llm_factory(args.test_model) if args.test_model else None
         stage = run_basic_design if args.stage == "basic" else run_detail_design
         result = stage(store, root / "templates", writer, tester_llm=tester, qa_llm=reviewer)
-    _emit(_summary(result))
+    _emit(stage_summary(result))
     return 3 if result.status is TeamRunStatus.ESCALATED else 0
-
-
-def _summary(result: StageResult) -> dict[str, object]:
-    return {
-        "stage": result.stage.value,
-        "status": result.status.value,
-        "run_id": result.run_id,
-        "rounds": result.rounds,
-        "issues_raised": result.issues_raised,
-        "issues_resolved": result.issues_resolved,
-        "advisory_issues": list(result.advisory),
-        "escalations": list(result.escalations),
-        "tokens_used": result.tokens_used,
-        "document_id": result.document_id,
-        "document_ids": list(result.document_ids),
-        "exchanges": result.exchanges,
-        "requirement_ids": list(result.requirement_ids),
-        "xlsx": str(result.xlsx_path) if result.xlsx_path else None,
-        "open_questions": list(result.open_questions),
-        "uncovered_lines": list(result.uncovered_lines),
-    }
 
 
 def main(argv: Sequence[str] | None = None, *, llm_factory: LLMFactory | None = None) -> int:
@@ -283,6 +288,7 @@ def main(argv: Sequence[str] | None = None, *, llm_factory: LLMFactory | None = 
         return _dispatch(args, llm_factory or _default_llm)
     except (
         TraceStoreError,
+        AuthError,
         LifecycleError,
         RenderError,
         LLMError,

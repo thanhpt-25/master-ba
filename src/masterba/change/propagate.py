@@ -60,6 +60,22 @@ class PropagationResult:
     def escalated(self) -> bool:
         return any(d.outcome == "escalated" for d in self.documents)
 
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "dr_id": self.dr_id,
+            "status": self.status.value,
+            "documents": [
+                {
+                    "doc_id": d.doc_id,
+                    "outcome": d.outcome,
+                    "version": d.version,
+                    "run_id": d.run_id,
+                    "escalations": list(d.escalations),
+                }
+                for d in self.documents
+            ],
+        }
+
 
 def active_node_ids(store: ProjectStore) -> frozenset[str]:
     """Every active requirement and item id in the project (latest document versions)."""

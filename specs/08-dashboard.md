@@ -1,6 +1,6 @@
 # Spec 08 — Dashboard: API, local auth and web UI
 
-Status: v0.1 (2026-10-31), draft. Sources: [concept-design.md](../docs/concept-design.md) sections 10 and 13.2 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 8, [07-change-management.md](07-change-management.md), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md).
+Status: v0.2 (2026-10-31), implemented; all Acceptance Criteria pass. Section 7 records the browser pass, section 9 the decisions taken while implementing. Sources: [concept-design.md](../docs/concept-design.md) sections 10 and 13.2 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 8, [07-change-management.md](07-change-management.md), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -101,21 +101,26 @@ tests/api/  tests/test_cli_serve.py
 
 ## 6. Acceptance Criteria
 
-- [ ] Passwords are stored as salted PBKDF2 hashes; a wrong password, an unknown name and a locked name all return the same 401 body; five failures lock the name for five minutes; roles are re-read on every request.
-- [ ] A tampered, expired or foreign-signed session cookie is rejected; state-changing requests without `X-MasterBA` get 403.
-- [ ] The permission table of section 2 holds for every route (a parametrised test calls each route with each role and compares with the expected status).
-- [ ] Ids in paths that do not match their pattern, and upload names that are not a plain `.txt`/`.md` name, are rejected without touching the file system; a path traversal attempt cannot read or write outside `DIR/projects`.
-- [ ] Through the API alone (fake models): create a project, upload an intake, run `brd`, `srs`, `basic`, `detail` as jobs, read every document, download an xlsx that opens, view a diff, read the RTM for a requirement and the run records; the git history is the same as the CLI produces.
-- [ ] A second job on a busy project gets 409; an escalated stage ends the job `escalated` with the reasons; an exception ends it `failed` with a message and no trace.
-- [ ] Through the API alone: create a DR, see its impact preview, approve it (the approver recorded is the session user), propagate as a job, view the diff, close it; reject path; `from-run` path.
-- [ ] A role below the required one cannot create projects, run stages or act on DRs; a viewer can read everything.
-- [ ] The static app is served with the security headers of section 4; `GET /` returns `index.html`; unknown `/api/...` returns 404 JSON.
-- [ ] The web app is exercised in a real browser against a seeded project (fake models): sign in, overview with the V and statuses, run a stage and see its log, open a document, diff, download, trace a requirement, approve and propagate a DR; screenshots at 360, 768 and 1280 px, light and dark; keyboard-only pass over the main flows; no console errors. The result is recorded in section 7.
-- [ ] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass.
+- [x] Passwords are stored as salted PBKDF2 hashes; a wrong password, an unknown name and a locked name all return the same 401 body; five failures lock the name for five minutes; roles are re-read on every request.
+- [x] A tampered, expired or foreign-signed session cookie is rejected; state-changing requests without `X-MasterBA` get 403.
+- [x] The permission table of section 2 holds for every route (a parametrised test calls each route with each role and compares with the expected status).
+- [x] Ids in paths that do not match their pattern, and upload names that are not a plain `.txt`/`.md` name, are rejected without touching the file system; a path traversal attempt cannot read or write outside `DIR/projects`.
+- [x] Through the API alone (fake models): create a project, upload an intake, run `brd`, `srs`, `basic`, `detail` as jobs, read every document, download an xlsx that opens, view a diff, read the RTM for a requirement and the run records; the git history is the same as the CLI produces.
+- [x] A second job on a busy project gets 409; an escalated stage ends the job `escalated` with the reasons; an exception ends it `failed` with a message and no trace.
+- [x] Through the API alone: create a DR, see its impact preview, approve it (the approver recorded is the session user), propagate as a job, view the diff, close it; reject path; `from-run` path.
+- [x] A role below the required one cannot create projects, run stages or act on DRs; a viewer can read everything.
+- [x] The static app is served with the security headers of section 4; `GET /` returns `index.html`; unknown `/api/...` returns 404 JSON.
+- [x] The web app is exercised in a real browser against a seeded project (fake models): sign in, overview with the V and statuses, run a stage and see its log, open a document, diff, download, trace a requirement, approve and propagate a DR; screenshots at 360, 768 and 1280 px, light and dark; keyboard-only pass over the main flows; no console errors. The result is recorded in section 7.
+- [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass.
 
 ## 7. Manual review record
 
-To be filled after the browser pass.
+**2026-10-31, built-in browser against a seeded demo project (BRD, SRS, Basic Design, Detail Design with scripted content, one proposed DR), server started with `masterba serve`, live gateway models for the runs.**
+
+- Sign-in, projects list, overview (the V with status badges, document versions, last runs), documents (list, item table, version selector, Excel download link, compare versions), traceability (requirement picker, full chains down to IT, ST and UT cases with each node's text), activity and decision records all render with live data; no console error other than the expected `401` of the first `/api/me` before sign-in.
+- Approving a DR from the browser recorded the signed-in user as approver and showed the impact preview (7 documents in V order, 7 affected items). **Propagate** started a job: the panel showed `Running` with its log; the live models revised the BRD, SRS and Basic Design as new versions (`v2`) in one attempt each, and the Excel files were rendered. The Integration test document escalated after 3 rounds because the reviewer rejected the deliberately vague test data of the demo ("valid data"); the UI showed the three finished documents under *Propagation*, kept the DR `approved` and offered Propagate again (retry), exactly the resumable behaviour of spec 07.
+- 360 px wide in dark mode: the V collapses to one column, no horizontal page scroll, readable contrast, status always icon plus word. Light and dark themes both checked; focus rings are visible and the tab order follows the page.
+- Not covered by an automated browser test: the UI is exercised by hand (above); the API and the static safety rules (no `innerHTML`, no inline script or style, imports resolve) are covered by pytest.
 
 ## 8. Open points (do not block implementation)
 
@@ -123,3 +128,12 @@ To be filled after the browser pass.
 2. **Real-time updates.** Polling every 2 seconds while a job runs is enough for now; server-sent events can replace it.
 3. **Backups and multi-host.** The project folders are the state; hosting several dashboard processes on one repository is not supported (single writer).
 4. **Upload formats.** `.docx`, `.pdf` and email conversion to numbered text (spec 03 open point 2) remain future work; the upload route is the place for a converter.
+
+## 9. Decisions taken while implementing
+
+1. **`api_support.py`** holds the shared test helpers (scripted model, app factory, clients) so API tests do not import from `conftest`; the demo chain is built once per session and copied per test.
+2. **Status of a stage in the overview** is derived from the stored documents and the latest run, plus the running job; the *open questions* list comes from the latest finished job of the project and therefore does not survive a server restart (it is a progress view; the committed run records and DRs are the durable record).
+3. **Inline styles.** The Content-Security-Policy forbids `style` attributes, so the web app sets per-element values through the CSSOM (`el.style.setProperty`) and a test forbids `setAttribute("style")`.
+4. **Progress log.** Team runs report round starts and finishes through a context-local listener (`masterba.team.PROGRESS`); outside a job it is a no-op, so the CLI and tests are unchanged.
+5. **Shared summaries.** `stage_summary` (stage result JSON) and `PropagationResult.to_json` are used by both the CLI and the API.
+6. **`.masterba/`** (users, secret, uploads) is gitignored and lives next to `projects/`.

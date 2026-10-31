@@ -23,7 +23,7 @@ from masterba.pipeline.detail import (
     run_detail_design,
 )
 from masterba.pipeline.srs import SRS_DOC_ID, SrsArtifacts, assign_srs_ids, run_srs
-from masterba.pipeline.stage import StageResult
+from masterba.pipeline.stage import StageResult, stage_summary
 
 __all__ = [
     "DETAIL_DOC_ID",
@@ -47,4 +47,5 @@ __all__ = [
     "next_requirement_number",
     "run_brd",
     "run_srs",
+    "stage_summary",
 ]

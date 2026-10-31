@@ -10,6 +10,9 @@ dependencies = [
     "deepdiff>=7.0",
     "openpyxl>=3.1",
     "anthropic>=0.40",
+    "fastapi>=0.162.0",
+    "uvicorn>=0.54.0",
+    "python-multipart>=0.0.32",
 ]
 
 [project.scripts]
@@ -30,6 +33,7 @@ dev = [
     "mypy>=1.10",
     "types-networkx>=3.6.1.20261029",
     "types-openpyxl>=3.1.5.20261017",
+    "httpx>=0.28.1",
 ]
 
 [tool.uv]
