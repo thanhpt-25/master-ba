@@ -1,6 +1,6 @@
 # Spec 11 — Hardening: QA signal, convergence, resume, CI, containers
 
-Status: v0.2 (2026-10-31), implemented except the live runs (2.3) and CI on GitHub (4); see sections 9 and 10. Sources: [next-steps.md](../docs/next-steps.md) Phase 11 (owner decisions in 12.5, item 6 for containers), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md), [05-basic-design-and-tests.md](05-basic-design-and-tests.md) section 9 (live findings 3 and 5), [08-dashboard.md](08-dashboard.md), [00-constitution.md](00-constitution.md).
+Status: v0.3 (2026-10-31), implemented except the live runs (2.3); see sections 9 and 10. v0.3: CI run on GitHub, dry-run 1 recorded, QA rule for open upstream facts. Sources: [next-steps.md](../docs/next-steps.md) Phase 11 (owner decisions in 12.5, item 6 for containers), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md), [05-basic-design-and-tests.md](05-basic-design-and-tests.md) section 9 (live findings 3 and 5), [08-dashboard.md](08-dashboard.md), [00-constitution.md](00-constitution.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -189,9 +189,9 @@ The README setup section gains the `doctor` step and the Docker Compose quick st
 - [x] `normalise_report` has unit tests for both downgrade rules and the note it posts; a regression test replays the spec 05 run 4 issue ("acceptable as written", no action) and the run finishes `done`; the `QaReport` and `TeamRun` schemas are regenerated and drift-tested.
 - [x] Customer questions from both loops reach `TeamRun.customer_questions`, and the SRS stage merges them with `open_questions`.
 - [x] `team_max_rounds_by_stage` overrides the default per stage and is set through `init-project --rounds`.
-- [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Open: no model key in this environment (10.3).*
+- [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Open: dry-run 1 escalated in Basic Design (10.3).*
 - [x] `--resume` continues an escalated run with the fake model for every stage; it refuses a run that is done, of another stage, without a checkpoint, with a changed upstream version, or whose target document exists; the commit subject says `(resumed)`.
-- [ ] The CI jobs `quick`, `full` and `image` are green on `main`, and `quick` runs in under one minute. *Open until the first push; locally the quick selection runs in 45 to 58 s (10.4).*
+- [x] The CI jobs `quick`, `full` and `image` are green on `main`, and `quick` runs in under one minute. *(2026-10-31: run 41208337518, `quick` 32 s; 10.4.)*
 - [x] `docker compose up` serves the dashboard on 127.0.0.1:8000 and the health check passes; `docker compose run --rm masterba init-project ...` and a fake-model stage run create commits visible in the host work tree, authored with the configured name; the container runs as a non-root user; no key is in the image. *A stage run in the container needs a model key and was not tried (10.5).*
 - [x] `masterba doctor` passes on a prepared root, reports each failing check with its fix, and `--init` prepares an empty folder but refuses a non-empty one.
 - [x] `backend/` and `mcp-configs/` are gone, spec 00 carries the dated amendment, and `CLAUDE.md` describes the current state (Phase 11).
@@ -223,14 +223,26 @@ The README setup section gains the `doctor` step and the Docker Compose quick st
 | `basic-test-design.md` rule 4 (new) | Non-functional cases only with a stated figure, otherwise an exclusion `no measurable criterion: ...` | TS-01, TS-05 (availability and performance cases that only observe) |
 | `basic-design.md` rule 1 | `interface` only for a named external system, `data_entity` only for information an SRS item says is kept; non-functional items realised by the items they constrain | BD-01 (unrequested email interface and data entities) |
 | `unit-test-design.md` rule 3, `detail-design.md` rule 1 | The same two rules at detail level | carried over; no recorded detail runs |
+| `qa-reviewer.md` rule 6 (new), checklist `tests.toml` TS-05 | When a requirement depends on a fact the upstream leaves open (the event a deadline counts from, an error condition, a figure), QA does not demand a case, check or exclusion for the open part, and an exclusion naming that fact is convincing; such a point is a `customer_question` | TS-05, TS-02 (dry-run 1 below: QA called the same open start event a customer question in one issue and a blocking gap in another) |
 
 ### 10.3 Live runs (2.3)
 
-Not run: `ANTHROPIC_API_KEY` is not set in the implementing environment. Open until the owner runs `masterba run basic` and `masterba run detail` with a named model (with `--resume` available now) or accepts the recorded escalation.
+Dry-run 1, 2026-10-31: local Anthropic-compatible gateway, model `cx/gpt-6-luna` for writers and QA, synthetic intake `tests/fixtures/intake/leave_management.txt`, language `en`, scratch work tree.
+
+| Stage | Result | Rounds | Issues raised / resolved | Tokens |
+|---|---|---|---|---|
+| BRD | done, 5 requirements | 1 | 0 / 0 | 2,458 |
+| SRS | done | 2 | 2 / 2 | 5,799 |
+| Basic Design | escalated | 3 | 8 / 3 | 34,305 |
+| Basic Design, `--resume RUN-0003 --rounds 3` | escalated | 6 in total | 12 / 9 | 60,629 |
+
+Normalisation and resume behaved as specified: issues that depend on the customer became advisory and reached `open_questions` (7 after the resume); the resumed run kept `RUN-0003`, added its rounds and committed `RUN-0003 escalated (resumed)`; nothing business-related was written. The last blocking ids were TS-01, TS-02 and TS-05. TS-05 contradicted another issue of the same review about the three-business-day approval limit, whose start event the intake leaves open; this led to the `qa-reviewer.md` change in 10.2. Detail Design was not run because Basic Design did not finish.
+
+Still open until `run basic` and `run detail` reach `done` with a named model, or the owner accepts the recorded escalation.
 
 ### 10.4 CI timings (4)
 
-Measured locally (macOS, 2026-10-31): the full suite takes 304 s for 595 tests. The `slow` marker is set per module in `tests/conftest.py` (pipeline, propagation, CLI, API flow, permissions and security, calibration); the quick selection is 402 tests in 45 to 58 s. Not yet run on GitHub.
+Measured locally (macOS, 2026-10-31): the full suite takes 304 s for 595 tests. The `slow` marker is set per module in `tests/conftest.py` (pipeline, propagation, CLI, API flow, permissions and security, calibration); the quick selection is 402 tests in 45 to 58 s. On GitHub (run 41208337518, commit `8a7eff9`): `quick` 32 s, `full` 1 min 26 s, `image` 29 s. The first run failed in the `image` key check because `find` exits 1 on unreadable folders as the non-root user; fixed in `8a7eff9`.
 
 ### 10.5 Container check (5)
 
