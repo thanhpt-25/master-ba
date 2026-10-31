@@ -1,0 +1,266 @@
+{
+  "cell_bindings": {
+    "header": [
+      {
+        "cell": "B2",
+        "sheet": "overview",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "overview",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "overview",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "overview",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "modules",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "modules",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "modules",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "modules",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "steps",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "steps",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "steps",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "steps",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "db",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "db",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "db",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "db",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "api",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "api",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "api",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "api",
+        "source": "$document.status"
+      }
+    ],
+    "tables": [
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "name",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "spec",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "refines",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "modules",
+        "start_row": 8,
+        "where": {
+          "kind": "module",
+          "status": "active"
+        }
+      },
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "name",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "spec",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "refines",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "steps",
+        "start_row": 8,
+        "where": {
+          "kind": "processing_step",
+          "status": "active"
+        }
+      },
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "name",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "spec",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "refines",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "db",
+        "start_row": 8,
+        "where": {
+          "kind": "db_table",
+          "status": "active"
+        }
+      },
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "name",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "spec",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "refines",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "api",
+        "start_row": 8,
+        "where": {
+          "kind": "api",
+          "status": "active"
+        }
+      }
+    ],
+    "value_maps": {
+      "scope": {
+        "in": "対象",
+        "out": "対象外"
+      }
+    }
+  },
+  "company_id": "default",
+  "doc_type": "DETAIL_DESIGN",
+  "sheet_map": {
+    "api": "インターフェース設計",
+    "db": "データベース設計",
+    "modules": "機能仕様",
+    "overview": "システム概要",
+    "steps": "処理フロー"
+  },
+  "source": "baseline",
+  "validation_rules": [
+    {
+      "limit": 32767,
+      "rule": "max_cell_length"
+    }
+  ]
+}

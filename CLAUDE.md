@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Phases 0 (scaffold) and 1 (data contracts: models, `trace_store`, diff) are done; there is no Excel rendering, agent or orchestrator code yet (Phase 2+). Conventions (toolchain, repo layout, ID scheme, ID Stability Rule, document versioning, commit format) are binding and defined in `specs/00-constitution.md` — read it before adding code.
+Phases 0 (scaffold), 1 (data contracts: models, `trace_store`, diff) and 2 (Excel rendering) are done; there is no agent or orchestrator code yet (Phase 3+). Conventions (toolchain, repo layout, ID scheme, ID Stability Rule, document versioning, commit format) are binding and defined in `specs/00-constitution.md` — read it before adding code.
 
 ## Commands
 
@@ -17,14 +17,16 @@ uv run pytest tests/trace_store/test_store.py::test_add_requirement_commits_and_
 uv run ruff check . && uv run ruff format --check .
 uv run mypy src tests            # strict mode
 PYTHONPATH=src uv run python -m masterba.schema_export   # regenerate schemas/*.schema.json after changing a model
+PYTHONPATH=src uv run python -m masterba.rendering.shells # regenerate templates/default/* after editing rendering/catalog.py
 ```
 
-## Architecture (Phase 1 state)
+## Architecture (Phase 2 state)
 
 Code lives in `src/masterba/`:
 - `models/`: frozen Pydantic v2 models are the single source of truth; `schemas/*.schema.json` are generated from them and a test fails if they drift.
 - `trace_store/`: file-based project store under `projects/<project_id>/`. Each business action is exactly one git commit (`commit_paths` commits only the files it wrote), and the store must run inside a git repo. `add_document` enforces the ID Stability Rule (a new version may not drop or revive item ids) and raises `IdStabilityError`.
 - `trace_store/graph.py`: trace links point upstream to downstream; test case ids (`TC-...`) are aliases of their test item ref. `query_impact` and `rtm` walk only trace edges, not document containment edges.
+- `rendering/`: JSON to `.xlsx`, no LLM. `catalog.py` is the single source for the 8 baseline templates; `shells.py` generates `templates/default/<TYPE>.xlsx` and `<TYPE>.template.json` from it (a test fails if the committed files drift). Bindings in `TemplateDefinition.cell_bindings` are parsed into typed models in `bindings.py` at load time. Output is byte-deterministic (`xlsxio.workbook_bytes` fixes zip timestamps), so re-rendering unchanged content makes no git commit. Every string is written as text, never as a formula.
 - `diff/`: structural diff by stable item id plus `classify_change` (pure similarity, no LLM; numeric edits always count as structural).
 
 ## Intended purpose

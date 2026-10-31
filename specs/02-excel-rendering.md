@@ -1,6 +1,6 @@
 # Spec 02 — Deterministic Excel Rendering Engine
 
-Status: v0.1 (2026-10-31), draft for review. Sources: [concept-design.md](../docs/concept-design.md) sections 0, 3, 8 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 2, [00-constitution.md](00-constitution.md) sections 2/4, [01-data-contracts.md](01-data-contracts.md) section 2.
+Status: v0.2 (2026-10-31), implemented; Acceptance Criteria pass. Section 9 lists the decisions taken while implementing. Sources: [concept-design.md](../docs/concept-design.md) sections 0, 3, 8 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 2, [00-constitution.md](00-constitution.md) sections 2/4, [01-data-contracts.md](01-data-contracts.md) section 2.
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -19,11 +19,14 @@ Turn a stored document (`Document` + payload from `trace_store`) plus a resolved
 ## 1. Public API (package `src/masterba/rendering/`)
 
 ```python
-def resolve_template(templates_root: Path, company_id: str, doc_type: DocType) -> TemplateDefinition
-def render_document(doc: Document, content: Payload, template: TemplateDefinition) -> openpyxl.Workbook
-def render_to_project(store: ProjectStore, doc_id: str, version: int | None = None) -> Path
+def resolve_template(templates_root: Path, company_id: str, doc_type: DocType) -> ResolvedTemplate
+def render_document(doc: Document, content: Payload, template: ResolvedTemplate) -> openpyxl.Workbook
+def render_to_project(
+    store: ProjectStore, doc_id: str, templates_root: Path, version: int | None = None
+) -> Path
 ```
 
+- `ResolvedTemplate` bundles the `TemplateDefinition`, its parsed bindings and rules, the sheet map and the path of the `.xlsx` shell.
 - `resolve_template` is a pure function, not an agent: it returns `templates/companies/<company_id>/<DOC_TYPE>.template.json` if present, otherwise `templates/default/<DOC_TYPE>.template.json`. A company template whose `source` is not confirmed is never used (see section 6).
 - `render_document` has no I/O besides loading the template's `.xlsx` shell; it is the unit under golden test.
 - `render_to_project` reads the document from the store, resolves the project's `company_id` template, saves the workbook and makes one git commit.
@@ -56,9 +59,9 @@ Maps a logical sheet key to the sheet name in the shell workbook:
 ```json
 {
   "header": [
-    {"cell": "業務要件!B2", "source": "$document.id"},
-    {"cell": "業務要件!B3", "source": "$document.version"},
-    {"cell": "業務要件!B4", "source": "$project.id"}
+    {"sheet": "requirements", "cell": "B2", "source": "$document.id"},
+    {"sheet": "requirements", "cell": "B3", "source": "$document.version"},
+    {"sheet": "requirements", "cell": "B4", "source": "$project.id"}
   ],
   "tables": [
     {
@@ -120,7 +123,7 @@ A list of checks run before saving; failure raises `RenderValidationError` and n
 ## 3. Output
 
 - Path: `projects/<project_id>/xlsx/<doc_type_lowercase>/<DOC_ID>.v<version>.xlsx`, mirroring `json/` (spec 00 section 2 and 4).
-- Rendering is **idempotent at the content level**: the same JSON and template produce workbooks with identical sheet names, cell values, cell styles and column widths. Byte equality is **not** guaranteed (the zip container embeds timestamps), so golden tests compare cell content, not file hashes. Workbook properties (`creator`, `created`, `modified`) are set to constants (`MasterBA`, `2000-01-01T00:00:00Z`) so they do not add noise.
+- Rendering is **byte-deterministic**: the same JSON and template produce identical files. openpyxl stamps zip entries with the current time, so `workbook_bytes` re-packs the archive with a fixed timestamp; workbook properties (`creator`, `created`, `modified`) are constants (`MasterBA`, `2000-01-01`). This is what makes re-rendering unchanged content a no-op in git.
 - One git commit per render with message `render(<project_id>): xlsx <DOC_ID> v<n>`. Re-rendering unchanged content creates no new commit (reuses `commit_paths`, which returns `False` on no diff).
 - `Document.render_ref` is **not written back**: a stored `Document` is immutable per version, and rewriting its JSON would create a second commit for one business action. The xlsx path is derived by the convention above. (`render_ref` stays optional for Phase 8 to fill in memory when serving the dashboard.)
 - An existing file for the same `DOC_ID` and version is overwritten (it is derived data); other versions are never touched.
@@ -131,9 +134,9 @@ Sheets come from concept-design section 8. A sheet marked *placeholder* has head
 
 | DocType | Sheets (key → name) | Filled from payload |
 |---|---|---|
-| BRD | `background` 背景・目的 *(placeholder)*; `requirements` 業務要件; `scope` システム化の範囲; `constraints` 制約事項 *(placeholder)* | `BrdItem` → requirements (all active) and scope (grouped by `scope` in/out) |
+| BRD | `background` 背景・目的 *(placeholder)*; `requirements` 業務要件; `scope` システム化の範囲; `out_of_scope` 対象外; `constraints` 制約事項 *(placeholder)* | `BrdItem` → requirements (all active), scope (`scope = in`), out_of_scope (`scope = out`) |
 | SRS | `background` 背景・目的 *(placeholder)*; `functional` 機能要件; `nonfunctional` 非機能要件; `constraints` 制約事項 *(placeholder)* | `SrsItem` split by `kind` |
-| BASIC_DESIGN | `functions` 機能一覧表; `screens` 画面一覧表; `interfaces` I/F設計; `tables` テーブル定義書; `diagrams` 構成図・フロー図・ER図 *(placeholder)*; `it_viewpoints` 結合テスト観点 *(placeholder)* | `BasicDesignItem` split by `kind` (function, screen, interface, data_entity) |
+| BASIC_DESIGN | `functions` 機能一覧表; `screens` 画面一覧表; `interfaces` IF設計; `tables` テーブル定義書; `diagrams` 構成図・フロー図・ER図 *(placeholder)*; `it_viewpoints` 結合テスト観点 *(placeholder)* | `BasicDesignItem` split by `kind` (function, screen, interface, data_entity) |
 | DETAIL_DESIGN | `overview` システム概要 *(placeholder)*; `modules` 機能仕様; `steps` 処理フロー; `db` データベース設計; `api` インターフェース設計 | `DetailDesignItem` split by `kind` (module, processing_step, db_table, api) |
 | TEST_IT / TEST_ST / TEST_UT / TEST_UAT | `cases` テストケース | `TestCaseItem`: columns テストケースID, 前提条件, 入力値, 操作手順, 期待結果, 紐付け対象 (`verifies`) |
 
@@ -156,13 +159,14 @@ rendering/
   formatting.py      # value formatting (section 2.3)
   engine.py          # render_document
   project.py         # render_to_project (store + git commit)
-  shells.py          # generates templates/default/*.xlsx
+  catalog.py         # layout of the 8 baseline templates (single source)
+  shells.py          # generates templates/default/*.xlsx and *.template.json from catalog
+  xlsxio.py          # deterministic workbook serialisation
 templates/default/<DOC_TYPE>.template.json + <DOC_TYPE>.xlsx   (16 files)
 tests/rendering/
-tests/fixtures/rendering/<DOC_TYPE>.json                        # hand-written fixtures
 ```
 
-`openpyxl` is already a dependency. Directories `templates/default/` and `templates/companies/` already exist (spec 00 section 2); `tests/fixtures/rendering/` is new and is added by this spec.
+`openpyxl` is already a dependency; `types-openpyxl` is added as a dev dependency for `mypy --strict`. Directories `templates/default/` and `templates/companies/` already exist (spec 00 section 2). Test fixtures are built in Python from `tests/factories.py`, so no `tests/fixtures/` folder is added.
 
 ## 6. Company overrides
 
@@ -170,21 +174,32 @@ tests/fixtures/rendering/<DOC_TYPE>.json                        # hand-written f
 
 ## 7. Acceptance Criteria
 
-- [ ] `templates/default/` holds 8 `*.template.json` and 8 `*.xlsx`; each JSON parses as `TemplateDefinition` and its bindings parse into the typed binding models.
-- [ ] For each of the 8 document types, a hand-written fixture renders to a workbook whose cell values equal the golden expectation (every bound cell checked).
-- [ ] Removed items are absent from the sheet; their ids are still present in the JSON. A template without the `where` filter shows them.
-- [ ] One payload fills several sheets via filtered tables (BRD scope, SRS functional/non-functional, Basic Design kinds) and each sheet gets exactly the matching rows.
-- [ ] A string starting with `=` is stored as text, not as a formula.
-- [ ] A binding naming a field that does not exist on the item class fails with `InvalidTemplateError` when the template is loaded.
-- [ ] `max_cell_length` violation raises `RenderValidationError` and writes no file and no commit.
-- [ ] Rendering the same content twice gives workbooks with equal cell values and styles; a second `render_to_project` creates no extra commit.
-- [ ] `render_to_project` writes `projects/<id>/xlsx/<type>/<DOC_ID>.v<n>.xlsx`, creates exactly one commit `render(<project_id>): xlsx <DOC_ID> v<n>` and does not modify the stored JSON.
-- [ ] `resolve_template` prefers a confirmed company template, ignores an unconfirmed calibrated one, and raises `TemplateNotFoundError` when neither exists.
-- [ ] A test fails when a committed shell differs from what `shells.py` generates.
-- [ ] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass.
+- [x] `templates/default/` holds 8 `*.template.json` and 8 `*.xlsx`; each JSON parses as `TemplateDefinition` and its bindings parse into the typed binding models.
+- [x] For each of the 8 document types, a hand-written fixture renders to a workbook whose cell values equal the golden expectation (every bound cell checked).
+- [x] Removed items are absent from the sheet; their ids are still present in the JSON. A template without the `where` filter shows them.
+- [x] One payload fills several sheets via filtered tables (BRD scope, SRS functional/non-functional, Basic Design kinds) and each sheet gets exactly the matching rows.
+- [x] A string starting with `=` is stored as text, not as a formula.
+- [x] A binding naming a field that does not exist on the item class fails with `InvalidTemplateError` when the template is loaded.
+- [x] `max_cell_length` violation raises `RenderValidationError` and writes no file and no commit.
+- [x] Rendering the same content twice gives byte-identical files; a second `render_to_project` creates no extra commit.
+- [x] `render_to_project` writes `projects/<id>/xlsx/<type>/<DOC_ID>.v<n>.xlsx`, creates exactly one commit `render(<project_id>): xlsx <DOC_ID> v<n>` and does not modify the stored JSON.
+- [x] `resolve_template` prefers a confirmed company template, ignores an unconfirmed calibrated one, and raises `TemplateNotFoundError` when neither exists.
+- [x] A test fails when a committed shell differs from what `shells.py` generates.
+- [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass.
 
-## 8. Open points (do not block implementation)
+## 8. Open points (do not block later phases)
 
 1. **Placeholder sheets** (background/purpose, constraints, diagrams, overview) have no source in the Phase 1 payload. Phase 3 decides whether to add free-text document-level sections (e.g. a `sections` list in `BrdContent`). That would be a spec 01 change, in its own commit.
 2. **Display labels** are Japanese only. A second language would be a new `value_maps` set, no engine change.
 3. **Real samples** (Phase 9) may need features the baseline does not have (merged cells, multi-row headers, named ranges). They are out of scope until a real sample exists.
+
+## 9. Decisions taken while implementing
+
+1. **`ResolvedTemplate`** (not a bare `TemplateDefinition`) is what `resolve_template` returns and `render_document` takes, because the renderer also needs the shell path and the parsed bindings. `render_to_project` takes `templates_root` explicitly.
+2. **Header bindings name the sheet by key** (`sheet` + `cell`), the same way tables do, instead of embedding the sheet name in the cell reference.
+3. **BRD has an extra sheet `out_of_scope` (対象外)** so that scope in/out is a pair of filtered tables rather than a grouping feature.
+4. **Sheet name `IF設計`**: Excel forbids `/` in sheet names, so `I/F設計` from concept-design section 8 cannot be used.
+5. **Empty lists render as a blank cell** (not an empty string).
+6. **Company id is validated** (`..`, `/` and empty are rejected) so a project config cannot point the resolver outside `templates/`.
+7. **A company template with `source = baseline` needs no `.confirmed` file**; only `calibrated_from_sample` does.
+8. **Fixtures are Python builders**, not JSON files; the golden expectations are written out cell by cell in `tests/rendering/test_render_engine.py`.

@@ -1,0 +1,287 @@
+{
+  "cell_bindings": {
+    "header": [
+      {
+        "cell": "B2",
+        "sheet": "functions",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "functions",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "functions",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "functions",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "screens",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "screens",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "screens",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "screens",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "interfaces",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "interfaces",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "interfaces",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "interfaces",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "tables",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "tables",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "tables",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "tables",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "diagrams",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "diagrams",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "diagrams",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "diagrams",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "it_viewpoints",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "it_viewpoints",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "it_viewpoints",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "it_viewpoints",
+        "source": "$document.status"
+      }
+    ],
+    "tables": [
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "name",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "description",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "realizes",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "functions",
+        "start_row": 8,
+        "where": {
+          "kind": "function",
+          "status": "active"
+        }
+      },
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "name",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "description",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "realizes",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "screens",
+        "start_row": 8,
+        "where": {
+          "kind": "screen",
+          "status": "active"
+        }
+      },
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "name",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "description",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "realizes",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "interfaces",
+        "start_row": 8,
+        "where": {
+          "kind": "interface",
+          "status": "active"
+        }
+      },
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "name",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "description",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "realizes",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "tables",
+        "start_row": 8,
+        "where": {
+          "kind": "data_entity",
+          "status": "active"
+        }
+      }
+    ],
+    "value_maps": {
+      "scope": {
+        "in": "対象",
+        "out": "対象外"
+      }
+    }
+  },
+  "company_id": "default",
+  "doc_type": "BASIC_DESIGN",
+  "sheet_map": {
+    "diagrams": "構成図・フロー図・ER図",
+    "functions": "機能一覧表",
+    "interfaces": "IF設計",
+    "it_viewpoints": "結合テスト観点",
+    "screens": "画面一覧表",
+    "tables": "テーブル定義書"
+  },
+  "source": "baseline",
+  "validation_rules": [
+    {
+      "limit": 32767,
+      "rule": "max_cell_length"
+    }
+  ]
+}

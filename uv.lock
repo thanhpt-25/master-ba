@@ -486,6 +486,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "types-networkx" },
+    { name = "types-openpyxl" },
 ]
 
 [package.metadata]
@@ -503,6 +504,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5.0" },
     { name = "ruff", specifier = ">=0.5" },
     { name = "types-networkx", specifier = ">=3.6.1.20261029" },
+    { name = "types-openpyxl", specifier = ">=3.1.5.20261017" },
 ]
 
 [[package]]
@@ -870,6 +872,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cb/c9/ee0e1f4c63eb6b0ef815ba29b07e124efdacd70f8ea4df8967aa32a4874b/types_networkx-3.6.1.20261029.tar.gz", hash = "sha256:c7f3a9db5e1264978c1c21d8414e89d3422f6970d29ee42ed59c6e00ce887469", size = 77121, upload-time = "2026-10-29T07:44:26.886Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/77/63/2a1983bdaaa0c1d77cf356ac4759aa2fbc03be63a52dc85b1616cfb8383f/types_networkx-3.6.1.20261029-py3-none-any.whl", hash = "sha256:20e9a702d40d2d4314d35ae9e2a29d55321b75984033d8279ead87ebb8feaba6", size = 167599, upload-time = "2026-10-29T07:44:25.427Z" },
+]
+
+[[package]]
+name = "types-openpyxl"
+version = "3.1.5.20261017"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/af/13/ce0b36e7e29ee31ec75d6718d48d28d2d48ad319ddf4665f81c8f3a8fc95/types_openpyxl-3.1.5.20261017.tar.gz", hash = "sha256:3deb3b6279b65ab379c126df0ee1fd27500c9628edb8d9667d73f637462917dc", size = 102026, upload-time = "2026-10-17T06:20:01.431Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/17/a091e90fde3e90eff9168354269626e210a4c3c688910d8c9176b8a08cb4/types_openpyxl-3.1.5.20261017-py3-none-any.whl", hash = "sha256:3315cfebad290cc7ade1fccaf3a46ee820b3a8e7df726ff4f18d30ab7f383d68", size = 165886, upload-time = "2026-10-17T06:19:59.944Z" },
 ]
 
 [[package]]

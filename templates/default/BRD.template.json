@@ -1,0 +1,261 @@
+{
+  "cell_bindings": {
+    "header": [
+      {
+        "cell": "B2",
+        "sheet": "background",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "background",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "background",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "background",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "requirements",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "requirements",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "requirements",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "requirements",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "scope",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "scope",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "scope",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "scope",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "out_of_scope",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "out_of_scope",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "out_of_scope",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "out_of_scope",
+        "source": "$document.status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "constraints",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "constraints",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "constraints",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "constraints",
+        "source": "$document.status"
+      }
+    ],
+    "tables": [
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "requirement_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "title",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "description",
+            "value_map": null
+          },
+          {
+            "col": "F",
+            "field": "scope",
+            "value_map": "scope"
+          },
+          {
+            "col": "G",
+            "field": "source_ref",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "requirements",
+        "start_row": 8,
+        "where": {
+          "status": "active"
+        }
+      },
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "requirement_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "title",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "description",
+            "value_map": null
+          },
+          {
+            "col": "F",
+            "field": "scope",
+            "value_map": "scope"
+          },
+          {
+            "col": "G",
+            "field": "source_ref",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "scope",
+        "start_row": 8,
+        "where": {
+          "scope": "in",
+          "status": "active"
+        }
+      },
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "requirement_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "title",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "description",
+            "value_map": null
+          },
+          {
+            "col": "F",
+            "field": "scope",
+            "value_map": "scope"
+          },
+          {
+            "col": "G",
+            "field": "source_ref",
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "out_of_scope",
+        "start_row": 8,
+        "where": {
+          "scope": "out",
+          "status": "active"
+        }
+      }
+    ],
+    "value_maps": {
+      "scope": {
+        "in": "対象",
+        "out": "対象外"
+      }
+    }
+  },
+  "company_id": "default",
+  "doc_type": "BRD",
+  "sheet_map": {
+    "background": "背景・目的",
+    "constraints": "制約事項",
+    "out_of_scope": "対象外",
+    "requirements": "業務要件",
+    "scope": "システム化の範囲"
+  },
+  "source": "baseline",
+  "validation_rules": [
+    {
+      "limit": 32767,
+      "rule": "max_cell_length"
+    }
+  ]
+}

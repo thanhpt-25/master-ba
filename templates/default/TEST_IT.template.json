@@ -1,0 +1,119 @@
+{
+  "cell_bindings": {
+    "header": [
+      {
+        "cell": "B2",
+        "sheet": "cases",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "cases",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "cases",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "cases",
+        "source": "$document.status"
+      }
+    ],
+    "tables": [
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "test_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "level",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "precondition",
+            "value_map": null
+          },
+          {
+            "col": "F",
+            "field": "input",
+            "value_map": null
+          },
+          {
+            "col": "G",
+            "field": "steps",
+            "value_map": null
+          },
+          {
+            "col": "H",
+            "field": "expected",
+            "value_map": null
+          },
+          {
+            "col": "I",
+            "field": "verifies",
+            "value_map": null
+          },
+          {
+            "col": "J",
+            "field": null,
+            "value_map": null
+          },
+          {
+            "col": "K",
+            "field": null,
+            "value_map": null
+          },
+          {
+            "col": "L",
+            "field": null,
+            "value_map": null
+          },
+          {
+            "col": "M",
+            "field": null,
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "cases",
+        "start_row": 8,
+        "where": {
+          "status": "active"
+        }
+      }
+    ],
+    "value_maps": {
+      "scope": {
+        "in": "対象",
+        "out": "対象外"
+      }
+    }
+  },
+  "company_id": "default",
+  "doc_type": "TEST_IT",
+  "sheet_map": {
+    "cases": "テストケース"
+  },
+  "source": "baseline",
+  "validation_rules": [
+    {
+      "limit": 32767,
+      "rule": "max_cell_length"
+    }
+  ]
+}
