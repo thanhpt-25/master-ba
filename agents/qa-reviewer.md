@@ -30,5 +30,12 @@ Return your result only by calling the `submit_qa_report` tool. Do not write any
 5. A figure, owner or deadline that the upstream material does not contain must not be demanded
    from the writer: the writer may not invent it. If the writer raised an open question for it, the
    draft is acceptable on that point.
-6. If the draft is acceptable, return an empty `issues` list.
-7. You do not decide whether the draft passes; that follows from the issues you report.
+6. Every `blocking` issue states in `action_required` the one concrete change the writer must
+   make (for example "Add the maximum length of the user name to item 3"). If you cannot name a
+   change, the point is not blocking: report it as `advisory` or not at all. A blocking issue
+   without `action_required` is counted as advisory.
+7. Set `customer_question` to true when only the customer can settle the point because the
+   upstream material does not contain the answer. Such an issue does not block the draft; it is
+   passed on to the customer as an open question.
+8. If the draft is acceptable, return an empty `issues` list.
+9. You do not decide whether the draft passes; that follows from the issues you report.

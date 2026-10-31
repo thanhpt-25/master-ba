@@ -16,8 +16,28 @@ function runDetail(data) {
   );
 }
 
-export async function render({ main, api, params, toast }) {
+// A BRD run needs its intake file again, so only the later stages resume from here.
+const RESUMABLE = { SRS: "srs", BASIC_DESIGN: "basic", DETAIL_DESIGN: "detail" };
+
+export async function render({ main, api, params, toast, me, go }) {
   const pid = params.pid;
+  const canRun = ["approver", "admin"].includes(me?.role);
+  const resume = async (r) => {
+    try {
+      await api.post(`/projects/${pid}/stages/${RESUMABLE[r.stage]}/run`, { resume: r.run_id });
+      toast(`Resuming ${r.run_id}; follow it on the overview.`);
+      go?.(`#/p/${pid}/overview`);
+    } catch (error) {
+      toast(error.message, "error");
+    }
+  };
+  const actions = (r) =>
+    h(
+      "span",
+      {},
+      h("button", { class: "link", onClick: () => show(r.run_id) }, "Open"),
+      canRun && r.resumable && RESUMABLE[r.stage] ? h("button", { class: "link", onClick: () => resume(r) }, "Resume") : null,
+    );
   const [runs, log] = await Promise.all([api.get(`/projects/${pid}/runs`), api.get(`/projects/${pid}/activity?limit=100`)]);
   const detail = h("div", {});
   const show = async (runId) => {
@@ -33,7 +53,7 @@ export async function render({ main, api, params, toast }) {
       runs.length
         ? table(
             ["Run", "Stage", "Trigger", "Status", "Rounds", "Issues", "Tokens", ""],
-            runs.map((r) => [h("code", {}, r.run_id), r.stage, r.trigger, badge(r.status), r.rounds, `${r.issues_resolved}/${r.issues_raised}`, r.tokens_used ?? "", h("button", { class: "link", onClick: () => show(r.run_id) }, "Open")]),
+            runs.map((r) => [h("code", {}, r.run_id), r.stage, r.trigger, badge(r.status), r.rounds, `${r.issues_resolved}/${r.issues_raised}`, r.tokens_used ?? "", actions(r)]),
             "Team runs",
           )
         : empty("No team has run yet.")),

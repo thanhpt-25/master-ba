@@ -1,7 +1,7 @@
 """Core entities (specs/01-data-contracts.md section 2)."""
 
 import datetime as dt
-from typing import Any, Self
+from typing import Annotated, Any, Self
 
 from pydantic import Field, model_validator
 
@@ -115,10 +115,17 @@ class ProjectConfig(FrozenModel):
     document_language: DocLanguage = DocLanguage.JA
     propagation_mode: PropagationMode = PropagationMode.MANUAL_GATE
     team_max_rounds: int = Field(default=3, ge=1)
+    team_max_rounds_by_stage: dict[DocType, Annotated[int, Field(ge=1)]] = Field(
+        default_factory=dict
+    )
     team_token_budget: int | None = Field(default=None, ge=1)
     dashboard_roles: list[Role] = Field(
         default_factory=lambda: [Role.ADMIN, Role.APPROVER, Role.VIEWER]
     )
+
+    def max_rounds_for(self, stage: DocType) -> int:
+        """The round limit of one stage: its own entry, else `team_max_rounds` (spec 11 2.1)."""
+        return self.team_max_rounds_by_stage.get(stage, self.team_max_rounds)
 
 
 class TeamRun(FrozenModel):
@@ -131,3 +138,5 @@ class TeamRun(FrozenModel):
     issues_resolved: int = Field(ge=0)
     escalations: list[str] = Field(default_factory=list)
     tokens_used: int | None = Field(default=None, ge=0)
+    customer_questions: list[str] = Field(default_factory=list)
+    resumed: int = Field(default=0, ge=0)

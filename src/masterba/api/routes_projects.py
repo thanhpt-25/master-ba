@@ -26,6 +26,7 @@ from masterba.api.settings import MAX_UPLOAD_CHARS, Settings
 from masterba.models import ProjectConfig
 from masterba.models.enums import DrStatus
 from masterba.pipeline import (
+    Resume,
     run_basic_design,
     run_brd,
     run_detail_design,
@@ -204,6 +205,7 @@ def _stage_work(settings: Settings, store: ProjectStore, stage: str, body: RunSt
         writer = settings.llm_factory(settings.model)
         qa = settings.llm_factory(settings.qa_model) if settings.qa_model else None
         tester = settings.llm_factory(settings.test_model) if settings.test_model else None
+        resume = Resume(body.resume, body.rounds) if body.resume else None
         if stage == "brd":
             result = run_brd(
                 store,
@@ -212,16 +214,14 @@ def _stage_work(settings: Settings, store: ProjectStore, stage: str, body: RunSt
                 intake_path,
                 qa_llm=qa,
                 reuse_intake=body.reuse_intake,
+                resume=resume,
             )
         elif stage == "srs":
-            result = run_srs(store, settings.templates, writer, qa_llm=qa)
-        elif stage == "basic":
-            result = run_basic_design(
-                store, settings.templates, writer, tester_llm=tester, qa_llm=qa
-            )
+            result = run_srs(store, settings.templates, writer, qa_llm=qa, resume=resume)
         else:
-            result = run_detail_design(
-                store, settings.templates, writer, tester_llm=tester, qa_llm=qa
+            run = run_basic_design if stage == "basic" else run_detail_design
+            result = run(
+                store, settings.templates, writer, tester_llm=tester, qa_llm=qa, resume=resume
             )
         return stage_summary(result)
 

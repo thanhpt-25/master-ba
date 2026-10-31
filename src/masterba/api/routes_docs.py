@@ -32,7 +32,11 @@ def run_summaries(store: ProjectStore) -> list[dict[str, Any]]:
         return []
     out: list[dict[str, Any]] = []
     for path in sorted(folder.glob("RUN-????/team-summary.json"), reverse=True):
-        out.append(json.loads(path.read_text("utf-8")))
+        summary = json.loads(path.read_text("utf-8"))
+        summary["resumable"] = (
+            summary.get("status") == "escalated" and (path.parent / "checkpoint.json").is_file()
+        )
+        out.append(summary)
     return out
 
 

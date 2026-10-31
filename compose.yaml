@@ -1,0 +1,31 @@
+# MasterBA dashboard and CLI in one service (spec 11 section 5.2).
+#   docker compose run --rm masterba doctor --init     # prepare ./work once
+#   docker compose run --rm masterba user add admin --role admin
+#   docker compose up                                  # dashboard on http://127.0.0.1:8000
+# The port is published on 127.0.0.1 only: the dashboard has local accounts and no TLS.
+services:
+  masterba:
+    build:
+      context: .
+      args:
+        UID: "${UID:-1000}"
+        GID: "${GID:-1000}"
+    command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["127.0.0.1:8000:8000"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      GIT_AUTHOR_NAME: "${GIT_AUTHOR_NAME:-MasterBA}"
+      GIT_AUTHOR_EMAIL: "${GIT_AUTHOR_EMAIL:-masterba@localhost}"
+      GIT_COMMITTER_NAME: "${GIT_AUTHOR_NAME:-MasterBA}"
+      GIT_COMMITTER_EMAIL: "${GIT_AUTHOR_EMAIL:-masterba@localhost}"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: ["${MASTERBA_WORK:-./work}:/work"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 30s
+      start_period: 20s
+      start_interval: 2s
+      timeout: 5s
+      retries: 3

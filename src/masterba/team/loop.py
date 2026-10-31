@@ -23,10 +23,15 @@ def run_writer_review(
     write: Callable[[D | None, Sequence[str]], LLMResult[D]],
     gate: Callable[[D], list[str]],
     review: Callable[[D], QaReview],
+    start: D | None = None,
+    start_feedback: Sequence[str] = (),
 ) -> D | None:
-    """Return the accepted draft, or None after escalating (reasons are in `team.escalations`)."""
-    draft: D | None = None
-    feedback: list[str] = []
+    """Return the accepted draft, or None after escalating (reasons are in `team.escalations`).
+
+    `start` and `start_feedback` come from a checkpoint when a run resumes (spec 11 section 3).
+    """
+    draft: D | None = start
+    feedback: list[str] = list(start_feedback)
     previous_task: str | None = None
     open_blocking = 0
 
@@ -58,6 +63,7 @@ def run_writer_review(
                 team.post("gate", "writer", MessageType.FEEDBACK, None, error)
             feedback = errors
             continue
+        team.save_checkpoint({"draft": draft}, {"writer": []})
 
         if team.budget_exhausted():
             feedback = []
@@ -82,9 +88,11 @@ def run_writer_review(
             team.post("qa", "writer", MessageType.FEEDBACK, issue.ref, format_issue(issue))
             if issue.severity == "advisory":
                 team.advisory.append(format_issue(issue))
+        team.note_review("writer", outcome.notes, outcome.customer_questions)
         team.issues_raised += len(blocking)
         open_blocking = len(blocking)
         if not blocking:
             team.issues_resolved = team.issues_raised
             return draft
         feedback = [format_issue(i) for i in blocking]
+        team.save_checkpoint({"draft": draft}, {"writer": feedback})

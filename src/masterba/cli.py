@@ -26,11 +26,13 @@ from masterba.change import (
     reject_dr,
     rows,
 )
+from masterba.doctor import init_root, run_checks
 from masterba.llm import DEFAULT_MODEL, LLM, AnthropicLLM, LLMError
 from masterba.models import ProjectConfig
 from masterba.models.enums import DocLanguage, DocType, DrTrigger, TeamRunStatus
 from masterba.models.ids import PROJECT_ID_PATTERN
 from masterba.pipeline import (
+    Resume,
     run_basic_design,
     run_brd,
     run_detail_design,
@@ -38,6 +40,7 @@ from masterba.pipeline import (
     stage_summary,
 )
 from masterba.rendering import RenderError
+from masterba.team import ResumeError
 from masterba.trace_store import (
     ProjectStore,
     TraceStoreError,
@@ -58,6 +61,20 @@ def _project_id(value: str) -> str:
     return value
 
 
+_STAGE_ALIASES = {"basic": DocType.BASIC_DESIGN, "detail": DocType.DETAIL_DESIGN}
+
+
+def _stage_rounds(value: str) -> tuple[DocType, int]:
+    """Parse ``STAGE=N`` for ``init-project --rounds`` (spec 11 section 2.1)."""
+    name, sep, count = value.partition("=")
+    stage = _STAGE_ALIASES.get(name.lower()) or next(
+        (t for t in DocType if t.value == name.upper()), None
+    )
+    if not sep or stage is None or not count.isdigit() or int(count) < 1:
+        raise argparse.ArgumentTypeError(f"{value!r} is not STAGE=N, for example basic=5")
+    return stage, int(count)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="masterba", description="Generate V-model deliverables from customer requirements"
@@ -72,6 +89,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--language", type=DocLanguage, choices=list(DocLanguage), default=DocLanguage.JA
     )
     init.add_argument("--team-max-rounds", type=int, default=3)
+    init.add_argument(
+        "--rounds",
+        type=_stage_rounds,
+        action="append",
+        default=[],
+        metavar="STAGE=N",
+        help="round limit of one stage (brd, srs, basic, detail); repeatable",
+    )
     init.add_argument("--team-token-budget", type=int, default=None)
 
     run = commands.add_parser("run", help="run one stage")
@@ -106,8 +131,17 @@ def build_parser() -> argparse.ArgumentParser:
     detail.add_argument(
         "--qa-model", default=None, help="model for the QA reviewer (default: --model)"
     )
+    for stage_parser in (brd, srs, basic, detail):
+        stage_parser.add_argument(
+            "--resume", default=None, metavar="RUN-####", help="continue an escalated run"
+        )
+        stage_parser.add_argument(
+            "--rounds", type=int, default=None, help="with --resume: rounds to add"
+        )
     _add_dr_parsers(commands)
     _add_template_parsers(commands)
+    doctor = commands.add_parser("doctor", help="check this root and print what to fix")
+    doctor.add_argument("--init", action="store_true", help="prepare an empty folder first")
     serve = commands.add_parser("serve", help="run the dashboard (API and web app)")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
@@ -318,6 +352,12 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
     root: Path = args.root
     if args.command == "user":
         return _dispatch_user(args, root)
+    if args.command == "doctor":
+        if args.init:
+            init_root(root)
+        checks = run_checks(root)
+        sys.stdout.write("".join(f"{c.line()}\n" for c in checks))
+        return 0 if all(c.ok or not c.required for c in checks) else 1
     ensure_ready(root)
     if args.command == "serve":
         import uvicorn
@@ -335,6 +375,7 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
                 company_id=args.company,
                 document_language=args.language,
                 team_max_rounds=args.team_max_rounds,
+                team_max_rounds_by_stage=dict(args.rounds),
                 team_token_budget=args.team_token_budget,
             ),
         )
@@ -346,6 +387,9 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
     model = args.model or os.environ.get("MASTERBA_MODEL") or DEFAULT_MODEL
     writer = llm_factory(model)
     reviewer = llm_factory(args.qa_model) if args.qa_model else None
+    if args.rounds is not None and (args.resume is None or args.rounds < 1):
+        raise ValueError("--rounds needs --resume and a positive number")
+    resume = Resume(args.resume, args.rounds) if args.resume else None
     if args.stage == "brd":
         result = run_brd(
             store,
@@ -354,13 +398,16 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
             args.input,
             qa_llm=reviewer,
             reuse_intake=args.reuse_intake,
+            resume=resume,
         )
     elif args.stage == "srs":
-        result = run_srs(store, root / "templates", writer, qa_llm=reviewer)
+        result = run_srs(store, root / "templates", writer, qa_llm=reviewer, resume=resume)
     else:
         tester = llm_factory(args.test_model) if args.test_model else None
         stage = run_basic_design if args.stage == "basic" else run_detail_design
-        result = stage(store, root / "templates", writer, tester_llm=tester, qa_llm=reviewer)
+        result = stage(
+            store, root / "templates", writer, tester_llm=tester, qa_llm=reviewer, resume=resume
+        )
     _emit(stage_summary(result))
     return 3 if result.status is TeamRunStatus.ESCALATED else 0
 
@@ -371,6 +418,7 @@ def main(argv: Sequence[str] | None = None, *, llm_factory: LLMFactory | None = 
         return _dispatch(args, llm_factory or _default_llm)
     except (
         TraceStoreError,
+        ResumeError,
         AuthError,
         CalibrationError,
         LifecycleError,

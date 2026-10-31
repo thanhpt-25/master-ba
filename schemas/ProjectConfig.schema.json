@@ -8,6 +8,20 @@
       "title": "DocLanguage",
       "type": "string"
     },
+    "DocType": {
+      "enum": [
+        "BRD",
+        "SRS",
+        "BASIC_DESIGN",
+        "DETAIL_DESIGN",
+        "TEST_IT",
+        "TEST_ST",
+        "TEST_UT",
+        "TEST_UAT"
+      ],
+      "title": "DocType",
+      "type": "string"
+    },
     "PropagationMode": {
       "enum": [
         "manual_gate",
@@ -58,6 +72,17 @@
       "minimum": 1,
       "title": "Team Max Rounds",
       "type": "integer"
+    },
+    "team_max_rounds_by_stage": {
+      "additionalProperties": {
+        "minimum": 1,
+        "type": "integer"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/DocType"
+      },
+      "title": "Team Max Rounds By Stage",
+      "type": "object"
     },
     "team_token_budget": {
       "anyOf": [

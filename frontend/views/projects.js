@@ -16,6 +16,7 @@ export async function render({ main, api, me, go, toast }) {
               h("strong", {}, p.project_id),
               h("span", {}, `company ${p.company_id} · documents in ${p.document_language === "ja" ? "Japanese" : "English"}`),
               h("span", {}, `team limit ${p.team_max_rounds} rounds`),
+              ...Object.entries(p.team_max_rounds_by_stage || {}).map(([stage, n]) => h("span", {}, `${stage} ${n} rounds`)),
             ),
           ),
         ),

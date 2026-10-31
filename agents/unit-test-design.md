@@ -26,7 +26,9 @@ Return your result only by calling the `submit_unit_tests` tool. Do not write an
 3. **Good cases.** Give each case a precondition, an input, concrete steps (one operation per step)
    and an observable expected result. Write a boundary case at every limit the spec states (at,
    just inside, just outside) and a case for every named error exit or branch, as well as the
-   normal case.
+   normal case. Every expected result must let a tester say OK or NG; a case that only observes or
+   records is not a case. An item whose criterion is missing goes to `exclusions` with the reason
+   `no measurable criterion: <what is missing>`.
 4. **Never invent.** Do not assume a limit, message, column or behaviour that the detail design
    does not state. Write every case the spec supports. For a missing detail the designer could
    decide from the Basic Design, add a `question` about that item (it must say exactly what is

@@ -24,9 +24,17 @@ from masterba.models import (
     TraceLink,
 )
 from masterba.models.enums import DocStatus, DocType, LinkType, TeamRunStatus
-from masterba.pipeline.stage import TEMPLATE_ID, StageResult, stage_result
+from masterba.pipeline.stage import (
+    TEMPLATE_ID,
+    Resume,
+    StageResult,
+    checkpoint_draft,
+    checkpoint_feedback,
+    open_team,
+    stage_result,
+)
 from masterba.rendering import render_to_project
-from masterba.team import RecordingLLM, Team, run_writer_review
+from masterba.team import RecordingLLM, run_writer_review
 from masterba.trace_store import (
     DuplicateIdError,
     InvalidDocumentError,
@@ -133,6 +141,7 @@ def run_brd(
     *,
     qa_llm: LLM | None = None,
     reuse_intake: bool = False,
+    resume: Resume | None = None,
 ) -> StageResult:
     """Run the BRD stage as a writer + QA team; business artifacts are written only when done."""
     if _brd_exists(store):
@@ -142,11 +151,11 @@ def run_brd(
     text = intake_file.read_text(encoding="utf-8")
     if len(text) > MAX_INTAKE_CHARS:
         raise InvalidDocumentError(f"intake is longer than {MAX_INTAKE_CHARS} characters")
-    stored = _store_intake(store, intake_file.name, text, reuse_intake)
-    config = get_config(store)
-    language = config.document_language
+    # A resumed run reads the intake it stored before; the given file must match it.
+    stored = _store_intake(store, intake_file.name, text, reuse_intake or resume is not None)
+    language = get_config(store).document_language
     checklist = load_checklist(checklist_path(DocType.BRD))
-    team = Team.open(store, DocType.BRD, config.team_max_rounds, config.team_token_budget)
+    team, checkpoint = open_team(store, DocType.BRD, {f"intake/{intake_file.name}": 1}, resume)
     writer = RecordingLLM(llm, team)
     reviewer = RecordingLLM(qa_llm or llm, team)
 
@@ -164,6 +173,8 @@ def run_brd(
             draft_view=brd_draft_view(d, BRD_DOC_ID),
             language=language,
         ),
+        start=checkpoint_draft(checkpoint, "draft", BrdDraft),
+        start_feedback=checkpoint_feedback(checkpoint, "writer"),
     )
     if draft is None:
         return stage_result(team, team.finish(TeamRunStatus.ESCALATED))

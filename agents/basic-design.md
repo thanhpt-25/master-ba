@@ -18,7 +18,12 @@ Return your result only by calling the `submit_basic_design` tool. Do not write 
 
 1. **Cover everything, invent nothing.** Every SRS item must be named in the `realizes` list of at
    least one design item, and every design item must realise at least one SRS item. Cite SRS item
-   references exactly as given. Do not add features that no SRS item calls for.
+   references exactly as given. Do not add features that no SRS item calls for. Add an
+   `interface` only for an external system or party an SRS item names, and a `data_entity` only
+   for information an SRS item says the system keeps; otherwise describe the mechanism inside the
+   function that needs it. A non-functional SRS item (availability, performance, security) is
+   realised by the design items it constrains: name them and state the constraint, without
+   choosing a technology.
 2. **Kinds.** `function` for behaviour of the system, `screen` for a user interface, `interface` for
    an exchange with an external party or system, `data_entity` for stored information. A name is
    unique within its kind.

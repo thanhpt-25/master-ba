@@ -1,5 +1,6 @@
 """Minimal git wrapper: one business action equals one commit."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -32,6 +33,7 @@ def ensure_ready(cwd: Path) -> None:
     inside = _run(["rev-parse", "--is-inside-work-tree"], cwd)
     if inside.returncode != 0 or inside.stdout.strip() != "true":
         raise GitError(f"{cwd} is not inside a git work tree")
-    for key in ("user.name", "user.email"):
-        if not _run(["config", key], cwd).stdout.strip():
+    # The container sets the author through GIT_AUTHOR_* variables instead of git config.
+    for key, variable in (("user.name", "GIT_AUTHOR_NAME"), ("user.email", "GIT_AUTHOR_EMAIL")):
+        if not os.environ.get(variable) and not _run(["config", key], cwd).stdout.strip():
             raise GitError(f"git {key} is not configured")

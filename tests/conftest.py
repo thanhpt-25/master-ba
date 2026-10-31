@@ -81,3 +81,24 @@ def chain_commits(chain: ProjectStore) -> Callable[[], list[str]]:
         return _git(chain.root, "log", "--format=%s").splitlines()
 
     return _log
+
+
+# Measured with `pytest --durations` (spec 11 section 4): these modules build whole stage chains
+# through git and hold most of the suite's time, so the quick CI job skips them.
+SLOW_MODULES = (
+    "tests/pipeline/",
+    "tests/change/test_propagate.py",
+    "tests/test_cli.py",
+    "tests/test_cli_dr.py",
+    "tests/api/test_flow.py",
+    "tests/calibration/test_calibrate.py",
+    "tests/api/test_permissions.py",
+    "tests/api/test_security.py",
+)
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    root = Path(str(config.rootpath))
+    for item in items:
+        if Path(str(item.path)).relative_to(root).as_posix().startswith(SLOW_MODULES):
+            item.add_marker(pytest.mark.slow)

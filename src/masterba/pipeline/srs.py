@@ -18,9 +18,18 @@ from masterba.llm import LLM
 from masterba.models import BrdContent, Document, SrsContent, SrsItem, TraceLink
 from masterba.models.enums import DocStatus, DocType, LinkType, TeamRunStatus
 from masterba.pipeline.brd import BRD_DOC_ID
-from masterba.pipeline.stage import TEMPLATE_ID, StageResult, stage_result
+from masterba.pipeline.stage import (
+    TEMPLATE_ID,
+    Resume,
+    StageResult,
+    checkpoint_draft,
+    checkpoint_feedback,
+    latest_version,
+    open_team,
+    stage_result,
+)
 from masterba.rendering import render_to_project
-from masterba.team import RecordingLLM, Team, run_writer_review
+from masterba.team import RecordingLLM, run_writer_review
 from masterba.trace_store import (
     DuplicateIdError,
     InvalidDocumentError,
@@ -101,6 +110,7 @@ def run_srs(
     llm: LLM,
     *,
     qa_llm: LLM | None = None,
+    resume: Resume | None = None,
 ) -> StageResult:
     """Run the SRS stage as a writer + QA team; business artifacts are written only when done."""
     if _exists(store, SRS_DOC_ID):
@@ -108,10 +118,11 @@ def run_srs(
             f"{SRS_DOC_ID} already exists; changing an SRS goes through a Decision Record"
         )
     brd = _load_brd(store)
-    config = get_config(store)
-    language = config.document_language
+    language = get_config(store).document_language
     checklist = load_checklist(checklist_path(DocType.SRS))
-    team = Team.open(store, DocType.SRS, config.team_max_rounds, config.team_token_budget)
+    team, checkpoint = open_team(
+        store, DocType.SRS, {BRD_DOC_ID: latest_version(store, BRD_DOC_ID)}, resume
+    )
     writer = RecordingLLM(llm, team)
     reviewer = RecordingLLM(qa_llm or llm, team)
 
@@ -129,6 +140,8 @@ def run_srs(
             draft_view=draft_view(d, SRS_DOC_ID),
             language=language,
         ),
+        start=checkpoint_draft(checkpoint, "draft", SrsDraft),
+        start_feedback=checkpoint_feedback(checkpoint, "writer"),
     )
     if draft is None:
         return stage_result(team, team.finish(TeamRunStatus.ESCALATED))

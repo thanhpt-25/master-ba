@@ -20,7 +20,7 @@ from factories import (
     qa_pass,
     srs_ref,
 )
-from masterba.agents import BasicDesignDraft, DraftDesignItem, QaReport, TestDraft
+from masterba.agents import BasicDesignDraft, DraftDesignItem, QaIssue, QaReport, TestDraft
 from masterba.llm import FakeLLM
 from masterba.models import BasicDesignContent, TestSpecContent
 from masterba.models.enums import BasicDesignKind, TeamRunStatus
@@ -288,3 +288,30 @@ def test_a_question_that_stays_open_after_the_answer_is_reported_not_blocking(
     assert result.open_questions == (
         f"{design_ref(2)}: What are the minimum and maximum password lengths?",
     )
+
+
+def test_a_blocking_issue_that_names_no_action_does_not_block_the_run(
+    with_srs: ProjectStore,
+) -> None:
+    # Regression for spec 05 run 4: the last blocking issue said the case "is acceptable as
+    # written". Without `action_required` it is advisory (spec 11 section 1), so the run is done.
+    ref = f"{ST_DOC_ID}#item.1"
+    acceptable = QaReport(
+        issues=[
+            QaIssue(
+                checklist_id="TS-02",
+                severity="blocking",
+                ref=ref,
+                message="None are specified for this item, so this case is acceptable as written.",
+            )
+        ]
+    )
+    result, *_ = basic(
+        with_srs, [login_design_draft()], [login_test_draft()], [qa_pass(), acceptable]
+    )
+    assert (result.status, result.rounds) == (TeamRunStatus.DONE, 1)
+    assert any(ref in issue for issue in result.advisory)
+    mailbox = json.loads(
+        (with_srs.path / "runs" / result.run_id / "mailbox.json").read_text("utf-8")
+    )
+    assert f"[TS-02] {ref}: downgraded (no action required)" in [m["body"] for m in mailbox]

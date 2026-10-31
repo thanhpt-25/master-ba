@@ -1,10 +1,12 @@
 """Task list and mailbox entries of a Phase Team run (specs/04-srs-qa-and-team-runtime.md 2.1)."""
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import Field
 
 from masterba.models.base import FrozenModel
+from masterba.models.enums import DocType
 from masterba.models.ids import ItemRef
 
 
@@ -37,3 +39,20 @@ class TeamMessage(FrozenModel):
     ref: ItemRef | None = None
     round: int = Field(ge=1)
     body: str = Field(min_length=1)
+
+
+class RunCheckpoint(FrozenModel):
+    """The last validated drafts of a run, so an escalated run can resume (spec 11 section 3.1).
+
+    `drafts` and `feedback` are keyed by role; `upstream` maps each input to its version.
+    """
+
+    stage: DocType
+    round: int = Field(ge=1)
+    upstream: dict[str, int] = Field(default_factory=dict)
+    drafts: dict[str, dict[str, Any] | None] = Field(default_factory=dict)
+    feedback: dict[str, list[str]] = Field(default_factory=dict)
+    customer_questions: list[str] = Field(default_factory=list)
+    tokens_used: int = Field(ge=0)
+    issues_raised: int = Field(default=0, ge=0)
+    issues_resolved: int = Field(default=0, ge=0)

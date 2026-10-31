@@ -34,7 +34,7 @@ def test_open_creates_the_run_folder_with_a_local_only_transcripts_dir(
     team = open_team(store)
     assert team.run_id == "RUN-0001"
     assert team.transcripts_dir.is_dir()
-    assert (team.run_dir / ".gitignore").read_text() == "transcripts/\n"
+    assert (team.run_dir / ".gitignore").read_text() == "transcripts/\ncheckpoint.json\n"
 
 
 def test_run_numbers_are_sequential_and_never_reused(store: ProjectStore) -> None:

@@ -6,7 +6,7 @@ mailbox are committed once at the end; ``transcripts/`` stays local.
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,7 +18,13 @@ from masterba.llm import LLM, LLMResult
 from masterba.llm.base import T
 from masterba.models import TeamRun
 from masterba.models.enums import DocType, TeamRunStatus
-from masterba.team.models import MessageType, TaskStatus, TeamMessage, TeamTask
+from masterba.team.models import (
+    MessageType,
+    RunCheckpoint,
+    TaskStatus,
+    TeamMessage,
+    TeamTask,
+)
 from masterba.trace_store import ProjectStore
 from masterba.trace_store.git import commit_paths
 
@@ -32,15 +38,25 @@ ARTIFACT_OWNERS = {
 }
 _RUN_DIR = re.compile(r"^RUN-(\d{4})$")
 _OPEN = {TaskStatus.TODO, TaskStatus.IN_PROGRESS}
+CHECKPOINT = "checkpoint.json"
+_RUN_GITIGNORE = f"transcripts/\n{CHECKPOINT}\n"
 
 
 class SingleWriterError(Exception):
     """A role tried to write an artifact it does not own."""
 
 
+class ResumeError(Exception):
+    """A run cannot be resumed (spec 11 section 3.2)."""
+
+
 def _dump(path: Path, data: Any) -> None:
     text = json.dumps(data, sort_keys=True, indent=2, ensure_ascii=False)
     path.write_text(text + "\n", encoding="utf-8")
+
+
+def _load(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @dataclass
@@ -56,11 +72,15 @@ class Team:
     issues_resolved: int = 0
     escalations: list[str] = field(default_factory=list)
     advisory: list[str] = field(default_factory=list)
+    customer_questions: list[str] = field(default_factory=list)
     tasks: list[TeamTask] = field(default_factory=list)
     messages: list[TeamMessage] = field(default_factory=list)
     log_count: int = 0
     exchanges: int = 0
     trigger: str = "initial"
+    upstream: dict[str, int] = field(default_factory=dict)
+    resumed: int = 0
+    carried_tasks: int = 0
 
     @classmethod
     def open(
@@ -76,8 +96,56 @@ class Team:
         run_id = f"RUN-{max(used, default=0) + 1:04d}"
         team = cls(store, run_id, stage, max_rounds, token_budget, trigger=trigger)
         team.transcripts_dir.mkdir(parents=True)
-        (team.run_dir / ".gitignore").write_text("transcripts/\n", encoding="utf-8")
+        (team.run_dir / ".gitignore").write_text(_RUN_GITIGNORE, encoding="utf-8")
         return team
+
+    @classmethod
+    def reopen(
+        cls,
+        store: ProjectStore,
+        stage: DocType,
+        run_id: str,
+        more_rounds: int,
+        token_budget: int | None,
+    ) -> tuple["Team", RunCheckpoint]:
+        """Reopen an escalated run from its checkpoint (spec 11 section 3.2)."""
+        run_dir = store.path / "runs" / run_id
+        if not _RUN_DIR.match(run_id) or not (run_dir / "team-summary.json").is_file():
+            raise ResumeError(f"run {run_id} does not exist")
+        summary = TeamRun.model_validate(_load(run_dir / "team-summary.json"))
+        if summary.stage is not stage:
+            raise ResumeError(f"run {run_id} belongs to the {summary.stage.value} stage")
+        if summary.status is not TeamRunStatus.ESCALATED:
+            raise ResumeError(
+                f"run {run_id} ended {summary.status.value}; only escalated runs resume"
+            )
+        if not (run_dir / CHECKPOINT).is_file():
+            raise ResumeError(f"run {run_id} has no checkpoint")
+        checkpoint = RunCheckpoint.model_validate(_load(run_dir / CHECKPOINT))
+        tasks = [TeamTask.model_validate(t) for t in _load(run_dir / "team-tasks.json")]
+        messages = [TeamMessage.model_validate(m) for m in _load(run_dir / "mailbox.json")]
+        team = cls(
+            store,
+            run_id,
+            stage,
+            summary.rounds + more_rounds,
+            token_budget,
+            rounds=summary.rounds,
+            tokens_used=checkpoint.tokens_used,
+            issues_raised=checkpoint.issues_raised,
+            issues_resolved=checkpoint.issues_resolved,
+            customer_questions=list(checkpoint.customer_questions),
+            tasks=tasks,
+            messages=messages,
+            trigger=summary.trigger,
+            upstream=dict(checkpoint.upstream),
+            resumed=summary.resumed + 1,
+            carried_tasks=len(tasks),
+        )
+        team.transcripts_dir.mkdir(parents=True, exist_ok=True)
+        team.log_count = len(list(team.transcripts_dir.iterdir()))
+        (run_dir / ".gitignore").write_text(_RUN_GITIGNORE, encoding="utf-8")
+        return team, checkpoint
 
     @property
     def run_dir(self) -> Path:
@@ -143,6 +211,31 @@ class Team:
     def escalate(self, reasons: list[str]) -> None:
         self.escalations = [*self.escalations, *reasons]
 
+    def save_checkpoint(
+        self, drafts: dict[str, BaseModel | None], feedback: dict[str, Sequence[str]]
+    ) -> None:
+        """Keep the last validated drafts on disk (gitignored), so the run can resume."""
+        checkpoint = RunCheckpoint(
+            stage=self.stage,
+            round=max(self.rounds, 1),
+            upstream=self.upstream,
+            drafts={k: v.model_dump(mode="json") if v else None for k, v in drafts.items()},
+            feedback={k: list(v) for k, v in feedback.items()},
+            customer_questions=list(self.customer_questions),
+            tokens_used=self.tokens_used,
+            issues_raised=self.issues_raised,
+            issues_resolved=self.issues_resolved,
+        )
+        _dump(self.run_dir / CHECKPOINT, checkpoint.model_dump(mode="json"))
+
+    def note_review(self, to: str, notes: Sequence[str], questions: Sequence[str]) -> None:
+        """Record what QA normalisation changed (spec 11 section 1)."""
+        for note in notes:
+            self.post("qa", to, MessageType.FEEDBACK, None, note)
+        for question in questions:
+            if question not in self.customer_questions:
+                self.customer_questions.append(question)
+
     def finish(self, status: TeamRunStatus) -> TeamRun:
         """Write summary, tasks and mailbox and commit them as one commit."""
         if status is TeamRunStatus.ESCALATED:
@@ -151,7 +244,7 @@ class Team:
                 for t in self.tasks
             ]
         elif status is TeamRunStatus.DONE and any(
-            t.status is not TaskStatus.DONE for t in self.tasks
+            t.status is not TaskStatus.DONE for t in self.tasks[self.carried_tasks :]
         ):
             raise RuntimeError("a team cannot finish done with unfinished tasks")
         summary = TeamRun(
@@ -164,6 +257,8 @@ class Team:
             issues_resolved=self.issues_resolved,
             escalations=list(self.escalations),
             tokens_used=self.tokens_used,
+            customer_questions=list(self.customer_questions),
+            resumed=self.resumed,
         )
         files = {
             "team-summary.json": summary.model_dump(mode="json"),
@@ -174,8 +269,11 @@ class Team:
         for name, data in files.items():
             _dump(self.run_dir / name, data)
             paths.append(self.run_dir / name)
+        suffix = " (resumed)" if self.resumed else ""
         commit_paths(
-            self.store.root, paths, f"run({self.store.project_id}): {self.run_id} {status.value}"
+            self.store.root,
+            paths,
+            f"run({self.store.project_id}): {self.run_id} {status.value}{suffix}",
         )
         self.emit(f"{self.run_id} {self.stage.value}: {status.value} after {self.rounds} round(s)")
         return summary

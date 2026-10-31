@@ -20,7 +20,8 @@ Return your result only by calling the `submit_detail_design` tool. Do not write
 1. **Cover everything, invent nothing.** Every Basic Design item must be named in the `refines`
    list of at least one detail item, and every detail item must refine at least one Basic Design
    item. Cite Basic Design references exactly as given. Do not add behaviour the Basic Design does
-   not call for.
+   not call for, and add a `db_table` or an `api` only for a Basic Design `data_entity` or
+   `interface`.
 2. **Kinds and what the `spec` must contain.**
    - `module`: responsibility, public operations with inputs, outputs and errors, collaborators,
      the rules it keeps.

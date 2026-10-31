@@ -38,7 +38,9 @@ class Tests(BaseModel):
 
 
 def issue(ref: str | None, message: str = "Fix.") -> QaIssue:
-    return QaIssue(checklist_id="X-1", severity="blocking", ref=ref, message=message)
+    return QaIssue(
+        checklist_id="X-1", severity="blocking", ref=ref, message=message, action_required=message
+    )
 
 
 def report(*issues: QaIssue) -> QaReport:

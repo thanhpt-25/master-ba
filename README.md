@@ -151,7 +151,7 @@ Phases 0 to 9 are implemented. Phase 10, code generation and executable unit tes
 - Calibration has been tested only on synthetic samples. No real customer workbook has been tried.
 - Templates for all eight document types exist, but nothing generates the UAT specification yet.
 - With the free gateway models used so far, the basic design stage has not reached `done`, because the QA reviewer is strict (see `specs/05-basic-design-and-tests.md`, section 9).
-- A run that escalated cannot resume from its last draft.
+- Phase 11 (hardening: QA signal, resume, containers, CI) is in progress; see `specs/11-hardening.md`.
 
 ## Getting started
 
@@ -178,7 +178,8 @@ export MASTERBA_QA_MODEL=...            # optional: separate, ideally stronger, 
 `--root` is the git work tree that holds `projects/` and `templates/`; it defaults to the current directory.
 
 ```bash
-git init && git commit --allow-empty -m init     # once, in your work tree
+masterba --root ~/masterba-work doctor --init    # once: an empty folder becomes a git work tree with templates
+cd ~/masterba-work && masterba doctor            # prints each check and how to fix a failing one
 masterba init-project --project PRJ-001 --language ja
 masterba run brd    --project PRJ-001 --input intake.txt
 masterba run srs    --project PRJ-001
@@ -186,7 +187,15 @@ masterba run basic  --project PRJ-001            # basic design + IT/ST specs
 masterba run detail --project PRJ-001            # detail design + UT specs
 ```
 
-Use `--model`, `--qa-model` and, for the design stages, `--test-model` to pick a model for each role.
+Use `--model`, `--qa-model` and, for the design stages, `--test-model` to pick a model for each role. `init-project --rounds basic=6` gives one stage more rounds than the default.
+
+A run that escalates keeps its last validated drafts in `runs/RUN-####/checkpoint.json` (not committed). Continue it instead of starting over:
+
+```bash
+masterba run basic --project PRJ-001 --resume RUN-0004 --rounds 2
+```
+
+It refuses when the upstream document changed since the run, or when the target document already exists.
 
 ### Changing a requirement
 
@@ -220,14 +229,31 @@ masterba serve --port 8000                    # then open http://127.0.0.1:8000
 
 Users are stored in `.masterba/`, which git ignores.
 
+### Docker Compose
+
+The image holds the code; your work tree stays on the host, so it remains a git repository you can open.
+
+```bash
+cp .env.example .env                                   # put the key here; .env is gitignored
+docker compose run --rm masterba doctor --init         # prepares ./work (MASTERBA_WORK to change it)
+docker compose run --rm masterba user add alice --role admin
+docker compose up                                      # dashboard on http://127.0.0.1:8000
+docker compose run --rm masterba run brd --project PRJ-001 --input intake.txt   # a file in ./work
+```
+
+The port is published on 127.0.0.1 only; the dashboard has local accounts and no TLS, so think twice before exposing it. A gateway running on the host is reached from the container as `http://host.docker.internal:<port>`. Commits are authored as `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` from `.env`.
+
 ## Development
 
 ```bash
 uv run ruff check . && uv run ruff format --check .
 uv run mypy src tests                      # strict
 uv run python -m masterba.schema_export    # after changing a model; a test fails on drift
+uv run pytest -m "not slow" --no-cov       # quick loop, under a minute
 uv run pytest -m live                      # optional: live model test, needs a key
 ```
+
+CI (`.github/workflows/ci.yml`) runs the quick job on every push, the full suite with coverage on `main`, and builds the image.
 
 Development is spec-driven. A phase's `specs/NN-*.md` is written and approved before its code, and `specs/00-constitution.md` holds the binding conventions (toolchain, layout, id scheme, versioning, commit format). `docs/concept-design.md` and `docs/roadmap-phases.md` give the full design and the phase plan. New documents are written in English; the earlier Vietnamese documents (`docs/concept-design.md`, `docs/roadmap-phases.md` and specs 00 and 01) stay as they are.
 

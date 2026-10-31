@@ -35,6 +35,8 @@ class CreateProjectBody(Body):
 class RunStageBody(Body):
     intake: str | None = None
     reuse_intake: bool = False
+    resume: str | None = Field(default=None, pattern=r"^RUN-\d{4}$")
+    rounds: int | None = Field(default=None, ge=1, le=20)
 
 
 class NewDrBody(Body):

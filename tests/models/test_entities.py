@@ -107,3 +107,19 @@ def test_project_config_without_language_loads_as_japanese() -> None:
     data = make_config().model_dump(mode="json")
     del data["document_language"]
     assert ProjectConfig.model_validate(data).document_language is DocLanguage.JA
+
+
+def test_a_stage_round_limit_overrides_the_default() -> None:
+    cfg = ProjectConfig.model_validate(
+        {
+            "project_id": "PRJ-001",
+            "company_id": "default",
+            "team_max_rounds_by_stage": {"BASIC_DESIGN": 6},
+        }
+    )
+    assert cfg.max_rounds_for(DocType.BASIC_DESIGN) == 6
+    assert cfg.max_rounds_for(DocType.SRS) == 3
+    with pytest.raises(ValidationError):
+        ProjectConfig.model_validate(
+            {"project_id": "PRJ-001", "company_id": "d", "team_max_rounds_by_stage": {"SRS": 0}}
+        )

@@ -108,3 +108,10 @@ def test_unexpected_errors_do_not_leak_details(
     reply = client.get(f"{P}/runs")
     assert (reply.status_code, reply.json()) == (500, {"detail": "internal error"})
     assert "secret" not in reply.text
+
+
+def test_health_needs_no_login_and_shows_no_project_data(seeded_client: ClientFor) -> None:
+    reply = seeded_client(None).get("/api/health")
+    assert reply.status_code == 200
+    assert reply.json()["status"] == "ok"
+    assert set(reply.json()) == {"status", "version"}

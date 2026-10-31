@@ -3,10 +3,27 @@
     "QaIssue": {
       "additionalProperties": false,
       "properties": {
+        "action_required": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Action Required"
+        },
         "checklist_id": {
           "minLength": 1,
           "title": "Checklist Id",
           "type": "string"
+        },
+        "customer_question": {
+          "default": false,
+          "title": "Customer Question",
+          "type": "boolean"
         },
         "message": {
           "minLength": 1,

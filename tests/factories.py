@@ -299,7 +299,15 @@ def qa_block(
     checklist_id: str = "BRD-01", ref: str | None = None, message: str = "Fix it."
 ) -> QaReport:
     return QaReport(
-        issues=[QaIssue(checklist_id=checklist_id, severity="blocking", ref=ref, message=message)]
+        issues=[
+            QaIssue(
+                checklist_id=checklist_id,
+                severity="blocking",
+                ref=ref,
+                message=message,
+                action_required=message,
+            )
+        ]
     )
 
 

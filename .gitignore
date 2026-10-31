@@ -13,3 +13,6 @@ node_modules/
 projects/*/runs/*/transcripts/
 .masterba/
 templates/companies/*/*.preview.xlsx
+.env
+work/
+projects/*/runs/*/checkpoint.json

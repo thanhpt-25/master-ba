@@ -18,6 +18,7 @@ from masterba.agents.qa_reviewer import (
     CHECKLIST_DIR,
     cap_severity,
     checklist_path,
+    normalise_report,
     system_prompt_for,
     validate_report,
 )
@@ -34,7 +35,13 @@ def issue(
     checklist_id: str = "SRS-01", severity: str = "blocking", ref: str | None = REF
 ) -> QaIssue:
     return QaIssue.model_validate(
-        {"checklist_id": checklist_id, "severity": severity, "ref": ref, "message": "Problem."}
+        {
+            "checklist_id": checklist_id,
+            "severity": severity,
+            "ref": ref,
+            "message": "Problem.",
+            "action_required": "Fix it.",
+        }
     )
 
 
@@ -169,3 +176,39 @@ def test_checklists_can_be_found_by_stem_and_the_stage_ones_exist() -> None:
     assert checklist_path(DocType.BASIC_DESIGN).name == "basic_design.toml"
     assert load_checklist(checklist_path("tests")).stage == "TESTS"
     assert load_checklist(checklist_path(DocType.BASIC_DESIGN)).stage == "BASIC_DESIGN"
+
+
+def test_normalise_keeps_a_blocking_issue_that_names_an_action() -> None:
+    report, notes, questions = normalise_report(QaReport(issues=[issue()]))
+    assert not report.passed
+    assert (notes, questions) == ([], [])
+
+
+def test_normalise_downgrades_a_blocking_issue_without_action() -> None:
+    # Regression: live runs raised "acceptable as written" points as blocking.
+    acceptable = QaIssue(
+        checklist_id="SRS-01",
+        severity="blocking",
+        ref=REF,
+        message="The requirement is acceptable as written.",
+    )
+    report, notes, questions = normalise_report(QaReport(issues=[acceptable]))
+    assert report.passed
+    assert notes == [f"[SRS-01] {REF}: downgraded (no action required)"]
+    assert questions == []
+
+
+def test_normalise_turns_a_customer_question_into_an_advisory_question() -> None:
+    asked = issue().model_copy(update={"customer_question": True, "message": "Which tax rate?"})
+    report, notes, questions = normalise_report(QaReport(issues=[asked]))
+    assert report.passed
+    assert notes == [f"[SRS-01] {REF}: downgraded (customer question)"]
+    assert questions == [f"{REF}: Which tax rate?"]
+
+
+def test_review_returns_notes_and_customer_questions() -> None:
+    asked = issue().model_copy(update={"customer_question": True})
+    outcome = run_review(FakeLLM([QaReport(issues=[asked])]))
+    assert outcome.report.passed
+    assert len(outcome.notes) == 1
+    assert len(outcome.customer_questions) == 1

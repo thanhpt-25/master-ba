@@ -194,8 +194,13 @@ def test_git_without_identity_is_reported(
     subprocess.run(["git", "config", "--unset", "user.email"], cwd=root, check=True)
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(root / "empty-gitconfig"))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.delenv("GIT_AUTHOR_EMAIL", raising=False)
     assert run_cli(root, "init-project", "--project", "PRJ-001") == 1
     assert "user.email is not configured" in capsys.readouterr().err
+    # A container passes the author as environment variables instead (spec 11 section 5.2).
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "masterba@localhost")
+    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "masterba@localhost")
+    assert run_cli(root, "init-project", "--project", "PRJ-001") == 0
 
 
 def test_module_entry_point_prints_help() -> None:
@@ -211,6 +216,18 @@ def test_init_project_stores_the_chosen_settings(root: Path) -> None:
     config = json.loads((root / "projects" / "PRJ-001" / "project.json").read_text("utf-8"))
     assert config["document_language"] == "en"
     assert (config["team_max_rounds"], config["team_token_budget"]) == (5, 9000)
+
+
+def test_init_project_sets_round_limits_per_stage(root: Path) -> None:
+    init(root, "en", "--rounds", "basic=6", "--rounds", "SRS=4")
+    config = json.loads((root / "projects" / "PRJ-001" / "project.json").read_text("utf-8"))
+    assert config["team_max_rounds_by_stage"] == {"BASIC_DESIGN": 6, "SRS": 4}
+
+
+@pytest.mark.parametrize("value", ["basic", "basic=0", "nope=3", "basic=x"])
+def test_init_project_rejects_a_bad_round_limit(root: Path, value: str) -> None:
+    with pytest.raises(SystemExit):
+        run_cli(root, "init-project", "--project", "PRJ-001", "--rounds", value)
 
 
 def test_init_project_defaults_to_japanese(root: Path) -> None:

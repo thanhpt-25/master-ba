@@ -117,7 +117,11 @@ def _revise(
     )
     checklist = load_checklist(checklist_path(CHECKLIST_STEM[document.type]))
     team = Team.open(
-        store, document.type, config.team_max_rounds, config.team_token_budget, trigger=dr.id
+        store,
+        document.type,
+        config.max_rounds_for(document.type),
+        config.team_token_budget,
+        trigger=dr.id,
     )
     writer, reviewer = RecordingLLM(llm, team), RecordingLLM(qa_llm or llm, team)
     focus = _focus(dr, impact, doc_id)

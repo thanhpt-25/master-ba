@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Awaitable, Callable
+from importlib.metadata import version
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
@@ -41,7 +42,7 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
         users=UserStore(settings.state_dir / "users.json", settings.hash_iterations),
         signer=SessionSigner(settings.state_dir / "secret"),
         throttle=LoginThrottle(),
-        jobs=JobManager(),
+        jobs=JobManager(settings.state_dir / "jobs"),
     )
 
     @app.middleware("http")
@@ -80,6 +81,11 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
     async def unexpected(_: Request, exc: Exception) -> JSONResponse:
         logger.exception("unhandled error")
         return JSONResponse({"detail": "internal error"}, status_code=500)
+
+    @app.get("/api/health")
+    async def health() -> dict[str, str]:
+        """Unauthenticated liveness check (spec 11 section 5.4); reads no project data."""
+        return {"status": "ok", "version": version("masterba")}
 
     for module in (routes_projects, routes_docs, routes_trace, routes_drs, routes_templates):
         app.include_router(module.router)

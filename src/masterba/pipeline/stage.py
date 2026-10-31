@@ -2,13 +2,61 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeVar
+
+from pydantic import BaseModel
 
 from masterba.models import Document, TeamRun, TraceLink
 from masterba.models.enums import DocStatus, DocType, TeamRunStatus
-from masterba.team import Team
-from masterba.trace_store import NotFoundError, ProjectStore, get_document
+from masterba.team import ResumeError, RunCheckpoint, Team
+from masterba.trace_store import NotFoundError, ProjectStore, get_config, get_document
 
 TEMPLATE_ID = "default/v1"
+M = TypeVar("M", bound=BaseModel)
+
+
+@dataclass(frozen=True)
+class Resume:
+    """Resume an escalated run (spec 11 section 3.2); `rounds` defaults to the stage limit."""
+
+    run_id: str
+    rounds: int | None = None
+
+
+def open_team(
+    store: ProjectStore, stage: DocType, upstream: dict[str, int], resume: Resume | None
+) -> tuple[Team, RunCheckpoint | None]:
+    """Open a new team, or reopen an escalated run whose inputs have not changed since."""
+    config = get_config(store)
+    limit = config.max_rounds_for(stage)
+    if resume is None:
+        team = Team.open(store, stage, limit, config.team_token_budget)
+        team.upstream = dict(upstream)
+        return team, None
+    team, checkpoint = Team.reopen(
+        store, stage, resume.run_id, resume.rounds or limit, config.team_token_budget
+    )
+    if checkpoint.upstream != upstream:
+        raise ResumeError(
+            f"the inputs of {resume.run_id} changed since it ran "
+            f"(then {checkpoint.upstream}, now {upstream}); start a new run"
+        )
+    return team, checkpoint
+
+
+def checkpoint_draft(checkpoint: RunCheckpoint | None, key: str, model: type[M]) -> M | None:
+    """One draft from a checkpoint, parsed as its model (None when absent)."""
+    data = checkpoint.drafts.get(key) if checkpoint else None
+    return model.model_validate(data) if data is not None else None
+
+
+def checkpoint_feedback(checkpoint: RunCheckpoint | None, key: str) -> tuple[str, ...]:
+    return tuple(checkpoint.feedback.get(key, ())) if checkpoint else ()
+
+
+def latest_version(store: ProjectStore, doc_id: str) -> int:
+    document, _ = get_document(store, doc_id)
+    return document.version
 
 
 @dataclass(frozen=True)
@@ -57,7 +105,7 @@ def stage_result(
         exchanges=team.exchanges,
         requirement_ids=requirement_ids,
         xlsx_path=xlsx_path,
-        open_questions=open_questions,
+        open_questions=tuple(dict.fromkeys([*open_questions, *run.customer_questions])),
         uncovered_lines=uncovered_lines,
     )
 

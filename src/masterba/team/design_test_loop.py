@@ -49,6 +49,17 @@ class DesignTestHooks(Generic[D, T]):
 
 
 @dataclass(frozen=True)
+class DesignTestStart(Generic[D, T]):
+    """Where a resumed run picks up (spec 11 section 3): drafts and feedback from a checkpoint."""
+
+    design: D | None
+    tests: T | None
+    to_designer: tuple[str, ...] = ()
+    to_tester: tuple[str, ...] = ()
+    unresolved: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class DesignTestResult(Generic[D, T]):
     design: D
     tests: T
@@ -62,17 +73,29 @@ class _Next(Enum):
 
 
 class _Loop(Generic[D, T]):
-    def __init__(self, team: Team, hooks: DesignTestHooks[D, T]) -> None:
+    def __init__(
+        self, team: Team, hooks: DesignTestHooks[D, T], start: DesignTestStart[D, T] | None
+    ) -> None:
         self.team = team
         self.hooks = hooks
-        self.design: D | None = None
-        self.tests: T | None = None
-        self.to_designer: list[str] = []
-        self.to_tester: list[str] = []
+        self.design: D | None = start.design if start else None
+        self.tests: T | None = start.tests if start else None
+        self.to_designer: list[str] = list(start.to_designer) if start else []
+        self.to_tester: list[str] = list(start.to_tester) if start else []
         self.open_blocking = 0
         self.answered: set[str] = set()
-        self.unresolved: list[str] = []
+        self.unresolved: list[str] = list(start.unresolved) if start else []
         self.last_task: str | None = None
+
+    def _checkpoint(self) -> None:
+        self.team.save_checkpoint(
+            {"design": self.design, "tests": self.tests},
+            {
+                "designer": self.to_designer,
+                "tester": self.to_tester,
+                "unresolved": self.unresolved,
+            },
+        )
 
     # -- helpers -------------------------------------------------------------------------------
     def _stop(self, reasons: list[str]) -> _Next:
@@ -216,6 +239,7 @@ class _Loop(Generic[D, T]):
                 team.advisory.append(format_issue(issue))
             else:
                 blocking.append(issue)
+        team.note_review(owner, outcome.notes, outcome.customer_questions)
         return blocking
 
     def _review(self) -> _Next | None:
@@ -241,6 +265,7 @@ class _Loop(Generic[D, T]):
             return None
         self.to_designer = [format_issue(i) for i in in_design]
         self.to_tester = [format_issue(i) for i in in_tests]
+        self._checkpoint()
         return _Next.END_CYCLE
 
     def run(self) -> DesignTestResult[D, T] | None:
@@ -257,6 +282,7 @@ class _Loop(Generic[D, T]):
                 return None
             if cycle is _Next.END_CYCLE:
                 continue
+            self._checkpoint()
             verdict = self._review()
             if verdict is _Next.ESCALATED:
                 return None
@@ -265,6 +291,8 @@ class _Loop(Generic[D, T]):
                 return DesignTestResult(self.design, self.tests, tuple(self.unresolved))
 
 
-def run_design_test_team(team: Team, hooks: DesignTestHooks[D, T]) -> DesignTestResult[D, T] | None:
+def run_design_test_team(
+    team: Team, hooks: DesignTestHooks[D, T], start: DesignTestStart[D, T] | None = None
+) -> DesignTestResult[D, T] | None:
     """Return the accepted design and tests, or None after escalating."""
-    return _Loop(team, hooks).run()
+    return _Loop(team, hooks, start).run()

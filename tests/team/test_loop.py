@@ -50,7 +50,15 @@ class Script:
 
 def block(message: str = "Split it.", ref: str | None = REF) -> QaReport:
     return QaReport(
-        issues=[QaIssue(checklist_id="BRD-01", severity="blocking", ref=ref, message=message)]
+        issues=[
+            QaIssue(
+                checklist_id="BRD-01",
+                severity="blocking",
+                ref=ref,
+                message=message,
+                action_required=message,
+            )
+        ]
     )
 
 
@@ -168,3 +176,19 @@ def test_summary_of_an_escalated_run_blocks_open_tasks(team: Team) -> None:
     assert summary.status is TeamRunStatus.ESCALATED
     assert summary.rounds == 3
     assert all(t.status in {TaskStatus.DONE, TaskStatus.BLOCKED} for t in team.tasks)
+
+
+def test_review_notes_and_customer_questions_reach_the_team(team: Team) -> None:
+    question = f"{REF}: Which tax rate applies?"
+    note = f"[BRD-01] {REF}: downgraded (customer question)"
+
+    class Asking(Script):
+        def review(self, draft: Draft) -> QaReview:
+            self.reviews += 1
+            return QaReview(QaReport(), 8, 2, 1, (note,), (question,))
+
+    assert run(team, Asking([])) == Draft(text="draft 1")
+    assert team.customer_questions == [question]
+    assert [m.body for m in team.messages] == [note]
+    run_record = team.finish(TeamRunStatus.DONE)
+    assert run_record.customer_questions == [question]

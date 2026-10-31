@@ -32,9 +32,14 @@ from masterba.models import (
 from masterba.models.enums import DocType, Level, LinkType, TeamRunStatus
 from masterba.pipeline.basic import DESIGN_DOC_ID
 from masterba.pipeline.stage import (
+    Resume,
     StageResult,
+    checkpoint_draft,
+    checkpoint_feedback,
     document_exists,
+    latest_version,
     make_document,
+    open_team,
     stage_result,
     unique_links,
 )
@@ -43,9 +48,9 @@ from masterba.team import (
     Answer,
     DesignTestHooks,
     DesignTestResult,
+    DesignTestStart,
     Question,
     RecordingLLM,
-    Team,
     run_design_test_team,
 )
 from masterba.trace_store import (
@@ -128,6 +133,7 @@ def run_detail_design(
     *,
     tester_llm: LLM | None = None,
     qa_llm: LLM | None = None,
+    resume: Resume | None = None,
 ) -> StageResult:
     """Run the Detail Design stage as a three-member team; artifacts are written only when done."""
     for doc_id in (DETAIL_DOC_ID, UT_DOC_ID):
@@ -143,11 +149,12 @@ def run_detail_design(
     if not basic_items:
         raise InvalidDocumentError("the Basic Design has no active items to detail")
 
-    config = get_config(store)
-    language = config.document_language
+    language = get_config(store).document_language
     design_checklist = load_checklist(checklist_path(DocType.DETAIL_DESIGN))
     tests_checklist = load_checklist(checklist_path("unit_tests"))
-    team = Team.open(store, DocType.DETAIL_DESIGN, config.team_max_rounds, config.team_token_budget)
+    team, checkpoint = open_team(
+        store, DocType.DETAIL_DESIGN, {DESIGN_DOC_ID: latest_version(store, DESIGN_DOC_ID)}, resume
+    )
     designer = RecordingLLM(designer_llm, team)
     tester = RecordingLLM(tester_llm or designer_llm, team)
     reviewer = RecordingLLM(qa_llm or designer_llm, team)
@@ -181,7 +188,18 @@ def run_detail_design(
             language=language,
         ),
     )
-    outcome = run_design_test_team(team, hooks)
+    start = (
+        DesignTestStart(
+            checkpoint_draft(checkpoint, "design", DetailDesignDraft),
+            checkpoint_draft(checkpoint, "tests", UnitTestDraft),
+            checkpoint_feedback(checkpoint, "designer"),
+            checkpoint_feedback(checkpoint, "tester"),
+            checkpoint_feedback(checkpoint, "unresolved"),
+        )
+        if checkpoint
+        else None
+    )
+    outcome = run_design_test_team(team, hooks, start)
     if outcome is None:
         return stage_result(team, team.finish(TeamRunStatus.ESCALATED))
 

@@ -53,6 +53,8 @@ class QaIssue(FrozenModel):
     severity: Severity
     ref: ItemRef | None = None
     message: str = Field(min_length=1)
+    action_required: str | None = None
+    customer_question: bool = False
 
 
 class QaReport(FrozenModel):
@@ -79,6 +81,8 @@ class QaReview:
     input_tokens: int
     output_tokens: int
     attempts: int
+    notes: tuple[str, ...] = ()
+    customer_questions: tuple[str, ...] = ()
 
 
 def checklist_path(stage: DocType | str) -> Path:
@@ -116,6 +120,36 @@ def cap_severity(report: QaReport, checklist: Checklist) -> QaReport:
         for i in report.issues
     ]
     return QaReport(issues=issues)
+
+
+def _downgrade_reason(issue: QaIssue) -> str | None:
+    if issue.severity != "blocking":
+        return None
+    if issue.customer_question:
+        return "customer question"
+    if not (issue.action_required or "").strip():
+        return "no action required"
+    return None
+
+
+def normalise_report(report: QaReport) -> tuple[QaReport, list[str], list[str]]:
+    """Blocking means "change this": downgrade issues that name no change (spec 11 section 1.3).
+
+    Returns the report, one note per downgrade and the customer questions it found.
+    """
+    issues: list[QaIssue] = []
+    notes: list[str] = []
+    questions: list[str] = []
+    for issue in report.issues:
+        reason = _downgrade_reason(issue)
+        if issue.customer_question:
+            questions.append(f"{issue.ref or 'document'}: {issue.message}")
+        if reason is None:
+            issues.append(issue)
+            continue
+        issues.append(issue.model_copy(update={"severity": "advisory"}))
+        notes.append(f"[{issue.checklist_id}] {issue.ref or 'document'}: downgraded ({reason})")
+    return QaReport(issues=issues), notes, questions
 
 
 def system_prompt_for(checklist: Checklist, language: DocLanguage, base: str | None = None) -> str:
@@ -164,5 +198,6 @@ def review(
         tokens_out += result.output_tokens
         errors = validate_report(result.value, checklist, item_counts)
         if not errors:
-            return QaReview(cap_severity(result.value, checklist), tokens_in, tokens_out, attempt)
+            report, notes, questions = normalise_report(cap_severity(result.value, checklist))
+            return QaReview(report, tokens_in, tokens_out, attempt, tuple(notes), tuple(questions))
     raise QaOutputInvalidError(errors, tokens_in, tokens_out)
