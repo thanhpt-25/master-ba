@@ -1,0 +1,77 @@
+{
+  "doc_type": "DETAIL_DESIGN",
+  "tables": [
+    {
+      "sheet": "詳細設計一覧",
+      "key": "t1",
+      "header_row": 9,
+      "first_row": 10,
+      "numbering": "A",
+      "columns": [
+        {
+          "col": "B",
+          "header": "項目ID",
+          "field": "item_id",
+          "value_map": null
+        },
+        {
+          "col": "C",
+          "header": "種別",
+          "field": "kind",
+          "value_map": null
+        },
+        {
+          "col": "D",
+          "header": "名称",
+          "field": "name",
+          "value_map": null
+        },
+        {
+          "col": "E",
+          "header": "仕様",
+          "field": "spec",
+          "value_map": null
+        },
+        {
+          "col": "F",
+          "header": "詳細化対象",
+          "field": "refines",
+          "value_map": null
+        },
+        {
+          "col": "G",
+          "header": "備考",
+          "field": null,
+          "value_map": null
+        }
+      ],
+      "where": {}
+    }
+  ],
+  "headers": [
+    {
+      "sheet": "詳細設計一覧",
+      "cell": "B2",
+      "source": "$document.id"
+    },
+    {
+      "sheet": "詳細設計一覧",
+      "cell": "B3",
+      "source": "$document.version"
+    },
+    {
+      "sheet": "詳細設計一覧",
+      "cell": "B4",
+      "source": "$project.id"
+    },
+    {
+      "sheet": "詳細設計一覧",
+      "cell": "B5",
+      "source": "$document.status"
+    }
+  ],
+  "unmapped": [
+    "詳細設計一覧!G: 備考"
+  ],
+  "warnings": []
+}

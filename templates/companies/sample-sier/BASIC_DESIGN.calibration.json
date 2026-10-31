@@ -1,0 +1,77 @@
+{
+  "doc_type": "BASIC_DESIGN",
+  "tables": [
+    {
+      "sheet": "基本設計一覧",
+      "key": "t1",
+      "header_row": 9,
+      "first_row": 10,
+      "numbering": "A",
+      "columns": [
+        {
+          "col": "B",
+          "header": "項目ID",
+          "field": "item_id",
+          "value_map": null
+        },
+        {
+          "col": "C",
+          "header": "種別",
+          "field": "kind",
+          "value_map": null
+        },
+        {
+          "col": "D",
+          "header": "機能名",
+          "field": "name",
+          "value_map": null
+        },
+        {
+          "col": "E",
+          "header": "内容",
+          "field": "description",
+          "value_map": null
+        },
+        {
+          "col": "F",
+          "header": "実現対象",
+          "field": "realizes",
+          "value_map": null
+        },
+        {
+          "col": "G",
+          "header": "備考",
+          "field": null,
+          "value_map": null
+        }
+      ],
+      "where": {}
+    }
+  ],
+  "headers": [
+    {
+      "sheet": "基本設計一覧",
+      "cell": "B2",
+      "source": "$document.id"
+    },
+    {
+      "sheet": "基本設計一覧",
+      "cell": "B3",
+      "source": "$document.version"
+    },
+    {
+      "sheet": "基本設計一覧",
+      "cell": "B4",
+      "source": "$project.id"
+    },
+    {
+      "sheet": "基本設計一覧",
+      "cell": "B5",
+      "source": "$document.status"
+    }
+  ],
+  "unmapped": [
+    "基本設計一覧!G: 備考"
+  ],
+  "warnings": []
+}

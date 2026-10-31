@@ -14,7 +14,9 @@ BASE = ("--company", "acme", "--type", "BRD")
 
 @pytest.fixture
 def root(git_repo: Path) -> Path:
-    shutil.copytree(REPO / "templates", git_repo / "templates")
+    shutil.copytree(
+        REPO / "templates", git_repo / "templates", ignore=shutil.ignore_patterns("companies")
+    )
     return git_repo
 
 
