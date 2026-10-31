@@ -56,3 +56,5 @@ class RunCheckpoint(FrozenModel):
     tokens_used: int = Field(ge=0)
     issues_raised: int = Field(default=0, ge=0)
     issues_resolved: int = Field(default=0, ge=0)
+    # (checklist id, ref) pairs that were blocking, per reviewed artifact (spec 11 section 1.5)
+    blocking_seen: dict[str, list[tuple[str, str | None]]] = Field(default_factory=dict)

@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from masterba.agents import QaIssue, QaOutputInvalidError, QaReport, QaReview
-from masterba.llm import LLMResult
+from masterba.llm import LLMOutputError, LLMResult
 from masterba.models.enums import DocType, TeamRunStatus
 from masterba.team import (
     MAX_EXCHANGES,
@@ -303,3 +303,71 @@ def test_a_clean_run_has_no_unresolved_questions(team: Team) -> None:
     result = run(team, Script())
     assert result is not None
     assert result.unresolved == ()
+
+
+class Flaky(Script):
+    """The first design or test calls raise a schema error before they return a draft."""
+
+    def __init__(self, design_failures: int = 0, test_failures: int = 0) -> None:
+        super().__init__()
+        self.design_failures = design_failures
+        self.test_failures = test_failures
+
+    def write_design(self, previous: Design | None, feedback: Sequence[str]) -> LLMResult[Design]:
+        if self.design_failures:
+            self.design_failures -= 1
+            raise LLMOutputError("items.0.realizes Field required")
+        return super().write_design(previous, feedback)
+
+    def write_tests(
+        self, design: Design, previous: Tests | None, feedback: Sequence[str]
+    ) -> LLMResult[Tests]:
+        if self.test_failures:
+            self.test_failures -= 1
+            raise LLMOutputError("items.0.realizes Field required")
+        return super().write_tests(design, previous, feedback)
+
+
+UNUSABLE = "the last answer could not be used: items.0.realizes Field required"
+
+
+def test_a_schema_error_from_the_designer_goes_back_to_the_designer(team: Team) -> None:
+    script = Flaky(design_failures=1)
+    assert run(team, script) is not None
+    assert (team.rounds, len(script.design_calls), len(script.test_calls)) == (2, 1, 1)
+    assert script.design_calls == [[UNUSABLE]]
+    assert [(m.sender, m.to, m.body) for m in team.messages] == [("gate", "designer", UNUSABLE)]
+    team.finish(TeamRunStatus.DONE)
+
+
+def test_a_schema_error_from_the_tester_goes_back_to_the_tester(team: Team) -> None:
+    script = Flaky(test_failures=1)
+    assert run(team, script) is not None
+    assert (team.rounds, len(script.design_calls), len(script.test_calls)) == (2, 1, 1)
+    assert script.test_calls == [[UNUSABLE]]
+    assert [(m.sender, m.to) for m in team.messages] == [("gate", "tester")]
+    team.finish(TeamRunStatus.DONE)
+
+
+def test_a_schema_error_that_never_goes_away_escalates_at_the_round_limit(team: Team) -> None:
+    assert run(team, Flaky(design_failures=99)) is None
+    assert team.escalations == ["max rounds reached (3)", UNUSABLE]
+
+
+def test_new_blocking_issues_after_the_first_review_are_downgraded_for_each_role(
+    team: Team,
+) -> None:
+    script = Script(
+        design_reports=[report(issue(D_REF, "A")), report(issue(D_REF3, "B"))],
+        test_reports=[report(issue(T_REF, "x")), report(issue("DOC-TEST_IT-0001#item.2", "y"))],
+    )
+    assert run(team, script) is not None
+    assert (team.rounds, team.issues_raised) == (2, 2)
+    assert team.advisory == [f"[X-1] {D_REF3}: B", "[X-1] DOC-TEST_IT-0001#item.2: y"]
+
+
+def test_a_new_design_issue_after_the_first_review_only_advises(team: Team) -> None:
+    script = Script(design_reports=[report(issue(D_REF, "A")), report(issue(D_REF3, "B"))])
+    assert run(team, script) is not None
+    assert (team.rounds, team.issues_raised) == (2, 1)
+    assert team.advisory == [f"[X-1] {D_REF3}: B"]

@@ -19,7 +19,9 @@ COMPANY = "acme"
 
 @pytest.fixture
 def root(git_repo: Path) -> Path:
-    shutil.copytree(REPO / "templates", git_repo / "templates")
+    shutil.copytree(
+        REPO / "templates", git_repo / "templates", ignore=shutil.ignore_patterns("companies")
+    )
     subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "templates"], cwd=git_repo, check=True)
     return git_repo

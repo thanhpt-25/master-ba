@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from factories import draft_for, qa_pass
-from masterba.agents import BrdDraft, QaReport
+from masterba.agents import BrdDraft, QaIssue, QaReport
 from masterba.llm import FakeLLM
 from masterba.models.enums import DocType, TeamRunStatus
 from masterba.team import (
@@ -166,3 +166,24 @@ def test_design_and_test_drafts_have_their_own_owners(store: ProjectStore) -> No
         team.write("designer", "test-draft", draft)
     with pytest.raises(SingleWriterError):
         team.write("designer", "draft", draft)
+
+
+def test_the_blocking_pairs_of_a_run_survive_a_resume(store: ProjectStore) -> None:
+    team = open_team(store)
+    raised = QaIssue(
+        checklist_id="BRD-01",
+        severity="blocking",
+        ref="DOC-BRD-0001#item.1",
+        message="Split it.",
+        action_required="Split it.",
+    )
+    team.settle("draft", [raised])
+    team.save_checkpoint({}, {})
+    team.finish(TeamRunStatus.ESCALATED)
+
+    reopened, _ = Team.reopen(store, DocType.BRD, team.run_id, 3, None)
+    other = raised.model_copy(update={"ref": "DOC-BRD-0001#item.2"})
+    settled, notes = reopened.settle("draft", [raised, other])
+
+    assert [i.severity for i in settled] == ["blocking", "advisory"]
+    assert notes == ["[BRD-01] DOC-BRD-0001#item.2: downgraded (new after the first review)"]
