@@ -12,8 +12,8 @@ from typing import Generic, TypeVar
 from pydantic import BaseModel
 
 from masterba.agents.qa_reviewer import QaIssue, QaOutputInvalidError, QaReview
-from masterba.llm import LLMResult
-from masterba.team.loop import format_issue
+from masterba.llm import LLMOutputError, LLMResult
+from masterba.team.loop import format_issue, unusable_answer
 from masterba.team.models import MessageType, TaskStatus
 from masterba.team.workspace import Team
 
@@ -133,7 +133,15 @@ class _Loop(Generic[D, T]):
         first = self.design is None
         title = "Draft design" if first else f"Revise design (round {team.rounds})"
         task = self._task(title, "designer")
-        written = self.hooks.write_design(self.design, list(self.to_designer))
+        try:
+            written = self.hooks.write_design(self.design, list(self.to_designer))
+        except LLMOutputError as exc:
+            self._done(task)
+            message = unusable_answer(exc)
+            self._gate_failed([message], "designer")
+            if message not in self.to_designer:
+                self.to_designer = [*self.to_designer, message]
+            return _Next.END_CYCLE
         team.charge(written.input_tokens + written.output_tokens)
         self.design = written.value
         team.write("designer", "design-draft", self.design)
@@ -163,7 +171,15 @@ class _Loop(Generic[D, T]):
             return _Next.ESCALATED
         title = "Write tests" if self.tests is None else f"Revise tests (round {team.rounds})"
         task = self._task(title, "tester")
-        written = self.hooks.write_tests(self.design, self.tests, list(self.to_tester))
+        try:
+            written = self.hooks.write_tests(self.design, self.tests, list(self.to_tester))
+        except LLMOutputError as exc:
+            self._done(task)
+            message = unusable_answer(exc)
+            self._gate_failed([message], "tester")
+            if message not in self.to_tester:
+                self.to_tester = [*self.to_tester, message]
+            return _Next.END_CYCLE
         team.charge(written.input_tokens + written.output_tokens)
         self.tests = written.value
         team.write("tester", "test-draft", self.tests)
@@ -233,13 +249,14 @@ class _Loop(Generic[D, T]):
         team.write("qa", "qa-report", outcome.report)
         self._done(task)
         blocking: list[QaIssue] = []
-        for issue in outcome.report.issues:
+        issues, limited = team.settle(owner, outcome.report.issues)
+        for issue in issues:
             team.post("qa", owner, MessageType.FEEDBACK, issue.ref, format_issue(issue))
             if issue.severity == "advisory":
                 team.advisory.append(format_issue(issue))
             else:
                 blocking.append(issue)
-        team.note_review(owner, outcome.notes, outcome.customer_questions)
+        team.note_review(owner, [*outcome.notes, *limited], outcome.customer_questions)
         return blocking
 
     def _review(self) -> _Next | None:

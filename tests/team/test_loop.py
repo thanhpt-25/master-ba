@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel
 
 from masterba.agents import QaIssue, QaOutputInvalidError, QaReport, QaReview
-from masterba.llm import LLMResult
+from masterba.llm import LLMOutputError, LLMResult
 from masterba.models.enums import DocType, TeamRunStatus
 from masterba.team import MessageType, TaskStatus, Team, run_writer_review
 from masterba.trace_store import ProjectStore
@@ -192,3 +192,69 @@ def test_review_notes_and_customer_questions_reach_the_team(team: Team) -> None:
     assert [m.body for m in team.messages] == [note]
     run_record = team.finish(TeamRunStatus.DONE)
     assert run_record.customer_questions == [question]
+
+
+class Failing(Script):
+    """The writer's first calls raise a schema error before they return a draft."""
+
+    def __init__(self, reports: list[QaReport | QaOutputInvalidError], failures: int) -> None:
+        super().__init__(reports)
+        self.failures = failures
+        self.calls = 0
+
+    def write(self, previous: Draft | None, feedback: Sequence[str]) -> LLMResult[Draft]:
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise LLMOutputError("items.0.realizes Field required")
+        return super().write(previous, feedback)
+
+
+UNUSABLE = "the last answer could not be used: items.0.realizes Field required"
+
+
+def test_a_schema_error_from_the_writer_goes_back_as_feedback(team: Team) -> None:
+    script = Failing([QaReport()], failures=1)
+    assert run(team, script) == Draft(text="draft 1")
+    assert script.writes == [(None, [UNUSABLE])]
+    assert team.rounds == 2
+    assert team.tokens_used == 30 + 10  # the failed call is not charged
+    assert [(m.sender, m.to, m.body) for m in team.messages] == [("gate", "writer", UNUSABLE)]
+    team.finish(TeamRunStatus.DONE)  # the failed round's task is not left open
+
+
+def test_a_schema_error_keeps_the_feedback_that_was_already_pending(team: Team) -> None:
+    class AfterReview(Failing):
+        def write(self, previous: Draft | None, feedback: Sequence[str]) -> LLMResult[Draft]:
+            self.calls += 1
+            if self.calls == 2:
+                raise LLMOutputError("items.0.realizes Field required")
+            return Script.write(self, previous, feedback)
+
+    script = AfterReview([block("Split it."), QaReport()], failures=0)
+    assert run(team, script) == Draft(text="draft 2")
+    assert script.writes[1] == (Draft(text="draft 1"), [f"[BRD-01] {REF}: Split it.", UNUSABLE])
+
+
+def test_a_schema_error_in_every_round_escalates_after_max_rounds(team: Team) -> None:
+    script = Failing([], failures=99)
+    assert run(team, script) is None
+    assert (script.calls, script.reviews) == (3, 0)
+    assert team.escalations == ["max rounds reached (3)", UNUSABLE]
+
+
+def test_a_blocking_issue_that_is_new_after_the_first_review_is_downgraded(team: Team) -> None:
+    other = "DOC-BRD-0001#item.2"
+    script = Script([block("A", REF), block("B", other)])
+    assert run(team, script) == Draft(text="draft 2")
+    assert (team.rounds, team.issues_raised, team.issues_resolved) == (2, 1, 1)
+    assert team.advisory == [f"[BRD-01] {other}: B"]
+    assert f"[BRD-01] {other}: downgraded (new after the first review)" in [
+        m.body for m in team.messages
+    ]
+
+
+def test_the_first_review_may_raise_any_number_of_blocking_issues(team: Team) -> None:
+    many = QaReport(issues=block("A", REF).issues + block("B", "DOC-BRD-0001#item.2").issues)
+    assert run(team, Script([many, QaReport()])) == Draft(text="draft 2")
+    assert team.issues_raised == 2
+    assert team.advisory == []

@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from masterba.agents.qa_reviewer import QaIssue
 from masterba.llm import LLM, LLMResult
 from masterba.llm.base import T
 from masterba.models import TeamRun
@@ -81,6 +82,7 @@ class Team:
     upstream: dict[str, int] = field(default_factory=dict)
     resumed: int = 0
     carried_tasks: int = 0
+    blocking_seen: dict[str, set[tuple[str, str | None]]] = field(default_factory=dict)
 
     @classmethod
     def open(
@@ -141,6 +143,7 @@ class Team:
             upstream=dict(checkpoint.upstream),
             resumed=summary.resumed + 1,
             carried_tasks=len(tasks),
+            blocking_seen={a: set(pairs) for a, pairs in checkpoint.blocking_seen.items()},
         )
         team.transcripts_dir.mkdir(parents=True, exist_ok=True)
         team.log_count = len(list(team.transcripts_dir.iterdir()))
@@ -225,8 +228,36 @@ class Team:
             tokens_used=self.tokens_used,
             issues_raised=self.issues_raised,
             issues_resolved=self.issues_resolved,
+            blocking_seen={
+                artifact: sorted(pairs, key=lambda p: (p[0], p[1] or ""))
+                for artifact, pairs in self.blocking_seen.items()
+            },
         )
         _dump(self.run_dir / CHECKPOINT, checkpoint.model_dump(mode="json"))
+
+    def settle(self, artifact: str, issues: Sequence[QaIssue]) -> tuple[list[QaIssue], list[str]]:
+        """Only the first review of an artifact may raise new blocking issues (spec 11 1.5).
+
+        Later reviews keep an issue blocking only when the same (checklist id, ref) was blocking
+        before; every other blocking issue becomes advisory, with a note for the mailbox.
+        """
+        first = artifact not in self.blocking_seen
+        seen = self.blocking_seen.setdefault(artifact, set())
+        settled: list[QaIssue] = []
+        notes: list[str] = []
+        for issue in issues:
+            key = (issue.checklist_id, issue.ref)
+            if issue.severity == "blocking" and not first and key not in seen:
+                settled.append(issue.model_copy(update={"severity": "advisory"}))
+                where = issue.ref or "document"
+                notes.append(
+                    f"[{issue.checklist_id}] {where}: downgraded (new after the first review)"
+                )
+                continue
+            if issue.severity == "blocking":
+                seen.add(key)
+            settled.append(issue)
+        return settled, notes
 
     def note_review(self, to: str, notes: Sequence[str], questions: Sequence[str]) -> None:
         """Record what QA normalisation changed (spec 11 section 1)."""
