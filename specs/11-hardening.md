@@ -189,7 +189,7 @@ The README setup section gains the `doctor` step and the Docker Compose quick st
 - [x] `normalise_report` has unit tests for both downgrade rules and the note it posts; a regression test replays the spec 05 run 4 issue ("acceptable as written", no action) and the run finishes `done`; the `QaReport` and `TeamRun` schemas are regenerated and drift-tested.
 - [x] Customer questions from both loops reach `TeamRun.customer_questions`, and the SRS stage merges them with `open_questions`.
 - [x] `team_max_rounds_by_stage` overrides the default per stage and is set through `init-project --rounds`.
-- [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Open: dry-run 1 escalated in Basic Design (10.3).*
+- [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Open: dry-run 3 reached `done` for both stages on a gateway model (10.3); awaits the owner's acceptance.*
 - [x] `--resume` continues an escalated run with the fake model for every stage; it refuses a run that is done, of another stage, without a checkpoint, with a changed upstream version, or whose target document exists; the commit subject says `(resumed)`.
 - [x] The CI jobs `quick`, `full` and `image` are green on `main`, and `quick` runs in under one minute. *(2026-10-31: run 41208337518, `quick` 32 s; 10.4.)*
 - [x] `docker compose up` serves the dashboard on 127.0.0.1:8000 and the health check passes; `docker compose run --rm masterba init-project ...` and a fake-model stage run create commits visible in the host work tree, authored with the configured name; the container runs as a non-root user; no key is in the image. *A stage run in the container needs a model key and was not tried (10.5).*
@@ -224,6 +224,7 @@ The README setup section gains the `doctor` step and the Docker Compose quick st
 | `basic-design.md` rule 1 | `interface` only for a named external system, `data_entity` only for information an SRS item says is kept; non-functional items realised by the items they constrain | BD-01 (unrequested email interface and data entities) |
 | `unit-test-design.md` rule 3, `detail-design.md` rule 1 | The same two rules at detail level | carried over; no recorded detail runs |
 | `qa-reviewer.md` rule 6 (new), checklist `tests.toml` TS-05 | When a requirement depends on a fact the upstream leaves open (the event a deadline counts from, an error condition, a figure), QA does not demand a case, check or exclusion for the open part, and an exclusion naming that fact is convincing; such a point is a `customer_question` | TS-05, TS-02 (dry-run 1 below: QA called the same open start event a customer question in one issue and a blocking gap in another) |
+| `tests.toml` TS-02, `basic-test-design.md` rule 5, `unit-test-design.md` rule 4 | A limit that cannot be measured because a fact it depends on is open needs no boundary cases; when only part of an item depends on an open fact, the tester tests the stated part and does not exclude the item | TS-02, and the gate error `exclusion n: ... is also tested` (dry-run 2: QA still asked for boundary cases of the open deadline, and the tester then excluded items it also tested) |
 
 ### 10.3 Live runs (2.3)
 
@@ -238,7 +239,18 @@ Dry-run 1, 2026-10-31: local Anthropic-compatible gateway, model `cx/gpt-6-luna`
 
 Normalisation and resume behaved as specified: issues that depend on the customer became advisory and reached `open_questions` (7 after the resume); the resumed run kept `RUN-0003`, added its rounds and committed `RUN-0003 escalated (resumed)`; nothing business-related was written. The last blocking ids were TS-01, TS-02 and TS-05. TS-05 contradicted another issue of the same review about the three-business-day approval limit, whose start event the intake leaves open; this led to the `qa-reviewer.md` change in 10.2. Detail Design was not run because Basic Design did not finish.
 
-Still open until `run basic` and `run detail` reach `done` with a named model, or the owner accepts the recorded escalation.
+Dry-run 2, same setup, after the `qa-reviewer.md` rule only: Basic Design `RUN-0004` escalated after 3 rounds (34 issues raised, 9 resolved, 48,965 tokens). QA still asked for boundary cases of the open deadline (TS-02) and then blocked the cases written for it (TS-01, TS-03); the tester excluded the deadline part of items it also tested, so the last round failed the gate.
+
+Dry-run 3, same setup, after the TS-02 and tester changes in 10.2:
+
+| Stage | Result | Rounds | Issues raised / resolved | Tokens |
+|---|---|---|---|---|
+| Basic Design `RUN-0005` | done; 5 design items, 6 IT and 5 ST cases, 3 open questions | 1 | 0 / 0 | 20,460 |
+| Detail Design `RUN-0006` | done; 10 detail items, 23 UT cases | 2 | 0 / 0 | 40,027 |
+
+All seven workbooks were rendered. No case asserts a figure the intake does not give. Because the intake has five lines, many inputs stay generic ("request details the system accepts; fields are not specified") and the deadline cases refer to "the applicable start point". This is one run on one model; it shows the stages can finish, not that they finish reliably.
+
+Still open: the runs used a gateway model on a synthetic intake; the owner accepts this record or repeats the runs with the model intended for production.
 
 ### 10.4 CI timings (4)
 
