@@ -1,6 +1,6 @@
 # Spec 00 — Constitution
 
-Status: v0.1 (2026-10-31). Nguồn: [concept-design.md](../docs/concept-design.md) mục 0/6/11, [roadmap-phases.md](../docs/roadmap-phases.md) Phase 0.
+Status: v0.2 (2026-10-31) — v0.2: thêm `projects/<project_id>/runs/` cho Phase Team (concept-design.md mục 14.5). Nguồn: [concept-design.md](../docs/concept-design.md) mục 0/6/11, [roadmap-phases.md](../docs/roadmap-phases.md) Phase 0.
 
 ## Mục tiêu
 Thiết lập quy ước nền tảng (toolchain, cấu trúc repo, ID scheme, git convention) dùng chung cho toàn bộ phase tiếp theo, để không phase nào tự chế lại chuẩn riêng.
@@ -47,6 +47,7 @@ MasterBA/
     xlsx/
     decision-records/
     traceability/
+    runs/<run_id>/          # team-summary.json, team-tasks.json commit; transcripts/ gitignore
   src/
   tests/
 ```
@@ -62,6 +63,8 @@ Thư mục mới ngoài danh sách trên phải được thêm vào spec này (h
 | Item trong Document | `<DOC_ID>#item.<n>` | `DOC-SRS-0001#item.12` | trong 1 document |
 | DecisionRecord | `DR-####` | `DR-0007` | trong 1 project |
 | TestCase | `TC-<LEVEL>-####` | `TC-UT-0045` | trong 1 project |
+| TeamRun | `RUN-####` | `RUN-0012` | trong 1 project |
+| Team task | `T-##` | `T-03` | trong 1 run |
 
 `<TYPE>` ∈ `{BRD, SRS, BASIC_DESIGN, DETAIL_DESIGN, TEST_IT, TEST_ST, TEST_UT, TEST_UAT}`. `<LEVEL>` ∈ `{UT, IT, ST, UAT}`.
 

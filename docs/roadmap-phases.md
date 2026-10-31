@@ -78,19 +78,19 @@ Phase 10 (Dev/Unit-test codegen extension) — chỉ viết SPEC để xác nh�
 
 ### Phase 3 — Walking Skeleton: `requirements-analyst-agent` (mốc kiến trúc)
 - **Spec**: `specs/03-requirements-analyst-agent.md` — input (intake text/file) → output `brd.json` (đúng schema Phase 1), ràng buộc: mỗi requirement phải trích dẫn được về câu gốc trong intake, phải gán `REQ-####` ổn định.
-- **Plan**: implement agent (Claude Agent SDK hoặc Claude Code subagent), tool truy cập hẹp (đọc intake, viết JSON, validate schema); viết orchestrator CLI tối giản (`masterba run brd --project X`, chưa cần Dashboard) nối: intake → agent → validate → `trace_store.add_document` → `excel-renderer`.
+- **Plan**: implement agent dạng **agent đơn, chưa dùng team** (team runtime vào ở Phase 4 — concept-design.md mục 14.7) (Claude Agent SDK hoặc Claude Code subagent), tool truy cập hẹp (đọc intake, viết JSON, validate schema); viết orchestrator CLI tối giản (`masterba run brd --project X`, chưa cần Dashboard) nối: intake → agent → validate → `trace_store.add_document` → `excel-renderer`.
 - **Tasks**: implement agent; implement CLI orchestrator; chuẩn bị 2-3 intake mẫu thực tế (viết tay, không cần KH thật) làm fixture; review thủ công chất lượng BRD sinh ra.
 - **Acceptance Criteria**: `masterba run brd --project demo --input sample_intake.txt` ra `brd.json` hợp lệ schema + `BRD.xlsx` mở được, giá trị cell khớp JSON + trace store có commit git tương ứng. **Đây là mốc xác nhận toàn bộ kiến trúc (content/render tách biệt, ID ổn định, git-store) hoạt động đúng trước khi mở rộng.**
 
 ### Phase 4 — SRS + QA-reviewer-agent (dùng chung từ đây về sau)
 - **Spec**: `specs/04-srs-and-qa.md` — `srs-writer-agent` (BRD→SRS); `qa-reviewer-agent` **generic, điều khiển bằng schema + checklist config** (không hardcode riêng cho SRS) — vì sẽ tái dùng y nguyên cho Basic/Detail Design ở phase 5-6.
-- **Plan/Tasks**: implement 2 agent; mở rộng CLI (`masterba run srs`); checklist QA baseline lấy từ concept-design.md mục 8 (đầy đủ trường, ID hợp lệ, nhất quán thuật ngữ).
-- **Acceptance Criteria**: pipeline `brd → srs` chạy xong có QA pass/fail; `qa-reviewer-agent` chứng minh tái dùng được (chạy thử trên cả BRD lẫn SRS mà không sửa code, chỉ đổi config checklist).
+- **Plan/Tasks**: implement 2 agent; **dựng team runtime** (task list + mailbox file-based, single-writer rule, `team_max_rounds`/`team_token_budget`, `team-summary.json` — concept-design.md mục 14); chạy BRD và SRS dưới dạng team 2 thành viên (writer + QA); mở rộng CLI (`masterba run srs`); checklist QA baseline lấy từ concept-design.md mục 8.
+- **Acceptance Criteria**: pipeline `brd → srs` chạy xong qua team, có QA pass/fail; `qa-reviewer-agent` tái dùng được cho cả BRD lẫn SRS chỉ bằng đổi config checklist; có test chứng minh team dừng ở `escalated` khi vượt `team_max_rounds`; `team-summary.json` được commit, `transcripts/` không bị commit.
 
 ### Phase 5 — Basic Design + Test IT/ST
 - **Spec**: `specs/05-basic-design.md` — `basic-design-agent`, `basic-test-design-agent`; đặc biệt mô tả cách sinh test-case ID khớp ngược về SRS/requirement ID (đúng nguyên tắc chữ V ở concept-design.md mục 2/7).
-- **Tasks**: implement 2 agent, mở rộng CLI, xác nhận `traceability-agent`/`trace_store` tự ghi link `realizes`/`tests` đúng khi mỗi agent chạy xong.
-- **Acceptance Criteria**: pipeline đầy đủ `brd→srs→basic_design(+test_it/st)` cho project demo; query RTM từ 1 `REQ-####` ra đúng chain tới test case tương ứng.
+- **Tasks**: implement 2 agent, chạy dưới dạng team 3 thành viên (designer + test-writer + QA, có vòng hỏi đáp design ↔ test qua mailbox), mở rộng CLI, xác nhận `trace_store` ghi link `realizes`/`tests` đúng sau khi team xong.
+- **Acceptance Criteria**: pipeline đầy đủ `brd→srs→basic_design(+test_it/st)` cho project demo; query RTM từ 1 `REQ-####` ra đúng chain tới test case tương ứng; mỗi design item có ≥1 test case hoặc lý do loại trừ được ghi rõ.
 
 ### Phase 6 — Detail Design + Test UT (mốc: đủ tài liệu V-model)
 - **Spec/Tasks**: lặp đúng pattern Phase 5 cho tầng Detail Design (`detail-design-agent`, `unit-test-design-agent`).

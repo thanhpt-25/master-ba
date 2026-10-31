@@ -1,6 +1,6 @@
 # MasterBA — Concept Design: Hệ thống Agent Sinh & Quản trị Tài liệu V-Waterfall (IPA)
 
-Status: DRAFT v0.3 — các quyết định nền tảng (v0.2) + 4 điểm mở (mục 13) đã được chốt (2026-10-31); vẫn chưa có code, vẫn là concept để chi tiết hoá trước khi implement.
+Status: DRAFT v0.4 — quyết định nền tảng (v0.2) + 4 điểm mở (mục 13) + mô hình Orchestrator + Phase Team (mục 14) đã chốt (2026-10-31); Phase 0 (scaffold) đã xong, chưa có code nghiệp vụ.
 
 ## 0. Thay đổi so với v0.1 (quyết định đã chốt)
 
@@ -66,7 +66,7 @@ Lý do kiến trúc của quyết định #1 (rất quan trọng, nên giữ xuy
 ```
 
 Thứ tự dữ liệu chảy trong 1 lượt sinh tài liệu:
-`Intake → Content Agent (LLM) → JSON artifact (git commit) → QA review JSON → Excel Rendering Engine → .xlsx (git commit, hoặc object storage) → Dashboard hiển thị cho user`
+`Intake → Phase Team (content agent + test-writer + QA, lặp nội bộ tới khi pass, mục 14) → JSON artifact + team-summary (git commit) → Excel Rendering Engine → .xlsx (git commit, hoặc object storage) → Dashboard hiển thị cho user`
 
 ## 4. Danh sách Agent (cập nhật output = JSON, không phải Excel trực tiếp)
 
@@ -86,6 +86,8 @@ Thứ tự dữ liệu chảy trong 1 lượt sinh tài liệu:
 | `qa-reviewer-agent` | JSON artifact vừa sinh | Pass/fail + ghi chú (review nội dung, KHÔNG review layout Excel) |
 | *(tool, không phải LLM agent)* `excel-renderer` | JSON artifact + TemplateDefinition | `.xlsx` |
 | *(tương lai)* `dev-agent`, `unit-test-codegen-agent` | `detail_design.json`, `test_ut.json` | Source code, test code, kết quả chạy test |
+
+Các content agent + `qa-reviewer-agent` không chạy rời rạc mà được nhóm thành **Phase Team** theo từng tầng (mục 14): orchestrator gọi team, team tự phối hợp bên trong rồi trả artifact cuối.
 
 `excel-renderer` cố tình KHÔNG phải là LLM agent — nó là 1 MCP tool/service thuần Python (openpyxl), để việc render luôn deterministic, test được bằng unit test thông thường, và không tốn token mỗi lần đổi hình thức.
 
@@ -147,6 +149,19 @@ ProjectConfig:                               # mục 13.4
   project_id: PRJ-001
   propagation_mode: manual_gate              # manual_gate (default) | auto_low_risk
   dashboard_roles: [approver, viewer, admin] # mục 13.2
+  team_max_rounds: 3                         # mục 14.4
+  team_token_budget: ...                     # mục 14.4
+
+TeamRun:                                     # mục 14.5
+  run_id: RUN-0012
+  stage: BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN
+  trigger: initial|DR-0007
+  status: running|done|escalated
+  rounds: 2
+  issues_raised: 5
+  issues_resolved: 5
+  escalations: []                            # điểm chưa giải → DR clarification
+  tokens_used: ...
 ```
 
 Nguyên tắc bắt buộc giữ từ v0.1: **mọi "item" trong JSON (mỗi dòng requirement, mỗi hàng test case...) phải có ID ổn định** (`#item.N` hoặc key riêng) không đổi qua version — đây là mấu chốt để trace graph hoạt động đúng khi content thay đổi.
@@ -239,7 +254,8 @@ MasterBA/
     xlsx/                          # sinh ra từ json/, có thể xoá và render lại bất cứ lúc nào
     decision-records/
     traceability/                 # RTM export + trace graph (yaml/json)
-  src/                             # orchestrator, trace engine, impact analysis
+    runs/<run_id>/                # workspace Phase Team (mục 14.5); transcripts/ không commit
+  src/                             # orchestrator, team runtime, trace engine, impact analysis
 ```
 
 ## 12. Mở rộng sang Development / Unit Test (không đổi so với v0.1)
@@ -286,5 +302,87 @@ Quyết định mặc định (`ProjectConfig.propagation_mode = manual_gate`):
 2. Regeneration thực sự (gọi lại content agent, tốn LLM, thay đổi nội dung tài liệu) **chờ `approver` bấm nút "Propagate"** sau khi xem impact list — không tự động chạy ngay để tránh cascade ngoài ý muốn và tốn chi phí LLM không cần thiết.
 3. Để lại chỗ mở rộng: `propagation_mode: auto_low_risk` (tự động propagate nếu impact chỉ chạm các item được đánh dấu rủi ro thấp) — **không implement ở MVP**, chỉ giữ field trong `ProjectConfig` để không phải đổi schema khi cần.
 
+## 14. Mô hình cộng tác: Orchestrator điều khiển giữa các tầng + Phase Team trong từng tầng (v0.4)
+
+### 14.1 Hai cấp điều phối
+
+| Cấp | Ai điều phối | Kiểu | Lý do |
+|---|---|---|---|
+| **Giữa các tầng V-model** (BRD → SRS → Basic → Detail, DR/propagate) | `orchestrator-agent` | Hub-and-spoke, tuần tự, deterministic | Approval gate, Decision Record, audit qua git cần **1 điểm kiểm soát duy nhất** |
+| **Trong 1 tầng** | Lead của Phase Team | Ngang hàng (peer), có task list chung + mailbox | Cặp design ↔ test và vòng review lặp nhanh hơn khi agent nói chuyện trực tiếp, không vòng qua orchestrator |
+
+Orchestrator **không thấy** hội thoại bên trong team — chỉ nhận: artifact JSON cuối + `team-summary.json`. Mọi gate ở mục 7/13.4 giữ nguyên.
+
+### 14.2 Thành phần Phase Team
+
+| Tầng | Lead (owner artifact chính) | Thành viên | Artifact |
+|---|---|---|---|
+| BRD | `requirements-analyst-agent` | `qa-reviewer-agent` | `brd.json` |
+| SRS | `srs-writer-agent` | `qa-reviewer-agent` | `srs.json` |
+| Basic Design | `basic-design-agent` | `basic-test-design-agent`, `qa-reviewer-agent` | `basic_design.json`, `test_it.json`, `test_st.json` |
+| Detail Design | `detail-design-agent` | `unit-test-design-agent`, `qa-reviewer-agent` | `detail_design.json`, `test_ut.json` |
+
+- `traceability-agent`, `template-manager`, `excel-renderer`, `impact-analysis-agent` **không phải thành viên team** — là tool/bước deterministic do orchestrator gọi trước/sau team.
+- Propagate từ DR (mục 7) **tái dùng đúng team của tầng bị ảnh hưởng**, chỉ khác input là danh sách item cần sửa — không có "change team" riêng.
+
+### 14.3 Giao thức trong team
+
+**Single-writer rule**: mỗi artifact chỉ có **1 owner được ghi** (lead ghi design JSON, test-writer ghi test JSON). Thành viên khác chỉ đề xuất thay đổi qua message → tránh 2 agent sửa chồng cùng 1 file.
+
+**Task list chung** (`team-tasks.json`):
+```yaml
+- id: T-03
+  title: "Viết test IT cho DOC-BASIC_DESIGN-0001#item.7"
+  owner: basic-test-design-agent
+  status: todo|in_progress|blocked|done
+  depends_on: [T-01]
+```
+
+**Mailbox** — message có kiểu, **luôn tham chiếu item ID ổn định** (spec 00 mục 3) để feedback truy vết được:
+```yaml
+- from: basic-test-design-agent
+  to: basic-design-agent
+  type: question|feedback|answer|done
+  ref: DOC-BASIC_DESIGN-0001#item.7
+  round: 2
+  body: "Item.7 không nêu giới hạn độ dài input → không viết được test biên."
+```
+
+### 14.4 Điều kiện kết thúc & giới hạn
+
+Team kết thúc (`done`) khi đủ cả 3:
+1. `qa-reviewer-agent` trả `pass` trên mọi artifact của tầng.
+2. Test-writer xác nhận coverage: mỗi design item có ≥ 1 test case, hoặc ghi rõ lý do loại trừ.
+3. Không còn task `todo/in_progress/blocked`.
+
+Giới hạn bắt buộc (cấu hình trong `ProjectConfig`):
+- `team_max_rounds` (mặc định 3) — số vòng review tối đa.
+- `team_token_budget` — trần chi phí cho 1 lượt chạy team.
+
+Vượt giới hạn hoặc gặp mâu thuẫn không tự giải được (vd. requirement mơ hồ) → team dừng ở trạng thái `escalated`, liệt kê các điểm chưa giải quyết. Nếu điểm đó thuộc về **requirement** → `decision-record-agent` tạo DR `trigger: clarification` và đi vào luồng mục 7 (human quyết qua Dashboard). Team không bao giờ tự "đoán" để vượt qua mâu thuẫn.
+
+### 14.5 Audit & lưu trữ
+
+Mỗi lượt chạy team có workspace `projects/<project_id>/runs/<run_id>/`:
+
+| File | Commit vào git? | Mục đích |
+|---|---|---|
+| `team-summary.json` (số vòng, issue nêu ra/đã giải, verdict, token đã dùng) | **Có** | Audit gọn, Dashboard hiển thị |
+| `team-tasks.json` (trạng thái cuối) | **Có** | Truy vết ai làm gì |
+| `transcripts/` (toàn bộ message, raw output) | **Không** (gitignore, giữ local) | Debug khi cần; tránh làm phình git và nhiễu `git log` |
+
+Dashboard (mục 10) thêm view **Team activity** theo từng run: các vòng review, issue mở/đóng, lý do escalate.
+
+### 14.6 Runtime
+
+- Production: **tự implement team runtime gọn trong orchestrator** (task list + mailbox dạng file JSON trong `runs/<run_id>/`, mỗi thành viên là 1 phiên gọi model qua Claude Agent SDK). Lý do: hệ thống phải chạy độc lập/headless (mục 9), và tính năng agent teams của Claude Code hiện còn thử nghiệm; chưa xác minh Agent SDK có cơ chế team tương đương.
+- Lúc phát triển: có thể dùng agent teams của Claude Code để prototype prompt/giao thức nhanh, nhưng **không phụ thuộc** vào nó ở runtime.
+
+### 14.7 Ảnh hưởng tới roadmap
+
+- Phase 3 (walking skeleton) **cố ý chạy 1 agent đơn, chưa có team** — để xác nhận nền content/render/trace trước, không gộp thêm rủi ro giao thức team.
+- Phase 4 dựng team runtime với team 2 thành viên (writer + QA).
+- Phase 5 mở rộng lên team 3 thành viên với vòng trao đổi design ↔ test.
+
 ---
-*Tài liệu này là concept v0.3. Mục 0 + mục 13 ghi toàn bộ quyết định nền tảng đã chốt. Thứ tự implement cụ thể theo phase, áp dụng spec-driven development, nằm ở [roadmap-phases.md](roadmap-phases.md).*
+*Tài liệu này là concept v0.4. Mục 0 + mục 13 + mục 14 ghi toàn bộ quyết định nền tảng đã chốt. Thứ tự implement cụ thể theo phase, áp dụng spec-driven development, nằm ở [roadmap-phases.md](roadmap-phases.md).*
