@@ -1,6 +1,6 @@
 # Spec 01 — Core Data Contracts (schema + trace/DR store)
 
-Status: v0.2 (2026-10-31) — đã implement, Acceptance Criteria pass; v0.2 thêm mục "Quyết định bổ sung khi implement". Nguồn: [concept-design.md](../docs/concept-design.md) mục 6/13.3/14, [roadmap-phases.md](../docs/roadmap-phases.md) Phase 1, [00-constitution.md](00-constitution.md) mục 3/4/5.
+Status: v0.3 (2026-10-31) — đã implement, Acceptance Criteria pass; v0.2 thêm mục "Quyết định bổ sung khi implement". Nguồn: [concept-design.md](../docs/concept-design.md) mục 6/13.3/14, [roadmap-phases.md](../docs/roadmap-phases.md) Phase 1, [00-constitution.md](00-constitution.md) mục 3/4/5.
 
 ## Mục tiêu
 Định nghĩa hợp đồng dữ liệu (Pydantic model → JSON Schema) và package `trace_store` (lưu file trong git, truy vấn impact bằng graph) để mọi phase sau chỉ đọc/ghi dữ liệu qua một lớp duy nhất.
@@ -28,7 +28,7 @@ Kiểu dùng chung: `ProjectId` (`PRJ-###`), `ReqId` (`REQ-####`), `DocId` (`DOC
 | `TraceLink` | `from_id: ReqId\|DocId\|ItemRef\|TcId`, `to_id: (cùng tập)`, `link_type: realizes\|verifies\|derives_from\|tests\|implements` | `from_id != to_id`; hai đầu phải tồn tại khi `add_trace_link` |
 | `DecisionRecord` | `id: DrId`, `date`, `trigger: requirement_change\|design_change\|defect\|clarification`, `description`, `decision?`, `rationale?`, `impacted_items: list[ReqId\|ItemRef]`, `affected_documents: list[DocId]`, `status: proposed\|approved\|propagated\|closed`, `approver?` | `approved` trở đi bắt buộc có `approver` và `decision` |
 | `TemplateDefinition` | `company_id`, `doc_type`, `source: baseline\|calibrated_from_sample`, `sheet_map`, `cell_bindings`, `validation_rules` | Cấu trúc chi tiết chốt ở spec 02; Phase 1 chỉ định nghĩa vỏ (field khai báo, nội dung `dict`) |
-| `ProjectConfig` | `project_id`, `company_id`, `propagation_mode: manual_gate\|auto_low_risk` (mặc định `manual_gate`), `team_max_rounds: int ≥1` (3), `team_token_budget?: int`, `dashboard_roles` | Lưu tại `projects/<id>/project.json` |
+| `ProjectConfig` | `project_id`, `company_id`, `propagation_mode: manual_gate\|auto_low_risk` (mặc định `manual_gate`), `team_max_rounds: int ≥1` (3), `team_token_budget?: int`, `document_language: ja\|en` (mặc định `ja`, thêm ở v0.3), `dashboard_roles` | Lưu tại `projects/<id>/project.json` |
 | `TeamRun` | `run_id: RunId`, `stage: DocType`, `trigger: "initial"\|DrId`, `status: running\|done\|escalated`, `rounds`, `issues_raised`, `issues_resolved`, `escalations: list[str]`, `tokens_used?` | Chỉ định nghĩa model; chạy team ở Phase 4 |
 
 ### 2.1 Content payload (mỗi loại tài liệu)
@@ -112,3 +112,4 @@ Tất cả hàm nhận `ProjectStore` (gốc `projects/` + `project_id`), **khô
 6. **API thêm ngoài bảng mục 4**: `open_project`, `get_config`, `get_requirement`, `list_requirements`, `get_trace_links`, `known_nodes`, `latest_documents` (đọc, cần cho Phase 3+).
 7. **Chạy script sinh schema**: ban đầu cần `PYTHONPATH=src` vì dự án dùng `package = false`; từ Phase 3 package được cài (xem spec 03 mục 1.6) nên chỉ cần `uv run python -m masterba.schema_export`.
 8. **Intake (thêm ở Phase 3)**: `add_intake(store, name, text)` ghi `projects/<id>/intake/<name>` (chỉ `.txt`/`.md`, tên không chứa dấu phân cách đường dẫn, bất biến, xuống dòng chuẩn hoá về `\n`) trong đúng 1 commit `intake(<project_id>): add <name>`; `get_intake` đọc lại. Chi tiết ở spec 03 mục 2. Ngoài ra `trace_store.git.ensure_ready(cwd)` kiểm tra có git work tree và `user.name`/`user.email` trước khi CLI ghi bất cứ thứ gì.
+9. **`ProjectConfig.document_language` (thêm sau lần review live của Phase 3)**: `ja` (mặc định, khớp quy trình SIer Nhật) hoặc `en`; quyết định ngôn ngữ của nội dung do agent sinh ra (tiêu đề, mô tả, câu hỏi mở), độc lập với ngôn ngữ của intake. Project cũ thiếu trường này vẫn nạp được nhờ giá trị mặc định. `init-project` nhận `--language`. Xem spec 03 mục 12.

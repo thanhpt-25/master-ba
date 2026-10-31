@@ -1,6 +1,6 @@
 # Spec 03 — Walking Skeleton: `requirements-analyst-agent` (BRD only)
 
-Status: v0.2 (2026-10-31), implemented; Acceptance Criteria pass; the live review (section 9) found one open issue (output language). Section 11 records decisions taken while implementing. Sources: [concept-design.md](../docs/concept-design.md) sections 0, 4, 9, 14.7 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 3, [00-constitution.md](00-constitution.md), [01-data-contracts.md](01-data-contracts.md), [02-excel-rendering.md](02-excel-rendering.md).
+Status: v0.3 (2026-10-31), implemented; section 12 (output language setting) is a change made after the live review in section 9. Section 11 records decisions taken while implementing. Sources: [concept-design.md](../docs/concept-design.md) sections 0, 4, 9, 14.7 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 3, [00-constitution.md](00-constitution.md), [01-data-contracts.md](01-data-contracts.md), [02-excel-rendering.md](02-excel-rendering.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -166,7 +166,7 @@ tests/
 **2026-10-31, model `auto/best-coding` via a local Anthropic-compatible gateway, intake `login_system.txt`.** One attempt, 1,023 input and 486 output tokens, exit code 0.
 
 - **Structure: good.** 5 requirements with exact one-line citations (L3, L4, L5, L6, L7); the account-administration sentence was correctly marked `scope: out`; "Please make it fast" (L8) became an open question instead of a requirement; `uncovered_lines` = greeting and signature lines only. Git history has the 14 expected commits in order; the xlsx opens.
-- **Finding 1 (open): output language.** The intake is English but the model wrote titles, descriptions and the open question in Japanese, against prompt rule 4. The prompt's framing ("Japanese system integrator") probably pulls it. The gate cannot catch this. Decision needed: either deliverable language is a project setting (e.g. `ProjectConfig.document_language`, passed to the prompt, and checked loosely) or the prompt is tightened to follow the intake. Not changed yet.
+- **Finding 1 (resolved by section 12): output language.** The intake is English but the model wrote titles, descriptions and the open question in Japanese, against prompt rule 4. The prompt's framing ("Japanese system integrator") probably pulls it. The gate cannot catch this. The user chose a project setting; see section 12.
 - **Finding 2 (fixed): hang.** One run waited more than 10 minutes on the gateway (the SDK default timeout). `AnthropicLLM` now sets a 180 s request timeout (`timeout` argument).
 - **Transient gateway error** on the first run (upstream models unavailable) was reported cleanly with nothing but the intake written; the rerun with `--reuse-intake` worked as designed.
 
@@ -185,3 +185,19 @@ tests/
 4. **Live test location**: `tests/pipeline/test_brd_pipeline.py::test_live_model_produces_a_structurally_valid_brd`; default `addopts` excludes the `live` marker.
 5. **Prompt location**: `agents/requirements-analyst.md` is read from the repository root (editable install); packaging the prompt into a wheel is deferred.
 6. **Duplicate-title check** normalises case and whitespace; titles alone identify duplicates, descriptions are not compared.
+
+## 12. Change after the live review: project document language
+
+The language of generated content is a **project setting**, not something the model infers from the intake.
+
+1. `ProjectConfig.document_language: DocLanguage` (`ja` | `en`, default `ja`). Old `project.json` files without the field load with the default. `masterba init-project --language ja|en`.
+2. The agent's system prompt gets an `## Output language` section appended by code: write `title`, `description` and open-question text in that language; `evidence_quote` stays verbatim in the intake's own language. Rule 4 of `agents/requirements-analyst.md` points to that section instead of "language of the intake".
+3. The validation gate gains a loose, deterministic language check (it cannot prove the language, only catch the observed failure): for `ja`, each description and open question must contain at least one kana or CJK character; for `en`, at most 30% of the characters of each description and open question may be kana or CJK. A violation is reported like any other gate error and triggers the one retry.
+4. `run_brd` reads the language from the project config; `analyse_intake(llm, text, language)` takes it explicitly.
+
+### Acceptance Criteria (section 12)
+
+- [ ] A project created with `--language en` sends an English output instruction and accepts an English draft for an English intake; with `ja` it sends a Japanese instruction and rejects an all-English draft (then retries once).
+- [ ] The language check accepts Japanese descriptions with ASCII terms (for example `API連携`) and English descriptions that contain a few Japanese proper nouns.
+- [ ] `project.json` without `document_language` loads as `ja`; `schemas/ProjectConfig.schema.json` is regenerated.
+- [ ] Re-run of the live review with an English intake and `--language en` produces English content (recorded in section 9 when done).
