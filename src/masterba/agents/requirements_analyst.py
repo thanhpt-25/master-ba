@@ -5,20 +5,19 @@ the prompt, the validation gate and the single retry. Ids are assigned later by 
 """
 
 import re
-from dataclasses import dataclass
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Self
 
 from pydantic import Field, model_validator
 
-from masterba.llm import LLM, LLMOutputError
+from masterba.llm import LLM, LLMResult
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DocLanguage, ReqCategory, Scope
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PROMPT_PATH = REPO_ROOT / "agents" / "requirements-analyst.md"
 TOOL_NAME = "submit_brd"
-MAX_ATTEMPTS = 2
 MAX_CJK_SHARE_IN_ENGLISH = 0.3
 _CJK = re.compile("[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff66-\uff9f]")
 _LANGUAGE_INSTRUCTION = {
@@ -61,22 +60,6 @@ class BrdDraft(FrozenModel):
     open_questions: list[OpenQuestion] = Field(default_factory=list)
 
 
-class DraftRejectedError(Exception):
-    """The model's draft failed validation even after the retry."""
-
-    def __init__(self, errors: list[str]) -> None:
-        super().__init__("draft rejected: " + "; ".join(errors))
-        self.errors = errors
-
-
-@dataclass(frozen=True)
-class Analysis:
-    draft: BrdDraft
-    attempts: int
-    input_tokens: int
-    output_tokens: int
-
-
 def load_system_prompt(path: Path = PROMPT_PATH) -> str:
     """Read the agent prompt, dropping the YAML frontmatter."""
     text = path.read_text(encoding="utf-8")
@@ -100,7 +83,7 @@ def _collapse(text: str) -> str:
     return " ".join(text.split())
 
 
-def _language_problem(text: str, language: DocLanguage) -> str | None:
+def language_problem(text: str, language: DocLanguage) -> str | None:
     """Loose check: it can only catch text clearly in the wrong script, not prove a language."""
     cjk = len(_CJK.findall(text))
     if language is DocLanguage.JA and cjk == 0:
@@ -131,7 +114,7 @@ def validate_draft(
                     f"requirement {index}: evidence_quote is not found in "
                     f"lines {req.start_line}-{req.end_line}"
                 )
-        if language is not None and (problem := _language_problem(req.description, language)):
+        if language is not None and (problem := language_problem(req.description, language)):
             errors.append(f"requirement {index}: description {problem}")
         key = _collapse(req.title).lower()
         if key in seen:
@@ -143,7 +126,7 @@ def validate_draft(
                 f"open question {index}: lines {question.start_line}-{question.end_line} "
                 f"are outside the intake ({total} lines)"
             )
-        if language is not None and (problem := _language_problem(question.question, language)):
+        if language is not None and (problem := language_problem(question.question, language)):
             errors.append(f"open question {index}: text {problem}")
     return errors
 
@@ -158,17 +141,6 @@ def uncovered_lines(draft: BrdDraft, intake_text: str) -> list[int]:
     return [n for n, line in enumerate(lines, start=1) if line.strip() and n not in covered]
 
 
-def _user_message(intake_text: str, errors: list[str]) -> str:
-    message = f"<intake>\n{number_lines(intake_text)}\n</intake>"
-    if errors:
-        listing = "\n".join(f"- {e}" for e in errors)
-        message += (
-            "\n\nYour previous draft was rejected for these reasons:\n"
-            f"{listing}\nReturn a corrected, complete draft."
-        )
-    return message
-
-
 def system_prompt_for(language: DocLanguage, base: str | None = None) -> str:
     """The agent prompt plus the project's output-language section."""
     text = base if base is not None else load_system_prompt()
@@ -178,27 +150,40 @@ def system_prompt_for(language: DocLanguage, base: str | None = None) -> str:
     )
 
 
-def analyse_intake(
-    llm: LLM, intake_text: str, language: DocLanguage, system_prompt: str | None = None
-) -> Analysis:
-    """One model call plus at most one retry; raises `DraftRejectedError` if still invalid."""
-    system = system_prompt_for(language, system_prompt)
-    errors: list[str] = []
-    tokens_in = tokens_out = 0
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            result = llm.generate(
-                system=system,
-                user=_user_message(intake_text, errors),
-                output=BrdDraft,
-                tool_name=TOOL_NAME,
-            )
-        except LLMOutputError as exc:
-            errors = [str(exc)]
-            continue
-        tokens_in += result.input_tokens
-        tokens_out += result.output_tokens
-        errors = validate_draft(result.value, intake_text, language)
-        if not errors:
-            return Analysis(result.value, attempt, tokens_in, tokens_out)
-    raise DraftRejectedError(errors)
+def brd_draft_view(draft: BrdDraft, doc_id: str) -> str:
+    """Numbered view of a draft; item numbers are the ones the items get on commit."""
+    lines = [
+        f"{doc_id}#item.{n} [{r.category.value}/{r.scope.value}] {r.title}: {r.description} "
+        f"(L{r.start_line}-L{r.end_line})"
+        for n, r in enumerate(draft.requirements, start=1)
+    ]
+    if draft.open_questions:
+        lines.append("Open questions the writer raised for the customer (not requirements):")
+        lines.extend(f"- L{q.start_line}-L{q.end_line}: {q.question}" for q in draft.open_questions)
+    return "\n".join(lines)
+
+
+def write_brd(
+    llm: LLM,
+    intake_text: str,
+    language: DocLanguage,
+    previous: BrdDraft | None,
+    feedback: Sequence[str],
+    doc_id: str,
+    system_prompt: str | None = None,
+) -> LLMResult[BrdDraft]:
+    """One writer call: a first draft, or a revision when `previous` and `feedback` are given."""
+    user = f"<intake>\n{number_lines(intake_text)}\n</intake>"
+    if previous is not None:
+        listing = "\n".join(f"- {f}" for f in feedback)
+        user += (
+            f"\n\n<previous_draft>\n{brd_draft_view(previous, doc_id)}\n</previous_draft>\n\n"
+            f"The previous draft was rejected for these reasons:\n{listing}\n"
+            "Return a corrected, complete draft."
+        )
+    return llm.generate(
+        system=system_prompt_for(language, system_prompt),
+        user=user,
+        output=BrdDraft,
+        tool_name=TOOL_NAME,
+    )

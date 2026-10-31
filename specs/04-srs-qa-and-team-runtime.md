@@ -1,6 +1,6 @@
 # Spec 04 — SRS, QA reviewer and the Phase Team runtime
 
-Status: v0.1 (2026-10-31), draft for review. Sources: [concept-design.md](../docs/concept-design.md) sections 4, 8, 14 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 4, [00-constitution.md](00-constitution.md), [01-data-contracts.md](01-data-contracts.md), [03-requirements-analyst-agent.md](03-requirements-analyst-agent.md).
+Status: v0.2 (2026-10-31), implemented; Acceptance Criteria pass; section 9 records the live review and section 11 the decisions taken while implementing. Sources: [concept-design.md](../docs/concept-design.md) sections 4, 8, 14 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 4, [00-constitution.md](00-constitution.md), [01-data-contracts.md](01-data-contracts.md), [03-requirements-analyst-agent.md](03-requirements-analyst-agent.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -208,23 +208,27 @@ tests/ team/  agents/  pipeline/  fixtures/
 
 ## 8. Acceptance Criteria
 
-- [ ] `masterba run brd` then `masterba run srs` on a demo project (fake models in tests) end `done`; each has a committed `team-summary.json`, `team-tasks.json` and `mailbox.json`; the SRS covers every in-scope BRD requirement and the RTM query from a `REQ-####` reaches both its BRD item and its SRS item.
-- [ ] A QA report with a blocking issue sends feedback to the writer (mailbox message with a draft item ref), the next draft is revised, and the run ends `done` with `issues_raised == issues_resolved`.
-- [ ] A scripted model that never satisfies QA ends `escalated` after exactly `team_max_rounds` drafts, exit code 3, `escalations` non-empty, **no** requirement, document, link or render written, and the run record committed.
-- [ ] `team_token_budget` stops the run before the next model call once the total reaches it (test with a budget smaller than one round).
-- [ ] The same `qa_reviewer` code and prompt are used for BRD and SRS; a test swaps only the checklist file and sees different checks in the request, with no stage-specific branch in the module.
-- [ ] A QA report with an unknown `checklist_id` or a foreign `ref` is retried once without consuming a round, then escalates as `qa output invalid`; the model cannot raise a severity above the checklist's.
-- [ ] A gate failure (for example an uncovered BRD requirement) produces `gate` feedback and does not call the QA model.
-- [ ] `Team.write` by a non-owner raises `SingleWriterError`.
-- [ ] `git ls-files` shows no file under `runs/*/transcripts/` after a run, the folder exists locally and is ignored.
-- [ ] Run numbers are sequential and never reused; re-running a stage after an escalation creates `RUN-0002`.
-- [ ] The commit order for a `done` SRS stage is: documents, links, render, run record, each in the spec 00 message format.
-- [ ] A live run (`pytest -m live`, key and gateway as in spec 03) completes the BRD and SRS stages on `login_system.txt`; the result is reviewed by hand and recorded in section 9.
-- [ ] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; schemas for the new models are generated and drift-tested.
+- [x] `masterba run brd` then `masterba run srs` on a demo project (fake models in tests) end `done`; each has a committed `team-summary.json`, `team-tasks.json` and `mailbox.json`; the SRS covers every in-scope BRD requirement and the RTM query from a `REQ-####` reaches both its BRD item and its SRS item.
+- [x] A QA report with a blocking issue sends feedback to the writer (mailbox message with a draft item ref), the next draft is revised, and the run ends `done` with `issues_raised == issues_resolved`.
+- [x] A scripted model that never satisfies QA ends `escalated` after exactly `team_max_rounds` drafts, exit code 3, `escalations` non-empty, **no** requirement, document, link or render written, and the run record committed.
+- [x] `team_token_budget` stops the run before the next model call once the total reaches it (test with a budget smaller than one round).
+- [x] The same `qa_reviewer` code and prompt are used for BRD and SRS; a test swaps only the checklist file and sees different checks in the request, with no stage-specific branch in the module.
+- [x] A QA report with an unknown `checklist_id` or a foreign `ref` is retried once without consuming a round, then escalates as `qa output invalid`; the model cannot raise a severity above the checklist's.
+- [x] A gate failure (for example an uncovered BRD requirement) produces `gate` feedback and does not call the QA model.
+- [x] `Team.write` by a non-owner raises `SingleWriterError`.
+- [x] `git ls-files` shows no file under `runs/*/transcripts/` after a run, the folder exists locally and is ignored.
+- [x] Run numbers are sequential and never reused; re-running a stage after an escalation creates `RUN-0002`.
+- [x] The commit order for a `done` SRS stage is: documents, links, render, run record, each in the spec 00 message format.
+- [x] A live run (`pytest -m live`, key and gateway as in spec 03) completes the BRD and SRS stages on `login_system.txt`; the result is reviewed by hand and recorded in section 9.
+- [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; schemas for the new models are generated and drift-tested.
 
 ## 9. Manual review record
 
-To be filled after the first live run.
+**2026-10-31, local Anthropic-compatible gateway, project language `en`, intake `login_system.txt`.**
+
+- **BRD stage:** the first run escalated after 3 rounds because the QA model demanded a numeric availability figure the intake never gave, which the writer may not invent (the QA also could not see the writer's open questions). Two fixes followed (section 11, items 2 and 3); the rerun was `done` in 1 round (2,684 tokens, 6 requirements, the vague "make it fast" kept as a requirement plus an open question).
+- **SRS stage, same writer and QA model (`auto/best-coding`):** escalated twice (3 rounds each, `max rounds reached (3)`). The draft was correct (the vague item covered, an open question for the missing threshold) but the QA model kept raising SRS-02 (acceptance hint) on a non-functional item and asked to split a sign-in-and-view statement. The machinery behaved as designed: no business artifact was written, run records `RUN-0002` and `RUN-0003` were committed, the reasons are in `escalations`.
+- **SRS stage with a stronger reviewer (`--qa-model auto/best-reasoning`):** `done` in 1 round, 2,541 tokens, SRS items and workbook written, open question reported. This supports design decision 6: review quality depends on the reviewer model, so a separate and stronger `--qa-model` is recommended; whether to make it the default is still open (section 10, item 3).
 
 ## 10. Open points (do not block implementation)
 
@@ -232,3 +236,14 @@ To be filled after the first live run.
 2. **Resuming** an escalated run (reusing the last draft) is not supported; the last draft stays in `transcripts/` only.
 3. **Reviewer independence.** A different QA model is supported but not required; whether to make it the default is a cost decision for later.
 4. **Phase 5 loop.** The design-test question-and-answer exchange (message types `question` and `answer`) uses the same mailbox but needs a different loop and a third member; it is specified in spec 05.
+
+## 11. Decisions taken while implementing
+
+1. **Per-run `.gitignore`.** `Team.open` writes `runs/RUN-####/.gitignore` containing `transcripts/` and commits it with the run record, so the rule travels with the project and does not depend on a root `.gitignore` (the repository root also ignores `projects/*/runs/*/transcripts/`).
+2. **The reviewer sees the writer's open questions.** `brd_draft_view` and the SRS `draft_view` append them, and `agents/qa-reviewer.md` tells the reviewer never to demand a figure, owner or deadline that the upstream material does not contain. The BRD checklist (BRD-03, BRD-04) says that raising an open question for a missing figure is correct. Found in the first live run.
+3. **SRS open questions.** `SrsDraft.open_questions` (`question` plus at least one in-scope `REQ-` id) lets the writer cover a vague requirement without inventing a figure. The gate checks the ids and the language; the CLI prints them. SRS-03 (measurability) is now advisory because the BRD may legitimately supply no figure, and SRS-02 allows a missing acceptance hint when an open question explains it. Found in the live SRS run.
+4. **Review task timing.** The `Review (round n)` task is created when the gate passes, not up front; a round whose draft fails the gate has only its draft or revise task.
+5. **`DraftRejectedError` and `analyse_intake` are gone.** The single-writer-call `write_brd` replaces them; a rejected draft is handled by the loop (gate feedback), and an escalation is a normal `StageResult` with status `escalated`, not an exception.
+6. **Transcripts.** `RecordingLLM` writes each request and response, and `Team.write` the draft and QA report of every round, to `transcripts/` (numbered files).
+7. **Latent Phase 2 bug fixed.** openpyxl overwrites the workbook `modified` time during `save`, which made re-rendering unchanged content produce different bytes about once in six runs; `xlsxio.workbook_bytes` now patches `docProps/core.xml` (spec 02 decision 9).
+8. **`init-project` options** `--team-max-rounds` and `--team-token-budget` set the corresponding `ProjectConfig` fields.

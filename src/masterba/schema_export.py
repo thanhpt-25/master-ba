@@ -9,7 +9,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from masterba.agents import BrdDraft
+from masterba.agents import BrdDraft, QaReport, SrsDraft
 from masterba.diff import ItemChange
 from masterba.models import (
     BasicDesignContent,
@@ -25,6 +25,7 @@ from masterba.models import (
     TestSpecContent,
     TraceLink,
 )
+from masterba.team import TeamMessage, TeamTask
 
 SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schemas"
 
@@ -43,6 +44,10 @@ SCHEMA_MODELS: tuple[type[BaseModel], ...] = (
     TestSpecContent,
     ItemChange,
     BrdDraft,
+    SrsDraft,
+    QaReport,
+    TeamTask,
+    TeamMessage,
 )
 
 

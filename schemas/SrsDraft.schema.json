@@ -1,0 +1,101 @@
+{
+  "$defs": {
+    "DraftSrsItem": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Acceptance Hint"
+        },
+        "derives_from": {
+          "items": {
+            "pattern": "^REQ-\\d{4}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Derives From",
+          "type": "array"
+        },
+        "kind": {
+          "$ref": "#/$defs/SrsKind"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "statement",
+        "derives_from"
+      ],
+      "title": "DraftSrsItem",
+      "type": "object"
+    },
+    "SrsKind": {
+      "enum": [
+        "functional",
+        "non_functional"
+      ],
+      "title": "SrsKind",
+      "type": "string"
+    },
+    "SrsOpenQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "req_ids": {
+          "items": {
+            "pattern": "^REQ-\\d{4}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Req Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "question",
+        "req_ids"
+      ],
+      "title": "SrsOpenQuestion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/DraftSrsItem"
+      },
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    },
+    "open_questions": {
+      "items": {
+        "$ref": "#/$defs/SrsOpenQuestion"
+      },
+      "title": "Open Questions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "SrsDraft",
+  "type": "object"
+}

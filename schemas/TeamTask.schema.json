@@ -1,0 +1,50 @@
+{
+  "$defs": {
+    "TaskStatus": {
+      "enum": [
+        "todo",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "title": "TaskStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "depends_on": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Depends On",
+      "type": "array"
+    },
+    "id": {
+      "pattern": "^T-\\d{2,}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "owner": {
+      "minLength": 1,
+      "title": "Owner",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/TaskStatus"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "owner",
+    "status"
+  ],
+  "title": "TeamTask",
+  "type": "object"
+}

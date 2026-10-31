@@ -1,3 +1,4 @@
+import time
 from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
@@ -243,3 +244,10 @@ def test_shell_missing_a_mapped_sheet_is_rejected(tmp_path: Path) -> None:
     template = replace(template_for(DocType.BRD), shell_path=broken)
     with pytest.raises(InvalidTemplateError, match="lacks sheets"):
         render_document(make_document(DocType.BRD), make_brd(), template)
+
+
+def test_files_do_not_depend_on_the_time_of_saving() -> None:
+    content = make_brd(make_brd_item(BRD, 1))
+    first = workbook_bytes(render(DocType.BRD, content))
+    time.sleep(1.1)
+    assert workbook_bytes(render(DocType.BRD, content)) == first

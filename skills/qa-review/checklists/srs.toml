@@ -1,0 +1,36 @@
+stage = "SRS"
+
+[[checks]]
+id = "SRS-01"
+severity = "blocking"
+text = "Each statement contains exactly one obligation and states it as a 'shall' (or the Japanese equivalent)."
+
+[[checks]]
+id = "SRS-02"
+severity = "blocking"
+text = "Every functional statement is verifiable and has an acceptance_hint a tester can follow. A statement about something the BRD leaves unspecified may lack the hint when the writer raised an open question for it."
+
+[[checks]]
+id = "SRS-03"
+severity = "advisory"
+text = "Non-functional statements are measurable (a number, a unit and a condition) as far as the BRD supplies figures. A figure the BRD does not give must not be invented; inventing one is an SRS-06 problem."
+
+[[checks]]
+id = "SRS-04"
+severity = "blocking"
+text = "No design or implementation choice (technology, screen layout, table or class names) appears in a statement."
+
+[[checks]]
+id = "SRS-05"
+severity = "blocking"
+text = "Terminology is consistent and no two statements contradict each other."
+
+[[checks]]
+id = "SRS-06"
+severity = "blocking"
+text = "The SRS is faithful to the BRD: nothing is invented that the BRD does not support and no BRD meaning is dropped or changed."
+
+[[checks]]
+id = "SRS-07"
+severity = "advisory"
+text = "Vague wording such as 'fast', 'user-friendly' or 'as needed' is not left undefined in a statement."

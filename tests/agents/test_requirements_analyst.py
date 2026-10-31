@@ -4,15 +4,15 @@ from pydantic import ValidationError
 from factories import bad_draft, draft_for, draft_req, intake_path
 from masterba.agents import (
     BrdDraft,
-    DraftRejectedError,
     OpenQuestion,
-    analyse_intake,
+    brd_draft_view,
     load_system_prompt,
     uncovered_lines,
     validate_draft,
+    write_brd,
 )
 from masterba.agents.requirements_analyst import number_lines
-from masterba.llm import FakeLLM, LLMOutputError
+from masterba.llm import FakeLLM
 from masterba.models.enums import DocLanguage, ReqCategory
 
 EN, JA = DocLanguage.EN, DocLanguage.JA
@@ -94,42 +94,6 @@ def test_a_draft_needs_at_least_one_requirement() -> None:
         BrdDraft(requirements=[])
 
 
-def test_accepted_on_the_first_attempt() -> None:
-    llm = FakeLLM([draft_for(LOGIN)])
-    analysis = analyse_intake(llm, LOGIN_TEXT, EN, system_prompt="SYSTEM")
-    assert (analysis.attempts, analysis.input_tokens, analysis.output_tokens) == (1, 100, 50)
-    assert llm.calls[0].system.startswith("SYSTEM")
-    assert "English" in llm.calls[0].system
-    assert llm.calls[0].tool_name == "submit_brd"
-    assert "<intake>\n   1| Subject: Customer portal login" in llm.calls[0].user
-
-
-def test_a_rejected_draft_is_retried_once_with_the_errors() -> None:
-    llm = FakeLLM([bad_draft(), draft_for(LOGIN)])
-    analysis = analyse_intake(llm, LOGIN_TEXT, EN, system_prompt="S")
-    assert analysis.attempts == 2
-    assert (analysis.input_tokens, analysis.output_tokens) == (200, 100)
-    retry = llm.calls[1].user
-    assert "previous draft was rejected" in retry
-    assert "evidence_quote is not found in lines 3-3" in retry
-    assert "rejected" not in llm.calls[0].user
-
-
-def test_unparseable_output_counts_as_a_rejection_too() -> None:
-    llm = FakeLLM([LLMOutputError("model did not call submit_brd"), draft_for(LOGIN)])
-    analysis = analyse_intake(llm, LOGIN_TEXT, EN, system_prompt="S")
-    assert analysis.attempts == 2
-    assert "model did not call submit_brd" in llm.calls[1].user
-
-
-def test_two_bad_drafts_abort_with_the_last_errors() -> None:
-    llm = FakeLLM([bad_draft(), bad_draft()])
-    with pytest.raises(DraftRejectedError, match="evidence_quote") as caught:
-        analyse_intake(llm, LOGIN_TEXT, EN, system_prompt="S")
-    assert caught.value.errors == ["requirement 1: evidence_quote is not found in lines 3-3"]
-    assert len(llm.calls) == 2
-
-
 def test_every_fixture_draft_passes_its_own_gate() -> None:
     for name in ("login_system.txt", "leave_management.txt", "inventory_mixed_ja.txt"):
         text = intake_path(name).read_text(encoding="utf-8")
@@ -144,14 +108,6 @@ def japanese_draft() -> BrdDraft:
         ],
         open_questions=[OpenQuestion(question="応答時間の基準は？", start_line=8, end_line=8)],
     )
-
-
-def test_japanese_project_rejects_an_all_english_draft_and_retries() -> None:
-    llm = FakeLLM([draft_for(LOGIN), japanese_draft()])
-    analysis = analyse_intake(llm, LOGIN_TEXT, JA, system_prompt="S")
-    assert analysis.attempts == 2
-    assert "日本語" in llm.calls[0].system
-    assert "no Japanese characters" in llm.calls[1].user
 
 
 def test_japanese_text_with_ascii_terms_is_accepted_for_ja() -> None:
@@ -176,3 +132,42 @@ def test_english_text_with_a_few_japanese_proper_nouns_is_accepted() -> None:
 
 def test_without_a_language_the_gate_skips_the_language_check() -> None:
     assert validate_draft(japanese_draft(), LOGIN_TEXT) == []
+
+
+def test_first_call_sends_the_numbered_intake_and_the_language_section() -> None:
+    llm = FakeLLM([draft_for(LOGIN)])
+    write_brd(llm, LOGIN_TEXT, EN, None, [], "DOC-BRD-0001", system_prompt="SYSTEM")
+    call = llm.calls[0]
+    assert call.tool_name == "submit_brd"
+    assert call.system.startswith("SYSTEM")
+    assert "English" in call.system
+    assert "<intake>\n   1| Subject: Customer portal login" in call.user
+    assert "previous_draft" not in call.user
+
+
+def test_japanese_projects_get_a_japanese_instruction() -> None:
+    llm = FakeLLM([draft_for(LOGIN)])
+    write_brd(llm, LOGIN_TEXT, JA, None, [], "DOC-BRD-0001", system_prompt="SYSTEM")
+    assert "日本語" in llm.calls[0].system
+
+
+def test_revision_call_includes_the_previous_draft_and_the_reasons() -> None:
+    llm = FakeLLM([draft_for(LOGIN)])
+    write_brd(llm, LOGIN_TEXT, EN, bad_draft(), ["quote not found"], "DOC-BRD-0001")
+    user = llm.calls[0].user
+    assert "<previous_draft>\nDOC-BRD-0001#item.1 [functional/in] Invented:" in user
+    assert "(L3-L3)" in user
+    assert "- quote not found" in user
+
+
+def test_draft_view_numbers_items_with_category_scope_and_lines() -> None:
+    view = brd_draft_view(draft_for(LOGIN), "DOC-BRD-0001").splitlines()
+    assert len(view) == 7
+    assert view[4].startswith("DOC-BRD-0001#item.5 [business/out] Account administration:")
+    assert view[4].endswith("(L7-L7)")
+
+
+def test_draft_view_shows_the_open_questions_so_the_reviewer_sees_them() -> None:
+    view = brd_draft_view(draft_for(LOGIN), "DOC-BRD-0001")
+    assert "Open questions the writer raised for the customer (not requirements):" in view
+    assert "- L8-L8: What response time counts as fast?" in view

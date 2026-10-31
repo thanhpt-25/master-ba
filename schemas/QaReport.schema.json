@@ -1,0 +1,59 @@
+{
+  "$defs": {
+    "QaIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "checklist_id": {
+          "minLength": 1,
+          "title": "Checklist Id",
+          "type": "string"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "ref": {
+          "anyOf": [
+            {
+              "pattern": "^DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}#item\\.\\d+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ref"
+        },
+        "severity": {
+          "enum": [
+            "blocking",
+            "advisory"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "checklist_id",
+        "severity",
+        "message"
+      ],
+      "title": "QaIssue",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/QaIssue"
+      },
+      "title": "Issues",
+      "type": "array"
+    }
+  },
+  "title": "QaReport",
+  "type": "object"
+}

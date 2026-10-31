@@ -8,12 +8,12 @@ import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from masterba.agents import DraftRejectedError
+from masterba.agents import QaOutputInvalidError
 from masterba.llm import DEFAULT_MODEL, LLM, AnthropicLLM, LLMError
 from masterba.models import ProjectConfig
-from masterba.models.enums import DocLanguage
+from masterba.models.enums import DocLanguage, TeamRunStatus
 from masterba.models.ids import PROJECT_ID_PATTERN
-from masterba.pipeline import run_brd
+from masterba.pipeline import StageResult, run_brd, run_srs
 from masterba.rendering import RenderError
 from masterba.trace_store import TraceStoreError, create_project, open_project
 from masterba.trace_store.git import ensure_ready
@@ -40,6 +40,8 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument(
         "--language", type=DocLanguage, choices=list(DocLanguage), default=DocLanguage.JA
     )
+    init.add_argument("--team-max-rounds", type=int, default=3)
+    init.add_argument("--team-token-budget", type=int, default=None)
 
     run = commands.add_parser("run", help="run one stage")
     stages = run.add_subparsers(dest="stage", required=True)
@@ -47,7 +49,16 @@ def build_parser() -> argparse.ArgumentParser:
     brd.add_argument("--project", type=_project_id, required=True)
     brd.add_argument("--input", type=Path, required=True, help="intake .txt or .md file")
     brd.add_argument("--model", default=None)
+    brd.add_argument(
+        "--qa-model", default=None, help="model for the QA reviewer (default: --model)"
+    )
     brd.add_argument("--reuse-intake", action="store_true")
+    srs = stages.add_parser("srs", help="stored BRD -> SRS json + xlsx")
+    srs.add_argument("--project", type=_project_id, required=True)
+    srs.add_argument("--model", default=None)
+    srs.add_argument(
+        "--qa-model", default=None, help="model for the QA reviewer (default: --model)"
+    )
     return parser
 
 
@@ -59,7 +70,7 @@ def _emit(data: dict[str, object]) -> None:
     sys.stdout.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 
 
-def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> None:
+def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
     root: Path = args.root
     ensure_ready(root)
     projects = root / "projects"
@@ -70,38 +81,61 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> None:
                 project_id=args.project,
                 company_id=args.company,
                 document_language=args.language,
+                team_max_rounds=args.team_max_rounds,
+                team_token_budget=args.team_token_budget,
             ),
         )
         _emit({"project_id": store.project_id, "path": str(store.path)})
-        return
+        return 0
     store = open_project(projects, args.project)
     model = args.model or os.environ.get("MASTERBA_MODEL") or DEFAULT_MODEL
-    result = run_brd(
-        store,
-        root / "templates",
-        llm_factory(model),
-        args.input,
-        reuse_intake=args.reuse_intake,
-    )
-    _emit(
-        {
-            "document_id": result.document_id,
-            "requirement_ids": list(result.requirement_ids),
-            "xlsx": str(result.xlsx_path),
-            "open_questions": list(result.open_questions),
-            "uncovered_lines": list(result.uncovered_lines),
-            "attempts": result.attempts,
-            "input_tokens": result.input_tokens,
-            "output_tokens": result.output_tokens,
-        }
-    )
+    writer = llm_factory(model)
+    reviewer = llm_factory(args.qa_model) if args.qa_model else None
+    if args.stage == "brd":
+        result = run_brd(
+            store,
+            root / "templates",
+            writer,
+            args.input,
+            qa_llm=reviewer,
+            reuse_intake=args.reuse_intake,
+        )
+    else:
+        result = run_srs(store, root / "templates", writer, qa_llm=reviewer)
+    _emit(_summary(result))
+    return 3 if result.status is TeamRunStatus.ESCALATED else 0
+
+
+def _summary(result: StageResult) -> dict[str, object]:
+    return {
+        "stage": result.stage.value,
+        "status": result.status.value,
+        "run_id": result.run_id,
+        "rounds": result.rounds,
+        "issues_raised": result.issues_raised,
+        "issues_resolved": result.issues_resolved,
+        "advisory_issues": list(result.advisory),
+        "escalations": list(result.escalations),
+        "tokens_used": result.tokens_used,
+        "document_id": result.document_id,
+        "requirement_ids": list(result.requirement_ids),
+        "xlsx": str(result.xlsx_path) if result.xlsx_path else None,
+        "open_questions": list(result.open_questions),
+        "uncovered_lines": list(result.uncovered_lines),
+    }
 
 
 def main(argv: Sequence[str] | None = None, *, llm_factory: LLMFactory | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        _dispatch(args, llm_factory or _default_llm)
-    except (TraceStoreError, RenderError, LLMError, DraftRejectedError, OSError, ValueError) as exc:
+        return _dispatch(args, llm_factory or _default_llm)
+    except (
+        TraceStoreError,
+        RenderError,
+        LLMError,
+        QaOutputInvalidError,
+        OSError,
+        ValueError,
+    ) as exc:
         sys.stderr.write(f"masterba: error: {exc}\n")
         return 1
-    return 0

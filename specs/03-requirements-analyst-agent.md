@@ -202,3 +202,7 @@ The language of generated content is a **project setting**, not something the mo
 - [x] The language check accepts Japanese descriptions with ASCII terms (for example `API連携`) and English descriptions that contain a few Japanese proper nouns.
 - [x] `project.json` without `document_language` loads as `ja`; `schemas/ProjectConfig.schema.json` is regenerated.
 - [x] Re-run of the live review with an English intake and `--language en` produces English content (recorded in section 9 when done).
+
+## 13. Superseded by spec 04
+
+From Phase 4 the BRD stage runs as a writer + QA team. The "retry once" in section 3.3 and section 5 is replaced by the team loop (up to `team_max_rounds` drafts, gate feedback first, then QA feedback); `analyse_intake` and `DraftRejectedError` no longer exist, and a failed stage is a `StageResult` with status `escalated` (CLI exit code 3). The gate itself (`validate_draft`), id assignment and commit order are unchanged, with an added run-record commit at the end.

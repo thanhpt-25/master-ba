@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "MessageType": {
+      "enum": [
+        "question",
+        "feedback",
+        "answer",
+        "done"
+      ],
+      "title": "MessageType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "minLength": 1,
+      "title": "Body",
+      "type": "string"
+    },
+    "ref": {
+      "anyOf": [
+        {
+          "pattern": "^DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}#item\\.\\d+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ref"
+    },
+    "round": {
+      "minimum": 1,
+      "title": "Round",
+      "type": "integer"
+    },
+    "sender": {
+      "minLength": 1,
+      "title": "Sender",
+      "type": "string"
+    },
+    "to": {
+      "minLength": 1,
+      "title": "To",
+      "type": "string"
+    },
+    "type": {
+      "$ref": "#/$defs/MessageType"
+    }
+  },
+  "required": [
+    "sender",
+    "to",
+    "type",
+    "round",
+    "body"
+  ],
+  "title": "TeamMessage",
+  "type": "object"
+}

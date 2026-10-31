@@ -1,11 +1,20 @@
-"""BRD pipeline: intake -> agent -> ids -> trace store -> Excel (spec 03 section 5)."""
+"""BRD stage: intake -> writer/QA team -> ids -> trace store -> Excel (specs 03 and 04)."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from masterba.agents import analyse_intake, uncovered_lines
-from masterba.agents.requirements_analyst import BrdDraft
+from masterba.agents import (
+    BrdDraft,
+    brd_draft_view,
+    checklist_path,
+    load_checklist,
+    number_lines,
+    review,
+    uncovered_lines,
+    validate_draft,
+    write_brd,
+)
 from masterba.llm import LLM
 from masterba.models import (
     BrdContent,
@@ -14,8 +23,10 @@ from masterba.models import (
     RequirementItem,
     TraceLink,
 )
-from masterba.models.enums import DocStatus, DocType, LinkType
+from masterba.models.enums import DocStatus, DocType, LinkType, TeamRunStatus
+from masterba.pipeline.stage import StageResult, stage_result
 from masterba.rendering import render_to_project
+from masterba.team import RecordingLLM, Team, run_writer_review
 from masterba.trace_store import (
     DuplicateIdError,
     InvalidDocumentError,
@@ -43,18 +54,6 @@ class BrdArtifacts:
     document: Document
     content: BrdContent
     links: tuple[TraceLink, ...]
-
-
-@dataclass(frozen=True)
-class BrdRunResult:
-    document_id: str
-    requirement_ids: tuple[str, ...]
-    xlsx_path: Path
-    open_questions: tuple[str, ...]
-    uncovered_lines: tuple[int, ...]
-    input_tokens: int
-    output_tokens: int
-    attempts: int
 
 
 def next_requirement_number(existing: Sequence[RequirementItem]) -> int:
@@ -133,9 +132,10 @@ def run_brd(
     llm: LLM,
     intake_file: Path,
     *,
+    qa_llm: LLM | None = None,
     reuse_intake: bool = False,
-) -> BrdRunResult:
-    """Run the whole BRD stage; nothing but the intake is written unless the draft is accepted."""
+) -> StageResult:
+    """Run the BRD stage as a writer + QA team; business artifacts are written only when done."""
     if _brd_exists(store):
         raise DuplicateIdError(
             f"{BRD_DOC_ID} already exists; changing a BRD goes through a Decision Record"
@@ -144,9 +144,34 @@ def run_brd(
     if len(text) > MAX_INTAKE_CHARS:
         raise InvalidDocumentError(f"intake is longer than {MAX_INTAKE_CHARS} characters")
     stored = _store_intake(store, intake_file.name, text, reuse_intake)
-    analysis = analyse_intake(llm, stored, get_config(store).document_language)
+    config = get_config(store)
+    language = config.document_language
+    checklist = load_checklist(checklist_path(DocType.BRD))
+    team = Team.open(store, DocType.BRD, config.team_max_rounds, config.team_token_budget)
+    writer = RecordingLLM(llm, team)
+    reviewer = RecordingLLM(qa_llm or llm, team)
+
+    draft = run_writer_review(
+        team,
+        write=lambda previous, feedback: write_brd(
+            writer, stored, language, previous, feedback, BRD_DOC_ID
+        ),
+        gate=lambda d: validate_draft(d, stored, language),
+        review=lambda d: review(
+            reviewer,
+            checklist=checklist,
+            doc_id=BRD_DOC_ID,
+            item_count=len(d.requirements),
+            upstream=number_lines(stored),
+            draft_view=brd_draft_view(d, BRD_DOC_ID),
+            language=language,
+        ),
+    )
+    if draft is None:
+        return stage_result(team, team.finish(TeamRunStatus.ESCALATED))
+
     artifacts = assign_ids(
-        analysis.draft,
+        draft,
         project_id=store.project_id,
         intake_ref=f"intake/{intake_file.name}",
         first_req_number=next_requirement_number(list_requirements(store)),
@@ -157,15 +182,15 @@ def run_brd(
     for link in artifacts.links:
         add_trace_link(store, link)
     xlsx_path = render_to_project(store, BRD_DOC_ID, templates_root)
-    return BrdRunResult(
+    run = team.finish(TeamRunStatus.DONE)
+    return stage_result(
+        team,
+        run,
         document_id=BRD_DOC_ID,
         requirement_ids=tuple(r.id for r in artifacts.requirements),
         xlsx_path=xlsx_path,
         open_questions=tuple(
-            f"L{q.start_line}-L{q.end_line}: {q.question}" for q in analysis.draft.open_questions
+            f"L{q.start_line}-L{q.end_line}: {q.question}" for q in draft.open_questions
         ),
-        uncovered_lines=tuple(uncovered_lines(analysis.draft, stored)),
-        input_tokens=analysis.input_tokens,
-        output_tokens=analysis.output_tokens,
-        attempts=analysis.attempts,
+        uncovered_lines=tuple(uncovered_lines(draft, stored)),
     )

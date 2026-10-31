@@ -203,3 +203,4 @@ tests/rendering/
 6. **Company id is validated** (`..`, `/` and empty are rejected) so a project config cannot point the resolver outside `templates/`.
 7. **A company template with `source = baseline` needs no `.confirmed` file**; only `calibrated_from_sample` does.
 8. **Fixtures are Python builders**, not JSON files; the golden expectations are written out cell by cell in `tests/rendering/test_render_engine.py`.
+9. **Fixed-time `modified` (found in Phase 4)**: openpyxl sets the workbook `modified` property to the current time inside `save`, ignoring the value set before; `workbook_bytes` patches `docProps/core.xml` after saving so output really is byte-identical. A test saves twice more than a second apart.

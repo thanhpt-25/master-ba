@@ -2,7 +2,15 @@
 
 from pathlib import Path
 
-from masterba.agents import BrdDraft, DraftRequirement, OpenQuestion
+from masterba.agents import (
+    BrdDraft,
+    DraftRequirement,
+    DraftSrsItem,
+    OpenQuestion,
+    QaIssue,
+    QaReport,
+    SrsDraft,
+)
 from masterba.models import (
     BasicDesignContent,
     BasicDesignItem,
@@ -31,8 +39,19 @@ from masterba.models.enums import (
 PROJECT = "PRJ-001"
 
 
-def make_config(project_id: str = PROJECT, language: DocLanguage = DocLanguage.EN) -> ProjectConfig:
-    return ProjectConfig(project_id=project_id, company_id="default", document_language=language)
+def make_config(
+    project_id: str = PROJECT,
+    language: DocLanguage = DocLanguage.EN,
+    max_rounds: int = 3,
+    token_budget: int | None = None,
+) -> ProjectConfig:
+    return ProjectConfig(
+        project_id=project_id,
+        company_id="default",
+        document_language=language,
+        team_max_rounds=max_rounds,
+        team_token_budget=token_budget,
+    )
 
 
 def make_requirement(n: int = 1, text: str = "Users can log in") -> RequirementItem:
@@ -255,3 +274,59 @@ def bad_draft() -> BrdDraft:
     return BrdDraft(
         requirements=[draft_req("Invented", FUNCTIONAL, 3, "the portal shall read minds")]
     )
+
+
+def qa_pass() -> QaReport:
+    return QaReport()
+
+
+def qa_block(
+    checklist_id: str = "BRD-01", ref: str | None = None, message: str = "Fix it."
+) -> QaReport:
+    return QaReport(
+        issues=[QaIssue(checklist_id=checklist_id, severity="blocking", ref=ref, message=message)]
+    )
+
+
+def srs_item(
+    kind: SrsKind, statement: str, derives_from: list[str], hint: str | None = None
+) -> DraftSrsItem:
+    return DraftSrsItem(
+        kind=kind, statement=statement, acceptance_hint=hint, derives_from=derives_from
+    )
+
+
+def login_srs_draft() -> SrsDraft:
+    """Covers the four in-scope requirements REQ-0001..0004 of the login BRD draft."""
+    return SrsDraft(
+        items=[
+            srs_item(
+                SrsKind.FUNCTIONAL,
+                "The system shall let a registered customer sign in with email and password.",
+                ["REQ-0001"],
+                "Sign in with valid credentials and see the portal home.",
+            ),
+            srs_item(
+                SrsKind.FUNCTIONAL,
+                "The system shall let a customer reset a forgotten password by email.",
+                ["REQ-0002"],
+                "Request a reset mail and set a new password with the link.",
+            ),
+            srs_item(
+                SrsKind.NON_FUNCTIONAL,
+                "The portal shall be available 24 hours a day, 365 days a year.",
+                ["REQ-0003"],
+            ),
+            srs_item(
+                SrsKind.FUNCTIONAL,
+                "The system shall show a signed-in customer their order history.",
+                ["REQ-0004"],
+                "Sign in and open the order history page.",
+            ),
+        ]
+    )
+
+
+def incomplete_srs_draft() -> SrsDraft:
+    """Leaves REQ-0003 and REQ-0004 uncovered."""
+    return SrsDraft(items=login_srs_draft().items[:2])

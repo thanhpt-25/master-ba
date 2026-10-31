@@ -1,0 +1,31 @@
+stage = "BRD"
+
+[[checks]]
+id = "BRD-01"
+severity = "blocking"
+text = "Each requirement is atomic: one need per item, not several joined by 'and' or 'also'."
+
+[[checks]]
+id = "BRD-02"
+severity = "blocking"
+text = "No solution or implementation detail (technology, screen design, database) appears in a business requirement."
+
+[[checks]]
+id = "BRD-03"
+severity = "blocking"
+text = "Each requirement can be verified. A quantity the customer gave states a number, a unit and a condition. When the intake gives no figure, the writer must not invent one: raising an open question for it is correct and is not an issue."
+
+[[checks]]
+id = "BRD-04"
+severity = "advisory"
+text = "Vague wording such as 'fast', 'easy' or 'flexible' is not left undefined in a requirement; it is either defined or covered by an open question the writer raised."
+
+[[checks]]
+id = "BRD-05"
+severity = "blocking"
+text = "An item is marked out of scope only when the intake itself excludes, postpones or hands it to another party."
+
+[[checks]]
+id = "BRD-06"
+severity = "blocking"
+text = "No two items duplicate or contradict each other, and nothing is invented that the intake does not support."

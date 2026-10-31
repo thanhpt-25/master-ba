@@ -49,7 +49,7 @@ MasterBA/
     xlsx/
     decision-records/
     traceability/
-    runs/<run_id>/          # team-summary.json, team-tasks.json commit; transcripts/ gitignore
+    runs/<run_id>/          # team-summary.json, team-tasks.json, mailbox.json, .gitignore commit; transcripts/ gitignore
   src/
   tests/
 ```

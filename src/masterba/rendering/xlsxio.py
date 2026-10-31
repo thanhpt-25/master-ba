@@ -4,12 +4,16 @@ openpyxl stamps zip entries with the current time, so identical workbooks would 
 byte. Re-packing with a fixed timestamp makes re-rendering unchanged content a no-op in git.
 """
 
+import re
 import zipfile
 from io import BytesIO
 
 from openpyxl import Workbook
 
 ZIP_TIME = (2000, 1, 1, 0, 0, 0)
+FIXED_MODIFIED = "2000-01-01T00:00:00Z"
+# openpyxl overwrites `modified` with the current time inside `save`, so it is patched afterwards.
+_MODIFIED = re.compile(rb"(<dcterms:modified[^>]*>)[^<]*(</dcterms:modified>)")
 
 
 def workbook_bytes(wb: Workbook) -> bytes:
@@ -24,5 +28,8 @@ def workbook_bytes(wb: Workbook) -> bytes:
             entry = zipfile.ZipInfo(info.filename, date_time=ZIP_TIME)
             entry.compress_type = zipfile.ZIP_DEFLATED
             entry.external_attr = info.external_attr
-            target.writestr(entry, source.read(info.filename))
+            data = source.read(info.filename)
+            if info.filename == "docProps/core.xml":
+                data = _MODIFIED.sub(rb"\g<1>" + FIXED_MODIFIED.encode() + rb"\g<2>", data)
+            target.writestr(entry, data)
     return out.getvalue()
