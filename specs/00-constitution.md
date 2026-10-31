@@ -1,6 +1,6 @@
 # Spec 00 — Constitution
 
-Status: v0.2 (2026-10-31) — v0.2: thêm `projects/<project_id>/runs/` cho Phase Team (concept-design.md mục 14.5). Nguồn: [concept-design.md](../docs/concept-design.md) mục 0/6/11, [roadmap-phases.md](../docs/roadmap-phases.md) Phase 0.
+Status: v0.3 (2026-10-31) — v0.2: thêm `projects/<project_id>/runs/` cho Phase Team (concept-design.md mục 14.5). v0.3: thêm `project.json`, `requirements/` và ID `PRJ-###` theo spec 01. Nguồn: [concept-design.md](../docs/concept-design.md) mục 0/6/11, [roadmap-phases.md](../docs/roadmap-phases.md) Phase 0.
 
 ## Mục tiêu
 Thiết lập quy ước nền tảng (toolchain, cấu trúc repo, ID scheme, git convention) dùng chung cho toàn bộ phase tiếp theo, để không phase nào tự chế lại chuẩn riêng.
@@ -42,7 +42,9 @@ MasterBA/
   backend/
   frontend/
   projects/<project_id>/
+    project.json
     intake/
+    requirements/
     json/<doc_type>/
     xlsx/
     decision-records/
@@ -58,6 +60,7 @@ Thư mục mới ngoài danh sách trên phải được thêm vào spec này (h
 
 | Entity | Format | Ví dụ | Phạm vi duy nhất |
 |---|---|---|---|
+| Project | `PRJ-###` | `PRJ-001` | toàn repo |
 | RequirementItem | `REQ-####` | `REQ-0001` | trong 1 project |
 | Document | `DOC-<TYPE>-####` | `DOC-BRD-0001` | trong 1 project |
 | Item trong Document | `<DOC_ID>#item.<n>` | `DOC-SRS-0001#item.12` | trong 1 document |
