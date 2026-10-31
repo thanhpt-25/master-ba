@@ -57,5 +57,5 @@ jobs:
       - name: No key in the image
         run: |
           if docker history --no-trunc masterba:ci | grep -E 'ANTHROPIC_API_KEY=[^ "]'; then exit 1; fi
-          found="$(docker run --rm --entrypoint sh masterba:ci -c 'find / -xdev -name .env 2>/dev/null')"
+          found="$(docker run --rm --entrypoint sh masterba:ci -c 'find / -xdev -name .env 2>/dev/null || true')"
           test -z "$found" || { echo "found: $found"; exit 1; }
