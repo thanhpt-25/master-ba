@@ -1,6 +1,6 @@
 # Spec 11 — Hardening: QA signal, convergence, resume, CI, containers
 
-Status: v0.3 (2026-10-31), implemented except the live runs (2.3); see sections 9 and 10. v0.3: CI run on GitHub, dry-run 1 recorded, QA rule for open upstream facts. Sources: [next-steps.md](../docs/next-steps.md) Phase 11 (owner decisions in 12.5, item 6 for containers), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md), [05-basic-design-and-tests.md](05-basic-design-and-tests.md) section 9 (live findings 3 and 5), [08-dashboard.md](08-dashboard.md), [00-constitution.md](00-constitution.md).
+Status: v0.4 (2026-10-31), implemented except the live runs (2.3); see sections 9 and 10. v0.3: CI run on GitHub, dry-run 1 recorded, QA rule for open upstream facts. v0.4: dry-run 4 on a Japanese HRM intake with the sample company, SRS prompt and checklist changes. Sources: [next-steps.md](../docs/next-steps.md) Phase 11 (owner decisions in 12.5, item 6 for containers), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md), [05-basic-design-and-tests.md](05-basic-design-and-tests.md) section 9 (live findings 3 and 5), [08-dashboard.md](08-dashboard.md), [00-constitution.md](00-constitution.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -189,7 +189,7 @@ The README setup section gains the `doctor` step and the Docker Compose quick st
 - [x] `normalise_report` has unit tests for both downgrade rules and the note it posts; a regression test replays the spec 05 run 4 issue ("acceptable as written", no action) and the run finishes `done`; the `QaReport` and `TeamRun` schemas are regenerated and drift-tested.
 - [x] Customer questions from both loops reach `TeamRun.customer_questions`, and the SRS stage merges them with `open_questions`.
 - [x] `team_max_rounds_by_stage` overrides the default per stage and is set through `init-project --rounds`.
-- [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Open: dry-run 3 reached `done` for both stages on a gateway model (10.3); awaits the owner's acceptance.*
+- [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Open: dry-run 3 reached `done` for both stages, but dry-run 4 (30 requirements) escalated in Basic Design after 7 rounds (10.3); awaits the owner's acceptance.*
 - [x] `--resume` continues an escalated run with the fake model for every stage; it refuses a run that is done, of another stage, without a checkpoint, with a changed upstream version, or whose target document exists; the commit subject says `(resumed)`.
 - [x] The CI jobs `quick`, `full` and `image` are green on `main`, and `quick` runs in under one minute. *(2026-10-31: run 41208337518, `quick` 32 s; 10.4.)*
 - [x] `docker compose up` serves the dashboard on 127.0.0.1:8000 and the health check passes; `docker compose run --rm masterba init-project ...` and a fake-model stage run create commits visible in the host work tree, authored with the configured name; the container runs as a non-root user; no key is in the image. *A stage run in the container needs a model key and was not tried (10.5).*
@@ -225,6 +225,8 @@ The README setup section gains the `doctor` step and the Docker Compose quick st
 | `unit-test-design.md` rule 3, `detail-design.md` rule 1 | The same two rules at detail level | carried over; no recorded detail runs |
 | `qa-reviewer.md` rule 6 (new), checklist `tests.toml` TS-05 | When a requirement depends on a fact the upstream leaves open (the event a deadline counts from, an error condition, a figure), QA does not demand a case, check or exclusion for the open part, and an exclusion naming that fact is convincing; such a point is a `customer_question` | TS-05, TS-02 (dry-run 1 below: QA called the same open start event a customer question in one issue and a blocking gap in another) |
 | `tests.toml` TS-02, `basic-test-design.md` rule 5, `unit-test-design.md` rule 4 | A limit that cannot be measured because a fact it depends on is open needs no boundary cases; when only part of an item depends on an open fact, the tester tests the stated part and does not exclude the item | TS-02, and the gate error `exclusion n: ... is also tested` (dry-run 2: QA still asked for boundary cases of the open deadline, and the tester then excluded items it also tested) |
+| `checklists/srs.toml` SRS-01 | The check names the Japanese obligation endings (〜すること, 〜できること, 〜しなければならない) and says a statement in that form is correct | SRS-01 (dry-run 4: QA asked for the word "shall" on correct Japanese statements and raised 52 issues) |
+| `srs-writer.md` rule 8 (new) | A BRD requirement that only states the purpose of the system gets no statement of its own; it is cited in `derives_from` of the statements that realise it | SRS-02, SRS-06 (dry-run 4: one goal-type requirement kept the SRS from converging over 9 rounds) |
 
 ### 10.3 Live runs (2.3)
 
@@ -250,6 +252,20 @@ Dry-run 3, same setup, after the TS-02 and tester changes in 10.2:
 
 All seven workbooks were rendered. No case asserts a figure the intake does not give. Because the intake has five lines, many inputs stay generic ("request details the system accepts; fields are not specified") and the deadline cases refer to "the applicable start point". This is one run on one model; it shows the stages can finish, not that they finish reliably.
 
+Dry-run 4, same gateway model, on a Japanese HRM intake: `tests/fixtures/intake/hrm_employee_ja.txt` (15 lines), project language `ja`, company `sample-sier` whose seven templates were calibrated from SIer-style samples made by `scripts/make_sier_samples.py` (cover sheet, revision history, document-info block, dark header row, bordered cells). Every column mapped to its field except 備考, and the previews showed no layout difference.
+
+| Stage | Result | Rounds | Issues raised / resolved | Tokens |
+|---|---|---|---|---|
+| `brd` | done; 30 requirements (27 in scope, 3 out of scope), each citing its intake line | 1 | 0 / 0 | 7,354 |
+| `srs` `RUN-0002` | escalated (QA asked for "shall" on correct Japanese statements) | 3 | 52 / 36 | 38,023 |
+| `srs` `RUN-0003`, resumed twice | escalated (one goal-type requirement left) | 9 | 26 / 25 | 109,024 |
+| `srs` `RUN-0005`, after the two prompt changes in 10.2 | done; 29 items | 1 | 0 / 0 | 8,811 |
+| `basic`, first try | error: the designer returned an item without `realizes`; no run record | - | - | - |
+| `basic` `RUN-0007`, then resumed to 7 rounds | escalated | 7 | 56 / 45 | 378,007 |
+| `detail` | not run | - | - | - |
+
+The BRD and SRS workbooks were opened and checked: the three sheets of the company layout are kept, the document-info cells hold the ID, version, project and status, the header keeps its fill, font, borders, freeze pane and landscape A4 setting, and 対象範囲 shows 対象. Findings are in section 11, items 4 to 6.
+
 Still open: the runs used a gateway model on a synthetic intake; the owner accepts this record or repeats the runs with the model intended for production.
 
 ### 10.4 CI timings (4)
@@ -265,3 +281,6 @@ Docker 29.9.2, 2026-10-31: the image builds; `docker run ... doctor --init` on a
 1. Checkpoints stay on one machine. Committing them on escalation would let another machine resume, at the cost of drafts in git history; decide when a team works from more than one machine.
 2. A second QA opinion when the same item is flagged twice in a row was another candidate from spec 05 finding 5. It is left out until the structured fields of section 1 have been tried on live runs.
 3. Publishing the image to a registry is not covered; images are built locally or in CI.
+4. A model answer that does not fit its schema (dry-run 4: a design item without `realizes`) ends the whole run with an error. The stage loops could treat it as a gate error, send it back to the writer and spend one round, as QA already does with one retry.
+5. On 30 requirements the Basic Design team did not converge in 7 rounds and 378,007 tokens: every round QA raised about ten new points, some contradicting each other (boundary cases for a response time against not testing behaviour the design leaves open). Candidates: a round limit scaled to the number of items, a second QA opinion when an item is flagged twice (item 2), or reviewing design and tests in separate runs.
+6. The rendered workbook shows enum values in English (`functional`, `draft`) where a Japanese SIer document expects 機能 or 草稿, and the cover sheet is not filled; only the `scope` value map exists.
