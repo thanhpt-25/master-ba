@@ -120,7 +120,7 @@ code, .mono, pre { font-family: var(--mono); font-size: 0.86em; }
 .seal.big { width: 3.4rem; height: 3.4rem; font-size: 2rem; margin-bottom: 0.5rem; border-radius: 8px; }
 .crumb { color: var(--ink-2); font-size: 0.92rem; }
 .who { margin-left: auto; display: flex; align-items: center; gap: 0.8rem; font-size: 0.9rem; }
-.role { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.68rem; border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.5rem; color: var(--ink-2); }
+.role { font-size: 0.78rem; border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.5rem; color: var(--ink-2); }
 
 .tabs { display: flex; gap: 0.2rem; padding: 0 clamp(1rem, 4vw, 2.5rem); border-bottom: 1px solid var(--line); overflow-x: auto; }
 .tabs a { text-decoration: none; padding: 0.7rem 0.9rem; border-bottom: 3px solid transparent; white-space: nowrap; color: var(--ink-2); font-weight: 600; }
@@ -220,9 +220,7 @@ label.inline { display: inline-flex; gap: 0.35rem; align-items: center; font-wei
   grid-column: 2;
   align-self: center;
   text-align: center;
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
   color: var(--ink-2);
   border-top: 2px solid var(--line);
   padding-top: 0.15rem;
@@ -253,14 +251,19 @@ label.inline { display: inline-flex; gap: 0.35rem; align-items: center; font-wei
 
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); margin: 0.5rem 0 1rem; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-th, td { text-align: left; padding: 0.5rem 0.75rem; vertical-align: top; border-bottom: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
-th { background: var(--paper-2); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; position: sticky; top: 0; }
+th, td { text-align: left; padding: 0.5rem 0.75rem; vertical-align: top; border-bottom: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: break-word; }
+td .mono, td code { white-space: nowrap; }
+td { min-width: 5rem; }
+th { background: var(--paper-2); font-size: 0.85rem; font-weight: 700; color: var(--ink-2); white-space: nowrap; position: sticky; top: 0; }
 tr:last-child td { border-bottom: 0; }
 
 .chip { display: inline-block; border: 1px solid var(--line); border-radius: 5px; padding: 0 0.4rem; margin: 0 0.25rem 0.25rem 0; background: var(--paper-2); }
 .order { padding-left: 1.4rem; display: grid; gap: 0.2rem; }
 .chain { list-style: none; display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.3rem; padding: 0; margin: 0 0 0.8rem; }
-.chain .arrow { align-self: center; color: var(--ink-2); }
+/* The arrow lives inside the node it points to, so a wrapped line never starts or ends with one. */
+.chain .arrow { display: none; }
+.chain .node:not(:first-child) { position: relative; padding-left: 1.6rem; }
+.chain .node:not(:first-child)::before { content: "→"; position: absolute; left: 0.5rem; top: 0.4rem; color: var(--ink-2); }
 .node { display: grid; gap: 0.1rem; padding: 0.4rem 0.65rem; border: 1px solid var(--line); border-radius: 8px; background: var(--card); max-width: 17rem; }
 .node.requirement { border-left: 5px solid var(--accent); }
 .node span { font-size: 0.82rem; color: var(--ink-2); overflow-wrap: anywhere; }

@@ -21,7 +21,10 @@ function leftCard(stage, info, index, ctx) {
   const canRun = ["approver", "admin"].includes(ctx.me.role);
   const run = (body = {}) => ctx.start(stage.key, body);
   let action = null;
-  if (canRun && info.status !== "running") {
+  if (canRun && info.status === "done") {
+    // A stage refuses to run over its own documents; changes go through a Decision Record.
+    action = h("p", { class: "hint" }, "To change these documents, raise a ", h("a", { href: `#/p/${ctx.pid}/drs` }, "Decision Record"), ".");
+  } else if (canRun && info.status !== "running") {
     if (stage.key === "brd") {
       const file = h("input", { type: "file", accept: ".txt,.md", id: "intake-file", "aria-label": "Intake file (.txt or .md)" });
       action = h(
@@ -42,11 +45,11 @@ function leftCard(stage, info, index, ctx) {
               }
             },
           },
-          info.status === "done" ? "Run again" : "Upload and run",
+          "Upload and run",
         ),
       );
     } else {
-      action = h("button", { class: "primary", onClick: () => run().catch((e) => ctx.toast(e.message, "error")) }, info.status === "done" ? "Run again" : "Run stage");
+      action = h("button", { class: "primary", onClick: () => run().catch((e) => ctx.toast(e.message, "error")) }, "Run stage");
     }
   }
   const last = info.last_run;
