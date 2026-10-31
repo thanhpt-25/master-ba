@@ -162,6 +162,8 @@ uv sync
 uv run pytest        # offline; coverage must stay at or above 80%
 ```
 
+`uv sync` installs the `masterba` command inside `.venv/`, not on your `PATH`. Either prefix every command below with `uv run` (`uv run masterba ...`) or install it once as a tool with `uv tool install --editable .`.
+
 The key is read from the environment only:
 
 ```bash
