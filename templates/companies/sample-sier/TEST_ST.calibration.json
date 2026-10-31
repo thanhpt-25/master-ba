@@ -1,0 +1,95 @@
+{
+  "doc_type": "TEST_ST",
+  "tables": [
+    {
+      "sheet": "システムテストケース",
+      "key": "t1",
+      "header_row": 9,
+      "first_row": 10,
+      "numbering": "A",
+      "columns": [
+        {
+          "col": "B",
+          "header": "テストケースID",
+          "field": "test_id",
+          "value_map": null
+        },
+        {
+          "col": "C",
+          "header": "項目ID",
+          "field": "item_id",
+          "value_map": null
+        },
+        {
+          "col": "D",
+          "header": "テストレベル",
+          "field": "level",
+          "value_map": null
+        },
+        {
+          "col": "E",
+          "header": "確認対象",
+          "field": "verifies",
+          "value_map": null
+        },
+        {
+          "col": "F",
+          "header": "前提条件",
+          "field": "precondition",
+          "value_map": null
+        },
+        {
+          "col": "G",
+          "header": "入力値",
+          "field": "input",
+          "value_map": null
+        },
+        {
+          "col": "H",
+          "header": "操作手順",
+          "field": "steps",
+          "value_map": null
+        },
+        {
+          "col": "I",
+          "header": "期待結果",
+          "field": "expected",
+          "value_map": null
+        },
+        {
+          "col": "J",
+          "header": "備考",
+          "field": null,
+          "value_map": null
+        }
+      ],
+      "where": {}
+    }
+  ],
+  "headers": [
+    {
+      "sheet": "システムテストケース",
+      "cell": "B2",
+      "source": "$document.id"
+    },
+    {
+      "sheet": "システムテストケース",
+      "cell": "B3",
+      "source": "$document.version"
+    },
+    {
+      "sheet": "システムテストケース",
+      "cell": "B4",
+      "source": "$project.id"
+    },
+    {
+      "sheet": "システムテストケース",
+      "cell": "B5",
+      "source": "$document.status"
+    }
+  ],
+  "unmapped": [
+    "システムテストケース!J: 備考"
+  ],
+  "warnings": []
+}

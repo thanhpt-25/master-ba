@@ -3,7 +3,7 @@ stage = "SRS"
 [[checks]]
 id = "SRS-01"
 severity = "blocking"
-text = "Each statement contains exactly one obligation and states it as a 'shall' (or the Japanese equivalent)."
+text = "Each statement contains exactly one obligation and states it as a requirement sentence: 'shall' in English, or an obligation ending such as 〜すること, 〜できること or 〜しなければならない in Japanese. A statement in that form is correct; do not ask for the word 'shall' itself."
 
 [[checks]]
 id = "SRS-02"

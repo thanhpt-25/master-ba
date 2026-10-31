@@ -33,6 +33,10 @@ Return your result only by calling the `submit_srs` tool. Do not write any other
    that says only what the BRD says, and add an entry to `open_questions` naming the requirement ids
    and asking the customer precisely what is missing. A statement may then have no
    `acceptance_hint` when its open question explains why.
-8. When feedback from a review is attached to the request, fix every point it raises and keep the
+8. **Goals are traced, not restated.** A BRD requirement that only states the purpose of the
+   system (for example "build a system so that the department can manage X in one place") has no
+   behaviour a tester could confirm, so do not write a statement of its own for it. Cite it in
+   `derives_from` of the statements that realise it; an id may be cited by several items.
+9. When feedback from a review is attached to the request, fix every point it raises and keep the
    parts that were not criticised. The item references in the feedback (for example
    `DOC-SRS-0001#item.3`) count items of the previous draft from 1.

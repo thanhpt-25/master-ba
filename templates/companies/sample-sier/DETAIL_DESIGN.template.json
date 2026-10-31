@@ -1,0 +1,84 @@
+{
+  "cell_bindings": {
+    "header": [
+      {
+        "cell": "B2",
+        "sheet": "t1",
+        "source": "$document.id"
+      },
+      {
+        "cell": "B3",
+        "sheet": "t1",
+        "source": "$document.version"
+      },
+      {
+        "cell": "B4",
+        "sheet": "t1",
+        "source": "$project.id"
+      },
+      {
+        "cell": "B5",
+        "sheet": "t1",
+        "source": "$document.status"
+      }
+    ],
+    "tables": [
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "item_id",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "kind",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "name",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "spec",
+            "value_map": null
+          },
+          {
+            "col": "F",
+            "field": "refines",
+            "value_map": null
+          },
+          {
+            "col": "G",
+            "field": null,
+            "value_map": null
+          }
+        ],
+        "items": "$content.items",
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "t1",
+        "start_row": 10,
+        "where": {
+          "status": "active"
+        }
+      }
+    ],
+    "value_maps": {}
+  },
+  "company_id": "sample-sier",
+  "doc_type": "DETAIL_DESIGN",
+  "sheet_map": {
+    "t1": "詳細設計一覧"
+  },
+  "source": "calibrated_from_sample",
+  "validation_rules": [
+    {
+      "limit": 32767,
+      "rule": "max_cell_length"
+    }
+  ]
+}

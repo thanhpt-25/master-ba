@@ -23,7 +23,9 @@ def frontend(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def empty_root(git_repo: Path) -> Path:
-    shutil.copytree(REPO / "templates", git_repo / "templates")
+    shutil.copytree(
+        REPO / "templates", git_repo / "templates", ignore=shutil.ignore_patterns("companies")
+    )
     return git_repo
 
 
@@ -31,7 +33,9 @@ def empty_root(git_repo: Path) -> Path:
 def seeded_root(chain: ProjectStore) -> Path:
     """A git work tree holding the full demo chain of PRJ-001 and the templates."""
     root = chain.root.parent
-    shutil.copytree(REPO / "templates", root / "templates")
+    shutil.copytree(
+        REPO / "templates", root / "templates", ignore=shutil.ignore_patterns("companies")
+    )
     return root
 
 

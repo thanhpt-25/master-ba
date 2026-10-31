@@ -220,6 +220,13 @@ masterba template check     --company ACME --type BRD
 masterba template confirm   --company ACME --type BRD --by alice
 ```
 
+The repository ships a sample company, `sample-sier`, with seven confirmed templates in the usual Japanese SIer layout (cover sheet, revision history, document-info block, list sheet). `scripts/make_sier_samples.py OUTDIR` regenerates the sample workbooks they were calibrated from. A ready-made Japanese intake, `tests/fixtures/intake/hrm_employee_ja.txt` (a small HR management system), runs against it:
+
+```bash
+masterba --root work init-project --project PRJ-001 --company sample-sier --language ja
+masterba --root work run brd --project PRJ-001 --input tests/fixtures/intake/hrm_employee_ja.txt
+```
+
 ### Dashboard
 
 ```bash

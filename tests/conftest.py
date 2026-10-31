@@ -92,6 +92,7 @@ SLOW_MODULES = (
     "tests/test_cli_dr.py",
     "tests/api/test_flow.py",
     "tests/calibration/test_calibrate.py",
+    "tests/calibration/test_sier_samples.py",
     "tests/api/test_permissions.py",
     "tests/api/test_security.py",
 )
