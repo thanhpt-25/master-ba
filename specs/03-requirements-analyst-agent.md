@@ -1,6 +1,6 @@
 # Spec 03 — Walking Skeleton: `requirements-analyst-agent` (BRD only)
 
-Status: v0.2 (2026-10-31), implemented; Acceptance Criteria pass except the live-model review in section 9, which needs `ANTHROPIC_API_KEY`. Section 11 records decisions taken while implementing. Sources: [concept-design.md](../docs/concept-design.md) sections 0, 4, 9, 14.7 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 3, [00-constitution.md](00-constitution.md), [01-data-contracts.md](01-data-contracts.md), [02-excel-rendering.md](02-excel-rendering.md).
+Status: v0.2 (2026-10-31), implemented; Acceptance Criteria pass; the live review (section 9) found one open issue (output language). Section 11 records decisions taken while implementing. Sources: [concept-design.md](../docs/concept-design.md) sections 0, 4, 9, 14.7 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 3, [00-constitution.md](00-constitution.md), [01-data-contracts.md](01-data-contracts.md), [02-excel-rendering.md](02-excel-rendering.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -157,13 +157,18 @@ tests/
 - [x] `RTM` query from a created `REQ-####` returns a path to its BRD item (`rtm` / `query_impact`).
 - [x] The three intake fixtures each run through the fake LLM and produce a rendering that opens with `openpyxl`.
 - [x] `ANTHROPIC_API_KEY` is never written to a file or printed; a missing key fails with `LLMConfigError` before any request; the AnthropicLLM request building is unit-tested with a stubbed client (no network).
-- [ ] An optional live test (`pytest -m live`, skipped by default and when no key is set) runs the real model on `login_system.txt` and asserts only structural properties; its output is reviewed by hand once and the verdict is recorded in section 9.
+- [x] An optional live test (`pytest -m live`, skipped by default and when no key is set) runs the real model on `login_system.txt` and asserts only structural properties; its output is reviewed by hand once and the verdict is recorded in section 9.
 - [x] `schemas/BrdDraft.schema.json` is generated and a test fails when it drifts.
 - [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; `masterba --help` works after `uv sync`.
 
 ## 9. Manual review record
 
-Pending: the first live run has not happened yet (no `ANTHROPIC_API_KEY` in the implementation environment). Run `ANTHROPIC_API_KEY=... uv run pytest -m live tests/pipeline`, open `projects/live-review.xlsx` under the pytest temp folder, and record here: date, model, intake, requirement count, tokens, verdict, problems found.
+**2026-10-31, model `auto/best-coding` via a local Anthropic-compatible gateway, intake `login_system.txt`.** One attempt, 1,023 input and 486 output tokens, exit code 0.
+
+- **Structure: good.** 5 requirements with exact one-line citations (L3, L4, L5, L6, L7); the account-administration sentence was correctly marked `scope: out`; "Please make it fast" (L8) became an open question instead of a requirement; `uncovered_lines` = greeting and signature lines only. Git history has the 14 expected commits in order; the xlsx opens.
+- **Finding 1 (open): output language.** The intake is English but the model wrote titles, descriptions and the open question in Japanese, against prompt rule 4. The prompt's framing ("Japanese system integrator") probably pulls it. The gate cannot catch this. Decision needed: either deliverable language is a project setting (e.g. `ProjectConfig.document_language`, passed to the prompt, and checked loosely) or the prompt is tightened to follow the intake. Not changed yet.
+- **Finding 2 (fixed): hang.** One run waited more than 10 minutes on the gateway (the SDK default timeout). `AnthropicLLM` now sets a 180 s request timeout (`timeout` argument).
+- **Transient gateway error** on the first run (upstream models unavailable) was reported cleanly with nothing but the intake written; the rerun with `--reuse-intake` worked as designed.
 
 ## 10. Open points (do not block implementation)
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Phases 0 (scaffold), 1 (data contracts: models, `trace_store`, diff), 2 (Excel rendering) and 3 (BRD walking skeleton: LLM adapter, `requirements-analyst` agent, pipeline, CLI) are done; the Phase 3 live-model review is still pending. There is no team runtime, SRS or later stage yet (Phase 4+). Conventions (toolchain, repo layout, ID scheme, ID Stability Rule, document versioning, commit format) are binding and defined in `specs/00-constitution.md` — read it before adding code.
+Phases 0 (scaffold), 1 (data contracts: models, `trace_store`, diff), 2 (Excel rendering) and 3 (BRD walking skeleton: LLM adapter, `requirements-analyst` agent, pipeline, CLI) are done; the live review found one open issue (output language, see spec 03 section 9). There is no team runtime, SRS or later stage yet (Phase 4+). Conventions (toolchain, repo layout, ID scheme, ID Stability Rule, document versioning, commit format) are binding and defined in `specs/00-constitution.md` — read it before adding code.
 
 ## Commands
 
@@ -30,7 +30,7 @@ Code lives in `src/masterba/`:
 - `llm/`: `LLM` protocol (`generate(system, user, output, tool_name)`), `AnthropicLLM` (forced tool call, key only from `ANTHROPIC_API_KEY`) and `FakeLLM`; every automated test uses the fake.
 - `agents/requirements_analyst.py` + `agents/requirements-analyst.md` (prompt) + `skills/brd-from-intake/`: the model returns a `BrdDraft` without ids; `validate_draft` is the deterministic gate (citations in range, quote is a substring of the cited lines, unique titles), one retry, never repairs output.
 - `pipeline/brd.py`: `run_brd` = intake commit, agent, `assign_ids` (the model never chooses ids), requirements, document, trace links, render, one commit each. Refuses when a BRD already exists.
-- `cli.py`: `masterba init-project`, `masterba run brd --project PRJ-001 --input file.txt` (installed console script; `--root` is the git work tree, default cwd). Live-model test: `uv run pytest -m live` with `ANTHROPIC_API_KEY`.
+- `cli.py`: `masterba init-project`, `masterba run brd --project PRJ-001 --input file.txt` (installed console script; `--root` is the git work tree, default cwd). Live-model test: `uv run pytest -m live` with `ANTHROPIC_API_KEY` (an Anthropic-compatible gateway works via `ANTHROPIC_BASE_URL` and `MASTERBA_MODEL`).
 - `diff/`: structural diff by stable item id plus `classify_change` (pure similarity, no LLM; numeric edits always count as structural).
 
 ## Intended purpose

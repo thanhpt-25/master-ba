@@ -114,3 +114,18 @@ def test_api_key_comes_from_the_environment_and_is_not_echoed(
     llm = AnthropicLLM("test-model")
     assert "sk-test-secret-value" not in repr(vars(llm).get("_model"))
     assert isinstance(llm, AnthropicLLM)
+
+
+def test_requests_time_out_instead_of_hanging(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_client(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return stub_client(StubMessages())
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-secret-value")
+    monkeypatch.setattr(anthropic, "Anthropic", fake_client)
+    AnthropicLLM("m")
+    assert captured["timeout"] == 180.0
+    AnthropicLLM("m", timeout=5.0)
+    assert captured["timeout"] == 5.0

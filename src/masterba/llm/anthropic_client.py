@@ -10,11 +10,16 @@ from masterba.llm.base import LLMConfigError, LLMError, LLMOutputError, LLMResul
 
 DEFAULT_MODEL = "claude-sonnet-5-5"
 API_KEY_ENV = "ANTHROPIC_API_KEY"
+REQUEST_TIMEOUT_SECONDS = 180.0
 
 
 class AnthropicLLM:
     def __init__(
-        self, model: str = DEFAULT_MODEL, max_tokens: int = 16000, client: Any = None
+        self,
+        model: str = DEFAULT_MODEL,
+        max_tokens: int = 16000,
+        client: Any = None,
+        timeout: float = REQUEST_TIMEOUT_SECONDS,
     ) -> None:
         self._model = model
         self._max_tokens = max_tokens
@@ -22,7 +27,7 @@ class AnthropicLLM:
             api_key = os.environ.get(API_KEY_ENV)
             if not api_key:
                 raise LLMConfigError(f"{API_KEY_ENV} is not set")
-            client = anthropic.Anthropic(api_key=api_key)
+            client = anthropic.Anthropic(api_key=api_key, timeout=timeout)
         self._client = client
 
     def generate(self, *, system: str, user: str, output: type[T], tool_name: str) -> LLMResult[T]:
