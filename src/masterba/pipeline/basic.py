@@ -29,10 +29,15 @@ from masterba.models import (
     TestSpecContent,
     TraceLink,
 )
-from masterba.models.enums import DocStatus, DocType, Level, LinkType, TeamRunStatus
-from masterba.pipeline.brd import TEMPLATE_ID
+from masterba.models.enums import DocType, Level, LinkType, TeamRunStatus
 from masterba.pipeline.srs import SRS_DOC_ID
-from masterba.pipeline.stage import StageResult, stage_result
+from masterba.pipeline.stage import (
+    StageResult,
+    document_exists,
+    make_document,
+    stage_result,
+    unique_links,
+)
 from masterba.rendering import render_to_project
 from masterba.team import (
     Answer,
@@ -63,22 +68,6 @@ ST_DOC_ID = "DOC-TEST_ST-0001"
 class BasicArtifacts:
     documents: tuple[tuple[Document, BasicDesignContent | TestSpecContent], ...]
     links: tuple[TraceLink, ...]
-
-
-def _document(doc_id: str, doc_type: DocType, project_id: str) -> Document:
-    return Document(
-        id=doc_id,
-        type=doc_type,
-        version=1,
-        status=DocStatus.DRAFT,
-        template_id=TEMPLATE_ID,
-        content_ref=f"json/{doc_type.value.lower()}/{doc_id}.v1.json",
-        project_id=project_id,
-    )
-
-
-def _unique(links: list[TraceLink]) -> list[TraceLink]:
-    return list(dict.fromkeys(links))
 
 
 def assign_basic_ids(
@@ -138,21 +127,13 @@ def assign_basic_ids(
         contents[level] = TestSpecContent(items=items, exclusions=exclusions)
     documents: tuple[tuple[Document, BasicDesignContent | TestSpecContent], ...] = (
         (
-            _document(DESIGN_DOC_ID, DocType.BASIC_DESIGN, project_id),
+            make_document(DESIGN_DOC_ID, DocType.BASIC_DESIGN, project_id),
             BasicDesignContent(items=design_items),
         ),
-        (_document(IT_DOC_ID, DocType.TEST_IT, project_id), contents[Level.IT]),
-        (_document(ST_DOC_ID, DocType.TEST_ST, project_id), contents[Level.ST]),
+        (make_document(IT_DOC_ID, DocType.TEST_IT, project_id), contents[Level.IT]),
+        (make_document(ST_DOC_ID, DocType.TEST_ST, project_id), contents[Level.ST]),
     )
-    return BasicArtifacts(documents, tuple(_unique(links)))
-
-
-def _exists(store: ProjectStore, doc_id: str) -> bool:
-    try:
-        get_document(store, doc_id)
-    except NotFoundError:
-        return False
-    return True
+    return BasicArtifacts(documents, tuple(unique_links(links)))
 
 
 def run_basic_design(
@@ -165,11 +146,11 @@ def run_basic_design(
 ) -> StageResult:
     """Run the Basic Design stage as a three-member team; artifacts are written only when done."""
     for doc_id in (DESIGN_DOC_ID, IT_DOC_ID, ST_DOC_ID):
-        if _exists(store, doc_id):
+        if document_exists(store, doc_id):
             raise DuplicateIdError(
                 f"{doc_id} already exists; changing a document goes through a Decision Record"
             )
-    if not _exists(store, SRS_DOC_ID):
+    if not document_exists(store, SRS_DOC_ID):
         raise NotFoundError(f"{SRS_DOC_ID} does not exist; run the srs stage first")
     _, content = get_document(store, SRS_DOC_ID)
     assert isinstance(content, SrsContent)

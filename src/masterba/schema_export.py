@@ -9,7 +9,15 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from masterba.agents import BasicDesignDraft, BrdDraft, QaReport, SrsDraft, TestDraft
+from masterba.agents import (
+    BasicDesignDraft,
+    BrdDraft,
+    DetailDesignDraft,
+    QaReport,
+    SrsDraft,
+    TestDraft,
+    UnitTestDraft,
+)
 from masterba.diff import ItemChange
 from masterba.models import (
     BasicDesignContent,
@@ -47,6 +55,8 @@ SCHEMA_MODELS: tuple[type[BaseModel], ...] = (
     SrsDraft,
     BasicDesignDraft,
     TestDraft,
+    DetailDesignDraft,
+    UnitTestDraft,
     QaReport,
     TeamTask,
     TeamMessage,

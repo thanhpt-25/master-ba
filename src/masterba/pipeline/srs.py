@@ -17,8 +17,8 @@ from masterba.agents.srs_writer import brd_view, draft_view
 from masterba.llm import LLM
 from masterba.models import BrdContent, Document, SrsContent, SrsItem, TraceLink
 from masterba.models.enums import DocStatus, DocType, LinkType, TeamRunStatus
-from masterba.pipeline.brd import BRD_DOC_ID, TEMPLATE_ID
-from masterba.pipeline.stage import StageResult, stage_result
+from masterba.pipeline.brd import BRD_DOC_ID
+from masterba.pipeline.stage import TEMPLATE_ID, StageResult, stage_result
 from masterba.rendering import render_to_project
 from masterba.team import RecordingLLM, Team, run_writer_review
 from masterba.trace_store import (

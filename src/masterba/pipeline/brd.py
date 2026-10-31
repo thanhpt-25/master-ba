@@ -24,7 +24,7 @@ from masterba.models import (
     TraceLink,
 )
 from masterba.models.enums import DocStatus, DocType, LinkType, TeamRunStatus
-from masterba.pipeline.stage import StageResult, stage_result
+from masterba.pipeline.stage import TEMPLATE_ID, StageResult, stage_result
 from masterba.rendering import render_to_project
 from masterba.team import RecordingLLM, Team, run_writer_review
 from masterba.trace_store import (
@@ -44,7 +44,6 @@ from masterba.trace_store import (
 from masterba.trace_store.store import normalize_text
 
 BRD_DOC_ID = "DOC-BRD-0001"
-TEMPLATE_ID = "default/v1"
 MAX_INTAKE_CHARS = 200_000
 
 

@@ -7,7 +7,9 @@ from masterba.agents import (
     BrdDraft,
     DesignAnswer,
     DesignQuestion,
+    DetailDesignDraft,
     DraftDesignItem,
+    DraftDetailItem,
     DraftExclusion,
     DraftRequirement,
     DraftSrsItem,
@@ -17,6 +19,7 @@ from masterba.agents import (
     QaReport,
     SrsDraft,
     TestDraft,
+    UnitTestDraft,
 )
 from masterba.models import (
     BasicDesignContent,
@@ -33,6 +36,7 @@ from masterba.models import (
 )
 from masterba.models.enums import (
     BasicDesignKind,
+    DetailDesignKind,
     DocLanguage,
     DocStatus,
     DocType,
@@ -445,5 +449,93 @@ def login_test_draft_with_exclusions() -> TestDraft:
         exclusions=[
             DraftExclusion(item_ref=design_ref(4), reason="Needs a production monitoring setup."),
             DraftExclusion(item_ref=srs_ref(3), reason="Cannot be shown in a test period."),
+        ],
+    )
+
+
+DETAIL_DOC = "DOC-DETAIL_DESIGN-0001"
+
+
+def detail_ref(n: int) -> str:
+    return f"{DETAIL_DOC}#item.{n}"
+
+
+def detail_item(kind: DetailDesignKind, name: str, spec: str, *refines: int) -> DraftDetailItem:
+    return DraftDetailItem(
+        kind=kind, name=name, spec=spec, refines=[design_ref(n) for n in refines]
+    )
+
+
+def login_detail_draft() -> DetailDesignDraft:
+    """Five detail items refining the five design items of the login demo."""
+    return DetailDesignDraft(
+        items=[
+            detail_item(
+                DetailDesignKind.MODULE,
+                "AuthModule",
+                "Operation authenticate(email, password) returns a session or an error.",
+                1,
+                2,
+            ),
+            detail_item(
+                DetailDesignKind.PROCESSING_STEP,
+                "Sign-in flow",
+                "1. Receive input. 2. Validate format. 3. Look up the customer. 4. Check password.",
+                2,
+            ),
+            detail_item(
+                DetailDesignKind.MODULE,
+                "PasswordResetModule",
+                "Operation requestReset(email) sends a link; operation setPassword(token, value).",
+                3,
+            ),
+            detail_item(
+                DetailDesignKind.MODULE,
+                "AvailabilityPolicy",
+                "The service has no planned downtime window.",
+                4,
+            ),
+            detail_item(
+                DetailDesignKind.API,
+                "OrderHistoryApi",
+                "GET orders returns the signed-in customer's orders, newest first.",
+                5,
+            ),
+        ]
+    )
+
+
+def login_detail_answered() -> DetailDesignDraft:
+    """The detail design after the tester asked about the sign-in flow (item 2)."""
+    draft = login_detail_draft()
+    items = list(draft.items)
+    items[1] = items[1].model_copy(
+        update={
+            "spec": items[1].spec + " 5. After 5 failed attempts the account locks for 15 minutes."
+        }
+    )
+    answer = DesignAnswer(
+        ref=detail_ref(2), text="Five failed attempts lock the account for 15 minutes."
+    )
+    return DetailDesignDraft(items=items, answers=[answer])
+
+
+def login_unit_draft() -> UnitTestDraft:
+    return UnitTestDraft(ut_cases=[tcase(detail_ref(n)) for n in range(1, 6)])
+
+
+def login_unit_draft_with_question() -> UnitTestDraft:
+    question = DesignQuestion(
+        ref=detail_ref(2), question="How many failed attempts lock the account?"
+    )
+    return login_unit_draft().model_copy(update={"questions": [question]})
+
+
+def login_unit_draft_with_exclusion() -> UnitTestDraft:
+    full = login_unit_draft()
+    return UnitTestDraft(
+        ut_cases=[c for c in full.ut_cases if detail_ref(4) not in c.verifies],
+        exclusions=[
+            DraftExclusion(item_ref=detail_ref(4), reason="A policy, not executable code.")
         ],
     )

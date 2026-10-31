@@ -7,6 +7,12 @@ from masterba.agents.design_writer import (
     validate_design_draft,
     write_design,
 )
+from masterba.agents.detail_writer import (
+    DetailDesignDraft,
+    DraftDetailItem,
+    validate_detail_draft,
+    write_detail,
+)
 from masterba.agents.qa_reviewer import (
     Check,
     Checklist,
@@ -47,8 +53,20 @@ from masterba.agents.test_writer import (
     validate_test_draft,
     write_tests,
 )
+from masterba.agents.unit_test_writer import (
+    UnitTestDraft,
+    validate_unit_test_draft,
+    write_unit_tests,
+)
 
 __all__ = [
+    "DetailDesignDraft",
+    "DraftDetailItem",
+    "UnitTestDraft",
+    "validate_detail_draft",
+    "validate_unit_test_draft",
+    "write_detail",
+    "write_unit_tests",
     "BasicDesignDraft",
     "DesignAnswer",
     "DraftDesignItem",

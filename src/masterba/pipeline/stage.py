@@ -3,9 +3,12 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from masterba.models import TeamRun
-from masterba.models.enums import DocType, TeamRunStatus
+from masterba.models import Document, TeamRun, TraceLink
+from masterba.models.enums import DocStatus, DocType, TeamRunStatus
 from masterba.team import Team
+from masterba.trace_store import NotFoundError, ProjectStore, get_document
+
+TEMPLATE_ID = "default/v1"
 
 
 @dataclass(frozen=True)
@@ -57,3 +60,29 @@ def stage_result(
         open_questions=open_questions,
         uncovered_lines=uncovered_lines,
     )
+
+
+def make_document(doc_id: str, doc_type: DocType, project_id: str) -> Document:
+    """A version 1 draft document whose content lives at the conventional path."""
+    return Document(
+        id=doc_id,
+        type=doc_type,
+        version=1,
+        status=DocStatus.DRAFT,
+        template_id=TEMPLATE_ID,
+        content_ref=f"json/{doc_type.value.lower()}/{doc_id}.v1.json",
+        project_id=project_id,
+    )
+
+
+def unique_links(links: list[TraceLink]) -> list[TraceLink]:
+    """Drop repeated links, keeping the first occurrence of each."""
+    return list(dict.fromkeys(links))
+
+
+def document_exists(store: ProjectStore, doc_id: str) -> bool:
+    try:
+        get_document(store, doc_id)
+    except NotFoundError:
+        return False
+    return True

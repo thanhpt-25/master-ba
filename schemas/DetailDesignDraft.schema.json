@@ -1,0 +1,94 @@
+{
+  "$defs": {
+    "DesignAnswer": {
+      "additionalProperties": false,
+      "description": "The designer's reply to a tester question about one design item.",
+      "properties": {
+        "ref": {
+          "pattern": "^DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}#item\\.\\d+$",
+          "title": "Ref",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "text"
+      ],
+      "title": "DesignAnswer",
+      "type": "object"
+    },
+    "DetailDesignKind": {
+      "enum": [
+        "module",
+        "processing_step",
+        "db_table",
+        "api"
+      ],
+      "title": "DetailDesignKind",
+      "type": "string"
+    },
+    "DraftDetailItem": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/DetailDesignKind"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "refines": {
+          "items": {
+            "pattern": "^DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}#item\\.\\d+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Refines",
+          "type": "array"
+        },
+        "spec": {
+          "minLength": 1,
+          "title": "Spec",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "spec",
+        "refines"
+      ],
+      "title": "DraftDetailItem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "answers": {
+      "items": {
+        "$ref": "#/$defs/DesignAnswer"
+      },
+      "title": "Answers",
+      "type": "array"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/DraftDetailItem"
+      },
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "DetailDesignDraft",
+  "type": "object"
+}

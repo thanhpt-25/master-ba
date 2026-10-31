@@ -1,0 +1,26 @@
+stage = "UNIT_TESTS"
+
+[[checks]]
+id = "UT-01"
+severity = "blocking"
+text = "Each case has a concrete precondition, input and steps (one operation per step) and an observable expected result a tester can judge OK or NG."
+
+[[checks]]
+id = "UT-02"
+severity = "blocking"
+text = "Every limit stated in a detail item has boundary cases (at, just inside, just outside) and every named error exit or branch has a case, not only the normal case."
+
+[[checks]]
+id = "UT-03"
+severity = "blocking"
+text = "Each case checks only the detail items it names and relies on no column, field, message or behaviour that the detail design does not state."
+
+[[checks]]
+id = "UT-04"
+severity = "blocking"
+text = "Every exclusion has a convincing reason, and no item that can be tested is excluded."
+
+[[checks]]
+id = "UT-05"
+severity = "advisory"
+text = "Cases are not duplicated and do not test several unrelated things at once."

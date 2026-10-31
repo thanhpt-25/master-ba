@@ -1,6 +1,6 @@
 # Spec 06 — Detail Design and unit tests (UT)
 
-Status: v0.1 (2026-10-31), draft for review. Sources: [concept-design.md](../docs/concept-design.md) sections 2, 8, 14 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 6, [05-basic-design-and-tests.md](05-basic-design-and-tests.md) (this spec repeats its pattern and refers to it for everything not restated), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md).
+Status: v0.2 (2026-10-31), implemented; all Acceptance Criteria pass except the live attempt (section 9). Sources: [concept-design.md](../docs/concept-design.md) sections 2, 8, 14 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 6, [05-basic-design-and-tests.md](05-basic-design-and-tests.md) (this spec repeats its pattern and refers to it for everything not restated), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -136,20 +136,20 @@ tests/ ...
 
 ## 8. Acceptance Criteria
 
-- [ ] `brd -> srs -> basic -> detail` runs end `done` on the demo project (fake models): the two new documents, links, two workbooks that open with `openpyxl`, one committed run record, commit order as in section 6.
-- [ ] `rtm(REQ-####)` returns paths that end at an IT case, an ST case and a UT case; `query_impact(upstream)` from a `TC-UT-####` reaches the requirement through the detail item, the design item and the SRS item.
-- [ ] Every Basic Design item is refined and every detail item has a UT case or an exclusion (gate failures otherwise); an item both tested and excluded is rejected; exclusions are stored in `DOC-TEST_UT-0001`.
-- [ ] A tester question reaches the designer (mailbox `question`), the answer appears in the revised spec and as an `answer` message, the tests are revised in the same cycle; a repeated question about an answered item stops blocking and is reported in `open_questions`.
-- [ ] QA issues are routed by document: detail refs to the designer, UT refs to the tester.
-- [ ] Exceeding `team_max_rounds` or the token budget ends `escalated` (exit code 3) with no business artifact written.
-- [ ] The stage refuses to start without a Basic Design and refuses a second run.
-- [ ] The Basic Design pipeline tests still pass unchanged after the helpers move to `stage.py`.
+- [x] `brd -> srs -> basic -> detail` runs end `done` on the demo project (fake models): the two new documents, links, two workbooks that open with `openpyxl`, one committed run record, commit order as in section 6.
+- [x] `rtm(REQ-####)` returns paths that end at an IT case, an ST case and a UT case; `query_impact(upstream)` from a `TC-UT-####` reaches the requirement through the detail item, the design item and the SRS item.
+- [x] Every Basic Design item is refined and every detail item has a UT case or an exclusion (gate failures otherwise); an item both tested and excluded is rejected; exclusions are stored in `DOC-TEST_UT-0001`.
+- [x] A tester question reaches the designer (mailbox `question`), the answer appears in the revised spec and as an `answer` message, the tests are revised in the same cycle; a repeated question about an answered item stops blocking and is reported in `open_questions`.
+- [x] QA issues are routed by document: detail refs to the designer, UT refs to the tester.
+- [x] Exceeding `team_max_rounds` or the token budget ends `escalated` (exit code 3) with no business artifact written.
+- [x] The stage refuses to start without a Basic Design and refuses a second run.
+- [x] The Basic Design pipeline tests still pass unchanged after the helpers move to `stage.py`.
 - [ ] A live attempt (`pytest -m live` or the CLI with a key) is made and recorded in section 9; it needs a stored Basic Design, so it is blocked if the Basic Design stage cannot reach `done` on the available models.
-- [ ] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; the new draft schemas are generated and drift-tested.
+- [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; the new draft schemas are generated and drift-tested.
 
 ## 9. Manual review record
 
-To be filled after a live attempt.
+Not run: the live attempt needs a stored Basic Design, and the Basic Design stage did not reach `done` on the available free gateway models (spec 05 section 9), so the demo project has none. To run it, finish the Basic Design stage with stronger models, then `masterba run detail --project PRJ-001 --qa-model <strong model>`; record the result here.
 
 ## 10. Open points (do not block implementation)
 
@@ -157,3 +157,10 @@ To be filled after a live attempt.
 2. **Reliability of QA signals** (spec 05 open point 5) applies here unchanged.
 3. **Whole-chain run.** A `masterba run all` that chains the four stages and stops at the first escalation is a convenience for later; the stages stay separate commands so each can be reviewed.
 4. **Code-level detail** (class and method signatures in a language) is deliberately excluded; it belongs to the dev extension (Phase 10).
+
+## 11. Decisions taken while implementing
+
+1. **No loop changes.** `run_design_test_team` served the detail stage as is; the question rule from spec 05 section 11 (a repeated question about an answered item is reported, not blocking) applies unchanged.
+2. **Shared helpers** `make_document`, `unique_links`, `document_exists` and `TEMPLATE_ID` now live in `pipeline/stage.py`; the Basic Design pipeline uses them with no behaviour change.
+3. **Naming.** `UnitTestDraft` holds `ut_cases`, `exclusions` and `questions`; its question type is spec 05's `DesignQuestion`, whose ref now names a detail item. Gate and view functions are `validate_detail_draft`, `validate_unit_test_draft`, `detail_view` and `unit_cases_view`.
+4. **Link counts in the demo.** One detail item may refine several Basic Design items, so a detail item can have several `realizes` links; links are de-duplicated.

@@ -1,0 +1,31 @@
+stage = "DETAIL_DESIGN"
+
+[[checks]]
+id = "DD-01"
+severity = "blocking"
+text = "Every Basic Design item is refined by at least one detail item and every detail item names the Basic Design items it refines; nothing is designed that no Basic Design item calls for."
+
+[[checks]]
+id = "DD-02"
+severity = "blocking"
+text = "Each item satisfies the content rule of its kind: a module states responsibility, operations with inputs, outputs and errors; a processing_step lists numbered steps with every branch and error exit; a db_table lists columns with type, length, nullability, keys and constraints; an api lists request and response fields, limits and error codes."
+
+[[checks]]
+id = "DD-03"
+severity = "blocking"
+text = "A limit or format that the Basic Design does not give is marked open, not invented."
+
+[[checks]]
+id = "DD-04"
+severity = "blocking"
+text = "Modules, steps, tables and APIs do not contradict each other (names, field types, error handling), and names are used consistently."
+
+[[checks]]
+id = "DD-05"
+severity = "advisory"
+text = "No programming-language syntax or library calls appear; the text stays at the level of behaviour and structure."
+
+[[checks]]
+id = "DD-06"
+severity = "advisory"
+text = "Vague wording such as 'appropriately' or 'as needed' is not left undefined in a spec."

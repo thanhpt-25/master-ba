@@ -15,10 +15,22 @@ from masterba.pipeline.brd import (
     next_requirement_number,
     run_brd,
 )
+from masterba.pipeline.detail import (
+    DETAIL_DOC_ID,
+    UT_DOC_ID,
+    DetailArtifacts,
+    assign_detail_ids,
+    run_detail_design,
+)
 from masterba.pipeline.srs import SRS_DOC_ID, SrsArtifacts, assign_srs_ids, run_srs
 from masterba.pipeline.stage import StageResult
 
 __all__ = [
+    "DETAIL_DOC_ID",
+    "UT_DOC_ID",
+    "DetailArtifacts",
+    "assign_detail_ids",
+    "run_detail_design",
     "DESIGN_DOC_ID",
     "IT_DOC_ID",
     "ST_DOC_ID",

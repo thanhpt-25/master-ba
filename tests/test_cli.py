@@ -11,8 +11,10 @@ from factories import (
     draft_for,
     intake_path,
     login_design_draft,
+    login_detail_draft,
     login_srs_draft,
     login_test_draft,
+    login_unit_draft,
     qa_block,
     qa_pass,
 )
@@ -274,3 +276,30 @@ def test_basic_stage_without_an_srs_exits_1(root: Path, capsys: pytest.CaptureFi
     init(root)
     assert run_cli(root, "run", "basic", "--project", "PRJ-001", llm=FakeLLM([])) == 1
     assert "run the srs stage first" in capsys.readouterr().err
+
+
+def test_detail_stage_through_the_cli(root: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    init(root)
+    assert run_cli(root, *BRD_ARGS, llm=FakeLLM([draft_for(LOGIN), qa_pass()])) == 0
+    srs = FakeLLM([login_srs_draft(), qa_pass()])
+    assert run_cli(root, "run", "srs", "--project", "PRJ-001", llm=srs) == 0
+    basic = FakeLLM([login_design_draft(), login_test_draft(), qa_pass(), qa_pass()])
+    assert run_cli(root, "run", "basic", "--project", "PRJ-001", llm=basic) == 0
+    capsys.readouterr()
+    detail = FakeLLM([login_detail_draft(), login_unit_draft(), qa_pass(), qa_pass()])
+    assert run_cli(root, "run", "detail", "--project", "PRJ-001", llm=detail) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert (summary["stage"], summary["status"], summary["run_id"]) == (
+        "DETAIL_DESIGN",
+        "done",
+        "RUN-0004",
+    )
+    assert summary["document_ids"] == ["DOC-DETAIL_DESIGN-0001", "DOC-TEST_UT-0001"]
+
+
+def test_detail_stage_without_a_basic_design_exits_1(
+    root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    init(root)
+    assert run_cli(root, "run", "detail", "--project", "PRJ-001", llm=FakeLLM([])) == 1
+    assert "run the basic stage first" in capsys.readouterr().err
