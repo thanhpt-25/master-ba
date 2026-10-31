@@ -1,6 +1,6 @@
 # Spec 01 — Core Data Contracts (schema + trace/DR store)
 
-Status: v0.1 (2026-10-31). Nguồn: [concept-design.md](../docs/concept-design.md) mục 6/13.3/14, [roadmap-phases.md](../docs/roadmap-phases.md) Phase 1, [00-constitution.md](00-constitution.md) mục 3/4/5.
+Status: v0.2 (2026-10-31) — đã implement, Acceptance Criteria pass; v0.2 thêm mục "Quyết định bổ sung khi implement". Nguồn: [concept-design.md](../docs/concept-design.md) mục 6/13.3/14, [roadmap-phases.md](../docs/roadmap-phases.md) Phase 1, [00-constitution.md](00-constitution.md) mục 3/4/5.
 
 ## Mục tiêu
 Định nghĩa hợp đồng dữ liệu (Pydantic model → JSON Schema) và package `trace_store` (lưu file trong git, truy vấn impact bằng graph) để mọi phase sau chỉ đọc/ghi dữ liệu qua một lớp duy nhất.
@@ -83,15 +83,15 @@ Tất cả hàm nhận `ProjectStore` (gốc `projects/` + `project_id`), **khô
 - `ItemChange`: `item_id`, `field`, `old`, `new`, `change_type`, `classification`.
 
 ## Acceptance Criteria
-- [ ] Mỗi model có test validate: ID sai format bị từ chối; `extra` field bị từ chối; `Document.type` lệch `id` bị từ chối.
-- [ ] `schemas/*.schema.json` được sinh bằng script; test fail nếu file đã commit lệch model.
-- [ ] `create_project` + `add_requirement` + `add_document`(2 version) + `add_trace_link` hoạt động trên thư mục tạm; mỗi hành động tạo đúng **1 commit** với message đúng format.
-- [ ] `add_document` version 2 làm rơi một `item_id` của version 1 → `IdStabilityError`; đánh dấu `removed` tường minh thì được chấp nhận.
-- [ ] `query_impact` trên project giả (REQ → SRS item → Basic item → test case): downstream từ REQ trả đủ 3 node đúng thứ tự; upstream từ test case trả về REQ gốc.
-- [ ] `rtm(req_id)` trả đúng chuỗi cho ví dụ trên.
-- [ ] `diff_documents` + `classify_change`: diễn đạt lại (ratio ≥ ngưỡng) → `reworded_only`; đổi giá trị/ý nghĩa → `structural_change`; item thêm/xoá được nhận diện.
-- [ ] Ghi file hai lần cùng nội dung → không tạo diff git (key sắp xếp, định dạng cố định).
-- [ ] Coverage ≥ 80% cho `models`, `trace_store`, `diff`; `mypy --strict` và `ruff` sạch.
+- [x] Mỗi model có test validate: ID sai format bị từ chối; `extra` field bị từ chối; `Document.type` lệch `id` bị từ chối. *(tests/models/)*
+- [x] `schemas/*.schema.json` được sinh bằng script; test fail nếu file đã commit lệch model. *(tests/test_schema_export.py)*
+- [x] `create_project` + `add_requirement` + `add_document`(2 version) + `add_trace_link` hoạt động trên thư mục tạm; mỗi hành động tạo đúng **1 commit** với message đúng format. *(tests/trace_store/test_store.py)*
+- [x] `add_document` version 2 làm rơi một `item_id` của version 1 → `IdStabilityError`; đánh dấu `removed` tường minh thì được chấp nhận.
+- [x] `query_impact` trên project giả (REQ → SRS item → Basic item → test case): downstream từ REQ trả đủ 3 node đúng thứ tự; upstream từ test case trả về REQ gốc. *(tests/trace_store/test_graph.py)*
+- [x] `rtm(req_id)` trả đúng chuỗi cho ví dụ trên.
+- [x] `diff_documents` + `classify_change`: diễn đạt lại (ratio ≥ ngưỡng) → `reworded_only`; đổi giá trị/ý nghĩa → `structural_change`; item thêm/xoá được nhận diện. *(tests/diff/)*
+- [x] Ghi file hai lần cùng nội dung → không tạo diff git (key sắp xếp, định dạng cố định). *(`commit_paths` trả `False`, không tạo commit)*
+- [x] Coverage ≥ 80% cho `models`, `trace_store`, `diff`; `mypy --strict` và `ruff` sạch. *(2026-10-31: 76 test pass, coverage 98.8%)*
 
 ## Rủi ro & rollback
 - **ID Stability sai/thiếu ca biên** (item bị tách/gộp) → impact analysis Phase 7 sai. Giảm thiểu: spec 00 mục 3 là luật cứng; ca tách/gộp phải biểu diễn bằng `removed` + item mới có ID mới + `derives_from`, test ca này.
@@ -101,3 +101,13 @@ Tất cả hàm nhận `ProjectStore` (gốc `projects/` + `project_id`), **khô
 ## Phụ thuộc
 - Phụ thuộc: Phase 0 (spec 00: ID scheme, layout, commit format, toolchain).
 - Phase phụ thuộc vào đây: 2 (đọc content payload + `TemplateDefinition`), 3-6 (ghi artifact qua `trace_store`), 7 (DR + impact), 8 (API bọc `trace_store`).
+
+## Quyết định bổ sung khi implement (2026-10-31)
+
+1. **Hướng của `TraceLink`**: `from_id` luôn là artifact **upstream**, `to_id` là **downstream**, bất kể `link_type` (REQ → SRS item → Basic item → test case). `downstream` = hậu duệ, `upstream` = tổ tiên. `link_type` chỉ mô tả bản chất quan hệ.
+2. **`TcId` được chuẩn hoá về item ref**: `TC-IT-0001` là alias của item test tương ứng; trong graph chỉ tồn tại node `DOC-TEST_*#item.n`. `query_impact` và `rtm` nhận cả hai dạng, kết quả luôn trả item ref.
+3. **`query_impact` chỉ đi theo cạnh `trace`**, bỏ qua cạnh chứa `Document → Item` (cạnh này chỉ có trong `build_graph` để tra tài liệu của một item; suy ra từ `doc_id_of(item_ref)`).
+4. **`classify_change` có thêm hai chốt chặn ngoài similarity**: text ngắn hơn 20 ký tự luôn là `structural_change`; nếu tập số trong hai chuỗi khác nhau (vd. `100` → `1000`) cũng là `structural_change`, vì sửa một con số gần như không đổi tỉ lệ similarity nhưng đổi hẳn ý nghĩa.
+5. **Ràng buộc bổ sung ở `add_document`**: `content_ref` phải đúng `json/<type>/<DOC_ID>.v<n>.json`; `version` phải bằng latest+1; item ref phải bắt đầu bằng `<DOC_ID>#item.`; test case phải đúng `level` của loại tài liệu và `test_id` không trùng trong payload; item đã `removed` không được kích hoạt lại.
+6. **API thêm ngoài bảng mục 4**: `open_project`, `get_config`, `get_requirement`, `list_requirements`, `get_trace_links`, `known_nodes`, `latest_documents` (đọc, cần cho Phase 3+).
+7. **Chạy script sinh schema**: `PYTHONPATH=src uv run python -m masterba.schema_export` (dự án dùng `package = false`, nên `src/` chưa nằm trên đường dẫn import mặc định).

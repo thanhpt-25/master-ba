@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "ItemStatus": {
+      "enum": [
+        "active",
+        "removed"
+      ],
+      "title": "ItemStatus",
+      "type": "string"
+    },
+    "ReqCategory": {
+      "enum": [
+        "business",
+        "functional",
+        "non_functional"
+      ],
+      "title": "ReqCategory",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "category": {
+      "$ref": "#/$defs/ReqCategory"
+    },
+    "id": {
+      "pattern": "^REQ-\\d{4}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "parent_id": {
+      "anyOf": [
+        {
+          "pattern": "^REQ-\\d{4}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Id"
+    },
+    "source_ref": {
+      "minLength": 1,
+      "title": "Source Ref",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ItemStatus",
+      "default": "active"
+    },
+    "text": {
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "source_ref",
+    "text",
+    "category"
+  ],
+  "title": "RequirementItem",
+  "type": "object"
+}

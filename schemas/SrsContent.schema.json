@@ -1,0 +1,90 @@
+{
+  "$defs": {
+    "ItemStatus": {
+      "enum": [
+        "active",
+        "removed"
+      ],
+      "title": "ItemStatus",
+      "type": "string"
+    },
+    "SrsItem": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Acceptance Hint"
+        },
+        "derives_from": {
+          "items": {
+            "pattern": "^REQ-\\d{4}$",
+            "type": "string"
+          },
+          "title": "Derives From",
+          "type": "array"
+        },
+        "item_id": {
+          "pattern": "^DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}#item\\.\\d+$",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SrsKind"
+        },
+        "requirement_id": {
+          "pattern": "^REQ-\\d{4}$",
+          "title": "Requirement Id",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ItemStatus",
+          "default": "active"
+        }
+      },
+      "required": [
+        "item_id",
+        "requirement_id",
+        "kind",
+        "statement"
+      ],
+      "title": "SrsItem",
+      "type": "object"
+    },
+    "SrsKind": {
+      "enum": [
+        "functional",
+        "non_functional"
+      ],
+      "title": "SrsKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/SrsItem"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "SrsContent",
+  "type": "object"
+}

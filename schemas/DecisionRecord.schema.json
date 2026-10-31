@@ -1,0 +1,111 @@
+{
+  "$defs": {
+    "DrStatus": {
+      "enum": [
+        "proposed",
+        "approved",
+        "propagated",
+        "closed"
+      ],
+      "title": "DrStatus",
+      "type": "string"
+    },
+    "DrTrigger": {
+      "enum": [
+        "requirement_change",
+        "design_change",
+        "defect",
+        "clarification"
+      ],
+      "title": "DrTrigger",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "affected_documents": {
+      "items": {
+        "pattern": "^DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}$",
+        "type": "string"
+      },
+      "title": "Affected Documents",
+      "type": "array"
+    },
+    "approver": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approver"
+    },
+    "date": {
+      "format": "date",
+      "title": "Date",
+      "type": "string"
+    },
+    "decision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decision"
+    },
+    "description": {
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^DR-\\d{4}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "impacted_items": {
+      "items": {
+        "pattern": "^(?:REQ-\\d{4}|DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}#item\\.\\d+)$",
+        "type": "string"
+      },
+      "title": "Impacted Items",
+      "type": "array"
+    },
+    "rationale": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rationale"
+    },
+    "status": {
+      "$ref": "#/$defs/DrStatus"
+    },
+    "trigger": {
+      "$ref": "#/$defs/DrTrigger"
+    }
+  },
+  "required": [
+    "id",
+    "date",
+    "trigger",
+    "description",
+    "impacted_items",
+    "affected_documents",
+    "status"
+  ],
+  "title": "DecisionRecord",
+  "type": "object"
+}

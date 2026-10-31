@@ -17,6 +17,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.5",
     "mypy>=1.10",
+    "types-networkx>=3.6.1.20261029",
 ]
 
 [tool.uv]
@@ -33,11 +34,13 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-mypy_path = "src"
+mypy_path = "src:tests"
+explicit_package_bases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
+addopts = "--cov --cov-report=term-missing"
 
 [tool.coverage.run]
 source = ["src"]

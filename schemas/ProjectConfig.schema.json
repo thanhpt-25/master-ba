@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "PropagationMode": {
+      "enum": [
+        "manual_gate",
+        "auto_low_risk"
+      ],
+      "title": "PropagationMode",
+      "type": "string"
+    },
+    "Role": {
+      "enum": [
+        "admin",
+        "approver",
+        "viewer"
+      ],
+      "title": "Role",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "company_id": {
+      "minLength": 1,
+      "title": "Company Id",
+      "type": "string"
+    },
+    "dashboard_roles": {
+      "items": {
+        "$ref": "#/$defs/Role"
+      },
+      "title": "Dashboard Roles",
+      "type": "array"
+    },
+    "project_id": {
+      "pattern": "^PRJ-\\d{3}$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "propagation_mode": {
+      "$ref": "#/$defs/PropagationMode",
+      "default": "manual_gate"
+    },
+    "team_max_rounds": {
+      "default": 3,
+      "minimum": 1,
+      "title": "Team Max Rounds",
+      "type": "integer"
+    },
+    "team_token_budget": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Team Token Budget"
+    }
+  },
+  "required": [
+    "project_id",
+    "company_id"
+  ],
+  "title": "ProjectConfig",
+  "type": "object"
+}

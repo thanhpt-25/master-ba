@@ -1,0 +1,56 @@
+"""Git-backed trace and decision-record store."""
+
+from masterba.trace_store.errors import (
+    DuplicateIdError,
+    GitError,
+    IdStabilityError,
+    InvalidDocumentError,
+    NotFoundError,
+    TraceStoreError,
+)
+from masterba.trace_store.graph import ImpactNode, build_graph, query_impact, rtm
+from masterba.trace_store.store import (
+    ProjectStore,
+    add_decision_record,
+    add_document,
+    add_requirement,
+    add_trace_link,
+    create_project,
+    get_config,
+    get_decision_record,
+    get_document,
+    get_requirement,
+    get_trace_links,
+    known_nodes,
+    latest_documents,
+    list_requirements,
+    open_project,
+)
+
+__all__ = [
+    "DuplicateIdError",
+    "GitError",
+    "IdStabilityError",
+    "ImpactNode",
+    "InvalidDocumentError",
+    "NotFoundError",
+    "ProjectStore",
+    "TraceStoreError",
+    "add_decision_record",
+    "add_document",
+    "add_requirement",
+    "add_trace_link",
+    "build_graph",
+    "create_project",
+    "get_config",
+    "get_decision_record",
+    "get_document",
+    "get_requirement",
+    "get_trace_links",
+    "known_nodes",
+    "latest_documents",
+    "list_requirements",
+    "open_project",
+    "query_impact",
+    "rtm",
+]

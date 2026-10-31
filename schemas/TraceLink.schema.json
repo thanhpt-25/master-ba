@@ -1,0 +1,39 @@
+{
+  "$defs": {
+    "LinkType": {
+      "enum": [
+        "realizes",
+        "verifies",
+        "derives_from",
+        "tests",
+        "implements"
+      ],
+      "title": "LinkType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Directed from the upstream artifact to the downstream one.",
+  "properties": {
+    "from_id": {
+      "pattern": "^(?:REQ-\\d{4}|DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}(?:#item\\.\\d+)?|TC-(?:UT|IT|ST|UAT)-\\d{4})$",
+      "title": "From Id",
+      "type": "string"
+    },
+    "link_type": {
+      "$ref": "#/$defs/LinkType"
+    },
+    "to_id": {
+      "pattern": "^(?:REQ-\\d{4}|DOC-(?:BRD|SRS|BASIC_DESIGN|DETAIL_DESIGN|TEST_IT|TEST_ST|TEST_UT|TEST_UAT)-\\d{4}(?:#item\\.\\d+)?|TC-(?:UT|IT|ST|UAT)-\\d{4})$",
+      "title": "To Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "from_id",
+    "to_id",
+    "link_type"
+  ],
+  "title": "TraceLink",
+  "type": "object"
+}
