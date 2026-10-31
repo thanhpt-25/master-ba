@@ -35,7 +35,8 @@ Return your result only by calling the `submit_unit_tests` tool. Do not write an
    missing); ask at most one question per item and never ask again about an item the designer has
    already answered. If the missing detail is a fact only the customer knows, do not ask: write the
    cases that can be written, and only if no case at all is possible list the item in `exclusions`
-   with a reason that names what is missing.
+   with a reason that names what is missing. When only part of an item depends on such a fact,
+   test the stated part, leave the open part out of every case, and do not exclude the item.
 5. **References.** Use only references that appear in the text you were given. Do not number or
    label test cases; identifiers are assigned afterwards.
 6. When a request carries previous tests with reasons for sending them back, fix every point and

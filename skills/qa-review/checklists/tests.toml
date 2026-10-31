@@ -8,7 +8,7 @@ text = "Each case has a concrete precondition, input and steps (one operation pe
 [[checks]]
 id = "TS-02"
 severity = "blocking"
-text = "Where a design or SRS item states a limit or an error behaviour, boundary cases (at, just inside, just outside) and error cases exist, not only the normal case."
+text = "Where a design or SRS item states a limit or an error behaviour, boundary cases (at, just inside, just outside) and error cases exist, not only the normal case. A limit that cannot be measured because a fact it depends on is left open (such as the event a period starts from) needs no boundary cases."
 
 [[checks]]
 id = "TS-03"
@@ -23,7 +23,7 @@ text = "ST cases are black-box and written from the user's or operator's point o
 [[checks]]
 id = "TS-05"
 severity = "blocking"
-text = "Every exclusion has a convincing reason, and no item that can be tested is excluded."
+text = "Every exclusion has a convincing reason (a fact the design or the SRS leaves open is one), and no item that can be tested is excluded."
 
 [[checks]]
 id = "TS-06"
