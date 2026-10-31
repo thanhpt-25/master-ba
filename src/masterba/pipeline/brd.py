@@ -25,6 +25,7 @@ from masterba.trace_store import (
     add_intake,
     add_requirement,
     add_trace_link,
+    get_config,
     get_document,
     get_intake,
     list_requirements,
@@ -143,7 +144,7 @@ def run_brd(
     if len(text) > MAX_INTAKE_CHARS:
         raise InvalidDocumentError(f"intake is longer than {MAX_INTAKE_CHARS} characters")
     stored = _store_intake(store, intake_file.name, text, reuse_intake)
-    analysis = analyse_intake(llm, stored)
+    analysis = analyse_intake(llm, stored, get_config(store).document_language)
     artifacts = assign_ids(
         analysis.draft,
         project_id=store.project_id,

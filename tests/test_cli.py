@@ -30,8 +30,8 @@ def run_cli(root: Path, *args: str, llm: LLM | None = None, models: list[str] | 
     return main(["--root", str(root), *args], llm_factory=factory)
 
 
-def init(root: Path) -> None:
-    assert run_cli(root, "init-project", "--project", "PRJ-001") == 0
+def init(root: Path, language: str = "en") -> None:
+    assert run_cli(root, "init-project", "--project", "PRJ-001", "--language", language) == 0
 
 
 def test_init_project_creates_the_project(root: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -132,3 +132,24 @@ def test_module_entry_point_prints_help() -> None:
     )
     assert done.returncode == 0
     assert "init-project" in done.stdout
+
+
+def test_init_project_stores_the_chosen_language(root: Path) -> None:
+    assert run_cli(root, "init-project", "--project", "PRJ-001", "--language", "en") == 0
+    config = json.loads((root / "projects" / "PRJ-001" / "project.json").read_text("utf-8"))
+    assert config["document_language"] == "en"
+
+
+def test_init_project_defaults_to_japanese(root: Path) -> None:
+    assert run_cli(root, "init-project", "--project", "PRJ-001") == 0
+    config = json.loads((root / "projects" / "PRJ-001" / "project.json").read_text("utf-8"))
+    assert config["document_language"] == "ja"
+
+
+def test_a_japanese_project_rejects_english_drafts_through_the_cli(
+    root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    init(root, "ja")
+    args = ("run", "brd", "--project", "PRJ-001", "--input", str(intake_path(LOGIN)))
+    assert run_cli(root, *args, llm=FakeLLM([draft_for(LOGIN), draft_for(LOGIN)])) == 1
+    assert "no Japanese characters" in capsys.readouterr().err

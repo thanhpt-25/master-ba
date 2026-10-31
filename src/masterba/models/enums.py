@@ -66,6 +66,11 @@ class TemplateSource(StrEnum):
     CALIBRATED_FROM_SAMPLE = "calibrated_from_sample"
 
 
+class DocLanguage(StrEnum):
+    JA = "ja"
+    EN = "en"
+
+
 class PropagationMode(StrEnum):
     MANUAL_GATE = "manual_gate"
     AUTO_LOW_RISK = "auto_low_risk"

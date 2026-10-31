@@ -4,6 +4,7 @@ The model returns a *draft* without ids. Everything here is deterministic around
 the prompt, the validation gate and the single retry. Ids are assigned later by the pipeline.
 """
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
@@ -12,12 +13,19 @@ from pydantic import Field, model_validator
 
 from masterba.llm import LLM, LLMOutputError
 from masterba.models.base import FrozenModel
-from masterba.models.enums import ReqCategory, Scope
+from masterba.models.enums import DocLanguage, ReqCategory, Scope
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PROMPT_PATH = REPO_ROOT / "agents" / "requirements-analyst.md"
 TOOL_NAME = "submit_brd"
 MAX_ATTEMPTS = 2
+MAX_CJK_SHARE_IN_ENGLISH = 0.3
+_CJK = re.compile("[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff66-\uff9f]")
+_LANGUAGE_INSTRUCTION = {
+    DocLanguage.JA: "Write `title`, `description` and the text of every open question in "
+    "Japanese (日本語).",
+    DocLanguage.EN: "Write `title`, `description` and the text of every open question in English.",
+}
 
 
 class DraftRequirement(FrozenModel):
@@ -92,7 +100,19 @@ def _collapse(text: str) -> str:
     return " ".join(text.split())
 
 
-def validate_draft(draft: BrdDraft, intake_text: str) -> list[str]:
+def _language_problem(text: str, language: DocLanguage) -> str | None:
+    """Loose check: it can only catch text clearly in the wrong script, not prove a language."""
+    cjk = len(_CJK.findall(text))
+    if language is DocLanguage.JA and cjk == 0:
+        return "must be written in Japanese but has no Japanese characters"
+    if language is DocLanguage.EN and cjk > MAX_CJK_SHARE_IN_ENGLISH * max(len(text), 1):
+        return "must be written in English but is mostly Japanese"
+    return None
+
+
+def validate_draft(
+    draft: BrdDraft, intake_text: str, language: DocLanguage | None = None
+) -> list[str]:
     """Deterministic acceptance gate; returns one message per problem (empty = accepted)."""
     lines = intake_lines(intake_text)
     total = len(lines)
@@ -111,6 +131,8 @@ def validate_draft(draft: BrdDraft, intake_text: str) -> list[str]:
                     f"requirement {index}: evidence_quote is not found in "
                     f"lines {req.start_line}-{req.end_line}"
                 )
+        if language is not None and (problem := _language_problem(req.description, language)):
+            errors.append(f"requirement {index}: description {problem}")
         key = _collapse(req.title).lower()
         if key in seen:
             errors.append(f"requirement {index}: title duplicates requirement {seen[key]}")
@@ -121,6 +143,8 @@ def validate_draft(draft: BrdDraft, intake_text: str) -> list[str]:
                 f"open question {index}: lines {question.start_line}-{question.end_line} "
                 f"are outside the intake ({total} lines)"
             )
+        if language is not None and (problem := _language_problem(question.question, language)):
+            errors.append(f"open question {index}: text {problem}")
     return errors
 
 
@@ -145,9 +169,20 @@ def _user_message(intake_text: str, errors: list[str]) -> str:
     return message
 
 
-def analyse_intake(llm: LLM, intake_text: str, system_prompt: str | None = None) -> Analysis:
+def system_prompt_for(language: DocLanguage, base: str | None = None) -> str:
+    """The agent prompt plus the project's output-language section."""
+    text = base if base is not None else load_system_prompt()
+    return (
+        f"{text}\n\n## Output language\n\n{_LANGUAGE_INSTRUCTION[language]} Keep "
+        "`evidence_quote` exactly as written in the intake, in whatever language the intake uses."
+    )
+
+
+def analyse_intake(
+    llm: LLM, intake_text: str, language: DocLanguage, system_prompt: str | None = None
+) -> Analysis:
     """One model call plus at most one retry; raises `DraftRejectedError` if still invalid."""
-    system = system_prompt if system_prompt is not None else load_system_prompt()
+    system = system_prompt_for(language, system_prompt)
     errors: list[str] = []
     tokens_in = tokens_out = 0
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -163,7 +198,7 @@ def analyse_intake(llm: LLM, intake_text: str, system_prompt: str | None = None)
             continue
         tokens_in += result.input_tokens
         tokens_out += result.output_tokens
-        errors = validate_draft(result.value, intake_text)
+        errors = validate_draft(result.value, intake_text, language)
         if not errors:
             return Analysis(result.value, attempt, tokens_in, tokens_out)
     raise DraftRejectedError(errors)

@@ -13,7 +13,9 @@ from masterba.agents import (
 )
 from masterba.agents.requirements_analyst import number_lines
 from masterba.llm import FakeLLM, LLMOutputError
-from masterba.models.enums import ReqCategory
+from masterba.models.enums import DocLanguage, ReqCategory
+
+EN, JA = DocLanguage.EN, DocLanguage.JA
 
 LOGIN = "login_system.txt"
 LOGIN_TEXT = intake_path(LOGIN).read_text(encoding="utf-8")
@@ -94,16 +96,17 @@ def test_a_draft_needs_at_least_one_requirement() -> None:
 
 def test_accepted_on_the_first_attempt() -> None:
     llm = FakeLLM([draft_for(LOGIN)])
-    analysis = analyse_intake(llm, LOGIN_TEXT, system_prompt="SYSTEM")
+    analysis = analyse_intake(llm, LOGIN_TEXT, EN, system_prompt="SYSTEM")
     assert (analysis.attempts, analysis.input_tokens, analysis.output_tokens) == (1, 100, 50)
-    assert llm.calls[0].system == "SYSTEM"
+    assert llm.calls[0].system.startswith("SYSTEM")
+    assert "English" in llm.calls[0].system
     assert llm.calls[0].tool_name == "submit_brd"
     assert "<intake>\n   1| Subject: Customer portal login" in llm.calls[0].user
 
 
 def test_a_rejected_draft_is_retried_once_with_the_errors() -> None:
     llm = FakeLLM([bad_draft(), draft_for(LOGIN)])
-    analysis = analyse_intake(llm, LOGIN_TEXT, system_prompt="S")
+    analysis = analyse_intake(llm, LOGIN_TEXT, EN, system_prompt="S")
     assert analysis.attempts == 2
     assert (analysis.input_tokens, analysis.output_tokens) == (200, 100)
     retry = llm.calls[1].user
@@ -114,7 +117,7 @@ def test_a_rejected_draft_is_retried_once_with_the_errors() -> None:
 
 def test_unparseable_output_counts_as_a_rejection_too() -> None:
     llm = FakeLLM([LLMOutputError("model did not call submit_brd"), draft_for(LOGIN)])
-    analysis = analyse_intake(llm, LOGIN_TEXT, system_prompt="S")
+    analysis = analyse_intake(llm, LOGIN_TEXT, EN, system_prompt="S")
     assert analysis.attempts == 2
     assert "model did not call submit_brd" in llm.calls[1].user
 
@@ -122,7 +125,7 @@ def test_unparseable_output_counts_as_a_rejection_too() -> None:
 def test_two_bad_drafts_abort_with_the_last_errors() -> None:
     llm = FakeLLM([bad_draft(), bad_draft()])
     with pytest.raises(DraftRejectedError, match="evidence_quote") as caught:
-        analyse_intake(llm, LOGIN_TEXT, system_prompt="S")
+        analyse_intake(llm, LOGIN_TEXT, EN, system_prompt="S")
     assert caught.value.errors == ["requirement 1: evidence_quote is not found in lines 3-3"]
     assert len(llm.calls) == 2
 
@@ -131,3 +134,45 @@ def test_every_fixture_draft_passes_its_own_gate() -> None:
     for name in ("login_system.txt", "leave_management.txt", "inventory_mixed_ja.txt"):
         text = intake_path(name).read_text(encoding="utf-8")
         assert validate_draft(draft_for(name), text) == [], name
+
+
+def japanese_draft() -> BrdDraft:
+    req = draft_req("サインイン", ReqCategory.FUNCTIONAL, 3, "registered customers can sign in")
+    return BrdDraft(
+        requirements=[
+            req.model_copy(update={"description": "顧客がAPI連携なしでサインインできること。"})
+        ],
+        open_questions=[OpenQuestion(question="応答時間の基準は？", start_line=8, end_line=8)],
+    )
+
+
+def test_japanese_project_rejects_an_all_english_draft_and_retries() -> None:
+    llm = FakeLLM([draft_for(LOGIN), japanese_draft()])
+    analysis = analyse_intake(llm, LOGIN_TEXT, JA, system_prompt="S")
+    assert analysis.attempts == 2
+    assert "日本語" in llm.calls[0].system
+    assert "no Japanese characters" in llm.calls[1].user
+
+
+def test_japanese_text_with_ascii_terms_is_accepted_for_ja() -> None:
+    assert validate_draft(japanese_draft(), LOGIN_TEXT, JA) == []
+
+
+def test_english_project_rejects_mostly_japanese_text() -> None:
+    errors = validate_draft(japanese_draft(), LOGIN_TEXT, EN)
+    assert errors == [
+        "requirement 1: description must be written in English but is mostly Japanese",
+        "open question 1: text must be written in English but is mostly Japanese",
+    ]
+
+
+def test_english_text_with_a_few_japanese_proper_nouns_is_accepted() -> None:
+    req = draft_req("Tokyo office", ReqCategory.FUNCTIONAL, 4, "reset it by email")
+    mixed = req.model_copy(
+        update={"description": "Staff at the 東京 office must be able to reset it by email."}
+    )
+    assert validate_draft(BrdDraft(requirements=[mixed]), LOGIN_TEXT, EN) == []
+
+
+def test_without_a_language_the_gate_skips_the_language_check() -> None:
+    assert validate_draft(japanese_draft(), LOGIN_TEXT) == []

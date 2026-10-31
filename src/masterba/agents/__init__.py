@@ -8,6 +8,7 @@ from masterba.agents.requirements_analyst import (
     OpenQuestion,
     analyse_intake,
     load_system_prompt,
+    system_prompt_for,
     uncovered_lines,
     validate_draft,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "OpenQuestion",
     "analyse_intake",
     "load_system_prompt",
+    "system_prompt_for",
     "uncovered_lines",
     "validate_draft",
 ]

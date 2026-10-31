@@ -1,5 +1,13 @@
 {
   "$defs": {
+    "DocLanguage": {
+      "enum": [
+        "ja",
+        "en"
+      ],
+      "title": "DocLanguage",
+      "type": "string"
+    },
     "PropagationMode": {
       "enum": [
         "manual_gate",
@@ -31,6 +39,10 @@
       },
       "title": "Dashboard Roles",
       "type": "array"
+    },
+    "document_language": {
+      "$ref": "#/$defs/DocLanguage",
+      "default": "ja"
     },
     "project_id": {
       "pattern": "^PRJ-\\d{3}$",

@@ -23,9 +23,9 @@ Return your result only by calling the `submit_brd` tool. Do not write any other
 3. **Cite the source.** Set `start_line` and `end_line` to the smallest range of lines that
    supports the requirement, and set `evidence_quote` to a sentence or phrase copied word for word
    from those lines (same language, same wording; only whitespace may differ).
-4. **Write `title` and `description` in the language of the intake.** If the intake mixes
-   languages, use the language of the cited lines. The title is short (a phrase). The description
-   is one or two complete sentences that stand on their own.
+4. **Write in the output language** given in the `Output language` section at the end of these
+   instructions, whatever language the intake is in. The title is short (a phrase). The
+   description is one or two complete sentences that stand on their own.
 5. **Classify.** `category` is `business` for goals, rules and operations of the customer's
    business, `functional` for what the system must do, `non_functional` for performance,
    availability, security, usability, operations and similar qualities.

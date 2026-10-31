@@ -7,6 +7,7 @@ from pydantic import Field, model_validator
 
 from masterba.models.base import FrozenModel
 from masterba.models.enums import (
+    DocLanguage,
     DocStatus,
     DocType,
     DrStatus,
@@ -111,6 +112,7 @@ class TemplateDefinition(FrozenModel):
 class ProjectConfig(FrozenModel):
     project_id: ProjectId
     company_id: str = Field(min_length=1)
+    document_language: DocLanguage = DocLanguage.JA
     propagation_mode: PropagationMode = PropagationMode.MANUAL_GATE
     team_max_rounds: int = Field(default=3, ge=1)
     team_token_budget: int | None = Field(default=None, ge=1)

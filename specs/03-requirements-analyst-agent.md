@@ -167,6 +167,7 @@ tests/
 
 - **Structure: good.** 5 requirements with exact one-line citations (L3, L4, L5, L6, L7); the account-administration sentence was correctly marked `scope: out`; "Please make it fast" (L8) became an open question instead of a requirement; `uncovered_lines` = greeting and signature lines only. Git history has the 14 expected commits in order; the xlsx opens.
 - **Finding 1 (resolved by section 12): output language.** The intake is English but the model wrote titles, descriptions and the open question in Japanese, against prompt rule 4. The prompt's framing ("Japanese system integrator") probably pulls it. The gate cannot catch this. The user chose a project setting; see section 12.
+- **Rerun after section 12** (`--language en`, same intake, `auto/best-coding`): 5 requirements, all titles, descriptions and the open question in English, accepted on the first attempt (942 input / 381 output tokens). Finding 1 is closed.
 - **Finding 2 (fixed): hang.** One run waited more than 10 minutes on the gateway (the SDK default timeout). `AnthropicLLM` now sets a 180 s request timeout (`timeout` argument).
 - **Transient gateway error** on the first run (upstream models unavailable) was reported cleanly with nothing but the intake written; the rerun with `--reuse-intake` worked as designed.
 
@@ -197,7 +198,7 @@ The language of generated content is a **project setting**, not something the mo
 
 ### Acceptance Criteria (section 12)
 
-- [ ] A project created with `--language en` sends an English output instruction and accepts an English draft for an English intake; with `ja` it sends a Japanese instruction and rejects an all-English draft (then retries once).
-- [ ] The language check accepts Japanese descriptions with ASCII terms (for example `API連携`) and English descriptions that contain a few Japanese proper nouns.
-- [ ] `project.json` without `document_language` loads as `ja`; `schemas/ProjectConfig.schema.json` is regenerated.
-- [ ] Re-run of the live review with an English intake and `--language en` produces English content (recorded in section 9 when done).
+- [x] A project created with `--language en` sends an English output instruction and accepts an English draft for an English intake; with `ja` it sends a Japanese instruction and rejects an all-English draft (then retries once).
+- [x] The language check accepts Japanese descriptions with ASCII terms (for example `API連携`) and English descriptions that contain a few Japanese proper nouns.
+- [x] `project.json` without `document_language` loads as `ja`; `schemas/ProjectConfig.schema.json` is regenerated.
+- [x] Re-run of the live review with an English intake and `--language en` produces English content (recorded in section 9 when done).

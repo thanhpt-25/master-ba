@@ -18,6 +18,7 @@ from masterba.models import (
 )
 from masterba.models.enums import (
     BasicDesignKind,
+    DocLanguage,
     DocStatus,
     DocType,
     ItemStatus,
@@ -30,8 +31,8 @@ from masterba.models.enums import (
 PROJECT = "PRJ-001"
 
 
-def make_config(project_id: str = PROJECT) -> ProjectConfig:
-    return ProjectConfig(project_id=project_id, company_id="default")
+def make_config(project_id: str = PROJECT, language: DocLanguage = DocLanguage.EN) -> ProjectConfig:
+    return ProjectConfig(project_id=project_id, company_id="default", document_language=language)
 
 
 def make_requirement(n: int = 1, text: str = "Users can log in") -> RequirementItem:
@@ -151,10 +152,11 @@ def draft_req(
     quote: str,
     scope: Scope = Scope.IN,
     end: int | None = None,
+    description: str | None = None,
 ) -> DraftRequirement:
     return DraftRequirement(
         title=title,
-        description=f"{title}: {quote}",
+        description=description or f"{title}: {quote}",
         category=category,
         scope=scope,
         start_line=line,
@@ -215,18 +217,26 @@ DRAFTS: dict[str, BrdDraft] = {
     ),
     "inventory_mixed_ja.txt": BrdDraft(
         requirements=[
-            draft_req("新在庫システム", BUSINESS, 2, "Our warehouse needs a new inventory system"),
+            draft_req(
+                "新在庫システム",
+                BUSINESS,
+                2,
+                "Our warehouse needs a new inventory system",
+                description="倉庫に新しい在庫管理システムが必要である。",
+            ),
             draft_req(
                 "在庫数のリアルタイム確認",
                 FUNCTIONAL,
                 3,
                 "倉庫ごとの在庫数をリアルタイムで確認できること",
+                description="倉庫ごとの在庫数をリアルタイムで確認できること。",
             ),
             draft_req(
-                "Safety stock alert",
+                "安全在庫アラート",
                 FUNCTIONAL,
                 4,
                 "Stock below the safety level must trigger an alert to the purchasing team",
+                description="在庫が安全水準を下回ったら購買チームへアラートを出すこと。",
             ),
         ],
         open_questions=[

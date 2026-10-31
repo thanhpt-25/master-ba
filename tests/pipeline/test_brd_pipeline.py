@@ -11,7 +11,7 @@ from factories import bad_draft, draft_for, intake_path, make_config, make_requi
 from masterba.agents import DraftRejectedError
 from masterba.llm import AnthropicLLM, FakeLLM
 from masterba.models import BrdContent
-from masterba.models.enums import ItemStatus
+from masterba.models.enums import DocLanguage, ItemStatus
 from masterba.pipeline import BRD_DOC_ID, assign_ids, next_requirement_number, run_brd
 from masterba.trace_store import (
     DuplicateIdError,
@@ -205,7 +205,8 @@ def test_open_questions_and_uncovered_lines_are_reported(store: ProjectStore) ->
 def test_every_intake_fixture_produces_a_workbook_that_opens(
     projects_root: Path, name: str
 ) -> None:
-    store = create_project(projects_root, make_config())
+    language = DocLanguage.JA if "ja" in name else DocLanguage.EN
+    store = create_project(projects_root, make_config(language=language))
     result = run_brd(store, TEMPLATES, FakeLLM([draft_for(name)]), intake_path(name))
     workbook = load_workbook(result.xlsx_path)
     assert "業務要件" in workbook.sheetnames
@@ -214,7 +215,7 @@ def test_every_intake_fixture_produces_a_workbook_that_opens(
 
 
 def test_japanese_text_survives_to_the_workbook(projects_root: Path) -> None:
-    store = create_project(projects_root, make_config())
+    store = create_project(projects_root, make_config(language=DocLanguage.JA))
     name = "inventory_mixed_ja.txt"
     result = run_brd(store, TEMPLATES, FakeLLM([draft_for(name)]), intake_path(name))
     sheet = load_workbook(result.xlsx_path)["業務要件"]

@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from factories import make_config, make_document, make_requirement
 from masterba.models import DecisionRecord, Document, ProjectConfig, RequirementItem, TraceLink
 from masterba.models.enums import (
+    DocLanguage,
     DocStatus,
     DocType,
     DrStatus,
@@ -100,3 +101,9 @@ def test_project_config_rejects_zero_rounds() -> None:
         ProjectConfig.model_validate(
             {"project_id": "PRJ-001", "company_id": "default", "team_max_rounds": 0}
         )
+
+
+def test_project_config_without_language_loads_as_japanese() -> None:
+    data = make_config().model_dump(mode="json")
+    del data["document_language"]
+    assert ProjectConfig.model_validate(data).document_language is DocLanguage.JA

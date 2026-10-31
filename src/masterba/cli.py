@@ -11,6 +11,7 @@ from pathlib import Path
 from masterba.agents import DraftRejectedError
 from masterba.llm import DEFAULT_MODEL, LLM, AnthropicLLM, LLMError
 from masterba.models import ProjectConfig
+from masterba.models.enums import DocLanguage
 from masterba.models.ids import PROJECT_ID_PATTERN
 from masterba.pipeline import run_brd
 from masterba.rendering import RenderError
@@ -36,6 +37,9 @@ def build_parser() -> argparse.ArgumentParser:
     init = commands.add_parser("init-project", help="create an empty project")
     init.add_argument("--project", type=_project_id, required=True)
     init.add_argument("--company", default="default")
+    init.add_argument(
+        "--language", type=DocLanguage, choices=list(DocLanguage), default=DocLanguage.JA
+    )
 
     run = commands.add_parser("run", help="run one stage")
     stages = run.add_subparsers(dest="stage", required=True)
@@ -61,7 +65,12 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> None:
     projects = root / "projects"
     if args.command == "init-project":
         store = create_project(
-            projects, ProjectConfig(project_id=args.project, company_id=args.company)
+            projects,
+            ProjectConfig(
+                project_id=args.project,
+                company_id=args.company,
+                document_language=args.language,
+            ),
         )
         _emit({"project_id": store.project_id, "path": str(store.path)})
         return
