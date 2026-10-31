@@ -45,6 +45,18 @@ The verdict is still computed (`QaReport.passed`); the model never sets it. The 
 
 The design-test loop already keeps `unresolved` customer questions. The writer-review loop (team/loop.py) gains the same list, returned with the accepted draft. Both are written to the run summary: `TeamRun` gains `customer_questions: list[str]` (default empty, an additive schema change). The SRS stage merges them with the writer's own `open_questions`.
 
+### 1.5 New blocking issues only in the first review
+
+Dry-run 4 (10.3): on 30 requirements the Basic Design team raised about ten new blocking points in every round, some contradicting each other, and did not converge in 7 rounds and 378,007 tokens. A reviewer that samples a different part of the same draft each time never runs out of new points.
+
+The rule, applied by the code and not told to the model: for each reviewed artifact (`draft`, `design`, `tests`) the first QA review of a run may raise any blocking issue. In every later review of that artifact, a blocking issue stays blocking only if the same pair (checklist id, item reference) was blocking in an earlier review; any other blocking issue becomes advisory with the note `[id] ref: downgraded (new after the first review)`. It stays in `advisory_issues` and in the mailbox. A resumed run starts again at its first review: the owner chose to continue and nothing about the earlier attempt's reviews is stored.
+
+The cost is accepted: a problem that a revision introduces and QA notices only later is reported but does not block, so a person reads the advisory issues. The gain is that a run ends when the issues of its first review are fixed.
+
+### 1.6 A model answer that does not fit its schema
+
+An `LLMOutputError` from a writer, designer or tester call (dry-run 4: a design item without `realizes`) is a gate error. It is posted as feedback (`the last answer could not be used: ...`), the round ends, and the same role is called again in the next round with its previous draft, so the round limit and the token budget still apply. The tokens of the failed call are not known and are not charged. Other model errors (network, configuration) still end the run with an error; an unusable QA report keeps its own retry.
+
 ## 2. Convergence on ordinary models
 
 ### 2.1 Per-stage round limits
@@ -189,6 +201,7 @@ The README setup section gains the `doctor` step and the Docker Compose quick st
 - [x] `normalise_report` has unit tests for both downgrade rules and the note it posts; a regression test replays the spec 05 run 4 issue ("acceptable as written", no action) and the run finishes `done`; the `QaReport` and `TeamRun` schemas are regenerated and drift-tested.
 - [x] Customer questions from both loops reach `TeamRun.customer_questions`, and the SRS stage merges them with `open_questions`.
 - [x] `team_max_rounds_by_stage` overrides the default per stage and is set through `init-project --rounds`.
+- [ ] A blocking issue that is new after the first review of an artifact is downgraded to advisory, and a schema-invalid model answer is fed back to its role instead of ending the run (1.5, 1.6). *Open until implemented.*
 - [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Open: dry-run 3 reached `done` for both stages, but dry-run 4 (30 requirements) escalated in Basic Design after 7 rounds (10.3); awaits the owner's acceptance.*
 - [x] `--resume` continues an escalated run with the fake model for every stage; it refuses a run that is done, of another stage, without a checkpoint, with a changed upstream version, or whose target document exists; the commit subject says `(resumed)`.
 - [x] The CI jobs `quick`, `full` and `image` are green on `main`, and `quick` runs in under one minute. *(2026-10-31: run 41208337518, `quick` 32 s; 10.4.)*
