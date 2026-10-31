@@ -255,6 +255,8 @@ uv run pytest -m live                      # optional: live model test, needs a 
 
 CI (`.github/workflows/ci.yml`) runs the quick job on every push, the full suite with coverage on `main`, and builds the image.
 
+To understand how the system works, read [docs/architecture](docs/architecture/README.md): the layers, the data model and storage, the data flow of each stage, the control flow of the writer, QA and resume loops, change management, and the interfaces and deployment.
+
 Development is spec-driven. A phase's `specs/NN-*.md` is written and approved before its code, and `specs/00-constitution.md` holds the binding conventions (toolchain, layout, id scheme, versioning, commit format). `docs/concept-design.md` and `docs/roadmap-phases.md` give the full design and the phase plan. New documents are written in English; the earlier Vietnamese documents (`docs/concept-design.md`, `docs/roadmap-phases.md` and specs 00 and 01) stay as they are.
 
 ## License

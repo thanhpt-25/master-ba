@@ -52,7 +52,7 @@ Based on direction from the repository owner, this project will house a multi-ag
 
 Deliverables are Excel workbooks following per-company templates, defaulting to standard Japanese SIer templates when no company-specific template is specified. Changes to requirements or design must be tracked via a decision-record mechanism that propagates updates to dependent documents (traceability across the V-model).
 
-A full concept design for this agent system is tracked in `docs/concept-design.md`, and the phased implementation plan (spec-driven development: spec → plan → tasks → implement → validate per phase) is tracked in `docs/roadmap-phases.md`. Per-phase specs will live under `specs/`, starting with `specs/00-constitution.md`.
+How the system works as built (layers, data model and storage, per-stage data flow, team-runtime control flow, change management, interfaces and deployment) is described in `docs/architecture/` (start at its `README.md`); update the matching document when you change a flow it describes. A full concept design for this agent system is tracked in `docs/concept-design.md`, and the phased implementation plan (spec-driven development: spec → plan → tasks → implement → validate per phase) is tracked in `docs/roadmap-phases.md`. Per-phase specs will live under `specs/`, starting with `specs/00-constitution.md`.
 
 ## Working in this repo
 
