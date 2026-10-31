@@ -50,3 +50,9 @@ class FromRunBody(Body):
 class DecisionBody(Body):
     decision: str = Field(min_length=1, max_length=5000)
     rationale: str | None = Field(default=None, max_length=5000)
+
+
+class SetColumnBody(Body):
+    sheet: str = Field(min_length=1, max_length=64)
+    col: str = Field(pattern=r"^[A-Z]{1,3}$")
+    field: str | None = Field(default=None, max_length=40)

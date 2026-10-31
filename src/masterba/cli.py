@@ -10,9 +10,11 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+from masterba import calibration
 from masterba.agents import QaOutputInvalidError
 from masterba.api import create_app, settings_from_env
 from masterba.api.auth import ROLES, AuthError, UserStore
+from masterba.calibration import CalibrationError
 from masterba.change import (
     LifecycleError,
     approve_dr,
@@ -26,7 +28,7 @@ from masterba.change import (
 )
 from masterba.llm import DEFAULT_MODEL, LLM, AnthropicLLM, LLMError
 from masterba.models import ProjectConfig
-from masterba.models.enums import DocLanguage, DrTrigger, TeamRunStatus
+from masterba.models.enums import DocLanguage, DocType, DrTrigger, TeamRunStatus
 from masterba.models.ids import PROJECT_ID_PATTERN
 from masterba.pipeline import (
     run_basic_design,
@@ -105,6 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--qa-model", default=None, help="model for the QA reviewer (default: --model)"
     )
     _add_dr_parsers(commands)
+    _add_template_parsers(commands)
     serve = commands.add_parser("serve", help="run the dashboard (API and web app)")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
@@ -117,6 +120,84 @@ def build_parser() -> argparse.ArgumentParser:
     users.add_parser("list")
     users.add_parser("remove").add_argument("name")
     return parser
+
+
+def _add_template_parsers(commands: Any) -> None:
+    template = commands.add_parser("template", help="company templates from Excel samples")
+    subs = template.add_subparsers(dest="template_command", required=True)
+
+    def with_target(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        parser.add_argument("--company", required=True)
+        parser.add_argument(
+            "--type", dest="doc_type", type=DocType, choices=list(DocType), required=True
+        )
+        return parser
+
+    calibrate = with_target(subs.add_parser("calibrate", help="read a sample, write a draft"))
+    calibrate.add_argument("sample", type=Path)
+    calibrate.add_argument("--replace", action="store_true")
+    calibrate.add_argument("--model", default=None, help="let a model refine the mapping")
+    for name in ("show", "check", "unconfirm"):
+        with_target(subs.add_parser(name))
+    preview = with_target(subs.add_parser("preview", help="render the draft and compare"))
+    preview.add_argument("--project", type=_project_id, default=None)
+    confirm = with_target(subs.add_parser("confirm"))
+    confirm.add_argument("--by", required=True)
+    setter = with_target(subs.add_parser("set", help="assign a field to a column"))
+    setter.add_argument("--sheet", required=True)
+    setter.add_argument("--col", required=True)
+    setter.add_argument("--field", default=None, help="omit to leave the column unmapped")
+    subs.add_parser("list").add_argument("--company", default=None)
+
+
+def _dispatch_template(args: argparse.Namespace, root: Path, llm_factory: LLMFactory) -> int:
+    command: str = args.template_command
+    if command == "list":
+        _emit({"templates": calibration.list_templates(root, args.company)})
+        return 0
+    company, doc_type = args.company, args.doc_type
+    if command == "calibrate":
+        model = args.model
+        outcome = calibration.calibrate(
+            root,
+            company,
+            doc_type,
+            args.sample,
+            llm=llm_factory(model) if model else None,
+            replace=args.replace,
+        )
+        _emit(
+            {
+                "state": "draft",
+                "warnings": outcome.draft.warnings,
+                "unmapped": outcome.draft.unmapped,
+                "messages": list(outcome.messages),
+            }
+        )
+    elif command == "show":
+        _emit(
+            {
+                "state": calibration.state_of(root, company, doc_type),
+                "mapping": calibration.load_draft(root, company, doc_type).model_dump(mode="json"),
+            }
+        )
+    elif command == "check":
+        problems = calibration.check(root, company, doc_type)
+        _emit({"ok": not problems, "problems": problems})
+        return 1 if problems else 0
+    elif command == "preview":
+        project = open_project(root / "projects", args.project) if args.project else None
+        shown = calibration.preview(root, company, doc_type, project)
+        _emit({"path": str(shown.path), "differences": list(shown.differences)})
+    elif command == "confirm":
+        _emit(dict(calibration.confirm(root, company, doc_type, args.by)))
+    elif command == "unconfirm":
+        calibration.unconfirm(root, company, doc_type)
+        _emit({"state": "draft"})
+    else:
+        changed = calibration.set_column(root, company, doc_type, args.sheet, args.col, args.field)
+        _emit({"state": "draft", "warnings": changed.warnings})
+    return 0
 
 
 def _add_dr_parsers(commands: Any) -> None:
@@ -243,6 +324,8 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
 
         uvicorn.run(create_app(settings_from_env(root)), host=args.host, port=args.port)
         return 0
+    if args.command == "template":
+        return _dispatch_template(args, root, llm_factory)
     projects = root / "projects"
     if args.command == "init-project":
         store = create_project(
@@ -289,6 +372,7 @@ def main(argv: Sequence[str] | None = None, *, llm_factory: LLMFactory | None = 
     except (
         TraceStoreError,
         AuthError,
+        CalibrationError,
         LifecycleError,
         RenderError,
         LLMError,

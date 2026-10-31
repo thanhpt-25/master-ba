@@ -9,11 +9,12 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from masterba.agents import QaOutputInvalidError
-from masterba.api import routes_docs, routes_drs, routes_projects, routes_trace
+from masterba.api import routes_docs, routes_drs, routes_projects, routes_templates, routes_trace
 from masterba.api.auth import LoginThrottle, SessionSigner, UserStore
 from masterba.api.deps import AppState
 from masterba.api.jobs import JobManager
 from masterba.api.settings import Settings
+from masterba.calibration import CalibrationError
 from masterba.change import LifecycleError, PatchError
 from masterba.llm import LLMError
 from masterba.rendering import RenderError
@@ -67,6 +68,7 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
 
     @app.exception_handler(TraceStoreError)
     @app.exception_handler(LifecycleError)
+    @app.exception_handler(CalibrationError)
     @app.exception_handler(PatchError)
     @app.exception_handler(RenderError)
     @app.exception_handler(QaOutputInvalidError)
@@ -79,7 +81,7 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
         logger.exception("unhandled error")
         return JSONResponse({"detail": "internal error"}, status_code=500)
 
-    for module in (routes_projects, routes_docs, routes_trace, routes_drs):
+    for module in (routes_projects, routes_docs, routes_trace, routes_drs, routes_templates):
         app.include_router(module.router)
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])

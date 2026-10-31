@@ -14,6 +14,7 @@ const VIEWS = {
   trace: () => import("./views/trace.js"),
   activity: () => import("./views/activity.js"),
   drs: () => import("./views/drs.js"),
+  templates: () => import("./views/templates.js"),
 };
 
 const TABS = [
@@ -59,6 +60,7 @@ function shell(params, content) {
       "header",
       { class: "top" },
       h("a", { class: "brand", href: "#/projects" }, h("span", { class: "seal", "aria-hidden": "true" }, "要"), "MasterBA"),
+      state.me.role === "admin" ? h("a", { class: "toplink", href: "#/templates" }, "Templates") : null,
       params.pid ? h("span", { class: "crumb" }, h("a", { href: "#/projects" }, "Projects"), " / ", h("code", {}, params.pid)) : null,
       h(
         "div",

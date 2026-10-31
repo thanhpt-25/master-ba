@@ -121,21 +121,30 @@ tests/calibration/  (samples built in code)
 
 ## 9. Acceptance Criteria
 
-- [ ] A synthetic SIer-style BRD sample (title rows, header on row 3, columns in a different order with Japanese labels, a document-info block, a cover sheet) yields a draft whose mapped fields, header row, first data row, numbering column and header bindings are exactly the expected ones, with no model call.
-- [ ] Samples for the other document types (SRS, Basic Design, tests with execution columns, two tables on separate sheets) are profiled and mapped as expected; unrecognised columns are listed as unmapped; merged cells, formulas, hidden sheets and several blocks produce warnings.
-- [ ] Building a draft writes the four files in `templates/companies/<company>/`, one commit, and the draft is **ignored** by `resolve_template` (falls back to the default) until confirmed.
-- [ ] After `confirm`, rendering a document for a project of that company produces a workbook whose sheet names, header texts, header row position, column order and column widths equal the sample's, with the document's items written from the first data row, styles copied from the sample's data row; the layout comparison reports no difference.
-- [ ] Editing a column assignment re-validates, rewrites the draft and removes the confirmation; invalid edits (unknown field, duplicate field, column outside the range) are rejected and change nothing.
-- [ ] `template check` reports the same problems `load_template` would; `confirm` is refused while check fails; `--replace` is required to overwrite a confirmed template.
-- [ ] The optional model refinement: a valid answer replaces the heuristic draft; an invalid answer is retried once and then ignored with a visible message; the prompt contains the profile and heuristic draft and no more than the first sample rows.
-- [ ] Hostile input: `.xlsm`, `.xls`, oversized and non-workbook files are refused before parsing; company ids and document types are validated; a sample with macros produces a shell without them.
-- [ ] API: only an admin may calibrate, edit, preview download and confirm; viewers and approvers may read the list and the state; all routes enforce the CSRF header; the Templates view works in the browser against a seeded company and a recorded browser pass is added to section 10.
-- [ ] A live attempt with a real sample, when one is available, is recorded in section 10; until then the criterion is open and says so.
-- [ ] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; the `MappingDraft` schema is generated and drift-tested.
+- [x] A synthetic SIer-style BRD sample (title rows, header on row 3, columns in a different order with Japanese labels, a document-info block, a cover sheet) yields a draft whose mapped fields, header row, first data row, numbering column and header bindings are exactly the expected ones, with no model call.
+- [x] Samples for the other document types (SRS, Basic Design, tests with execution columns, two tables on separate sheets) are profiled and mapped as expected; unrecognised columns are listed as unmapped; merged cells, formulas, hidden sheets and several blocks produce warnings.
+- [x] Building a draft writes the four files in `templates/companies/<company>/`, one commit, and the draft is **ignored** by `resolve_template` (falls back to the default) until confirmed.
+- [x] After `confirm`, rendering a document for a project of that company produces a workbook whose sheet names, header texts, header row position, column order and column widths equal the sample's, with the document's items written from the first data row, styles copied from the sample's data row; the layout comparison reports no difference.
+- [x] Editing a column assignment re-validates, rewrites the draft and removes the confirmation; invalid edits (unknown field, duplicate field, column outside the range) are rejected and change nothing.
+- [x] `template check` reports the same problems `load_template` would; `confirm` is refused while check fails; `--replace` is required to overwrite a confirmed template.
+- [x] The optional model refinement: a valid answer replaces the heuristic draft; an invalid answer is retried once and then ignored with a visible message; the prompt contains the profile and heuristic draft and no more than the first sample rows.
+- [x] Hostile input: `.xlsm`, `.xls`, oversized and non-workbook files are refused before parsing; company ids and document types are validated; a sample with macros produces a shell without them.
+- [x] API: only an admin may use any template route (the whole Templates area is admin-only, reads included); all routes enforce the CSRF header; the Templates view works in the browser against a seeded company and a recorded browser pass is added to section 10.
+- [ ] (OPEN) A live attempt with a real sample, when one is available, is recorded in section 10; until then the criterion is open and says so.
+- [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; the `MappingDraft` schema is generated and drift-tested.
 
 ## 10. Manual review record
 
-To be filled with the first real sample and the browser pass.
+- No real customer sample was available. Every check ran on synthetic SIer-style workbooks built by `tests/calibration_samples.py` (title rows, Japanese labels in another order, a document-info block, a cover sheet). The live-sample criterion in section 9 stays open.
+- Browser pass (built-in browser, local server, admin user, synthetic BRD sample uploaded through the real form): the draft appeared with the mapping table (B requirement_id, C title, D description, E scope, F unmapped), `Render preview` reported no layout difference, `Confirm template` switched the state to Approved and offered `Remove confirmation`. No console errors. Narrow-width and dark-mode checks were not repeated for this view; it reuses the shared table and panel styles already checked in spec 08.
+
+## 10.1 Decisions taken while implementing
+
+1. `heuristic_draft` lives in `calibration/profile.py` (it needs the workbook), `profile_workbook(path, doc_type)` takes the document type, and `demo_document` and `compare_layout` live in `calibration/preview.py`.
+2. The whole Templates API is admin only, including reads and the preview download, because a draft may reflect a customer's confidential layout. This replaces the looser reading in the acceptance wording.
+3. The CLI uses `--type` (not `--doc-type`) and takes the sample as a positional argument; `--model` turns on the model refinement and a replace is `--replace`.
+4. API upload is `multipart` with `?replace=true`; the sample is copied to a temporary folder and parsed from there; the model refinement is CLI only.
+5. A requirement label such as `要求ID` was added to the synonym table after the SRS sample showed it matched `statement` instead.
 
 ## 11. Open points (do not block implementation)
 

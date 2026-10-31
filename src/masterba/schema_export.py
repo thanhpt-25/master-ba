@@ -18,6 +18,7 @@ from masterba.agents import (
     TestDraft,
     UnitTestDraft,
 )
+from masterba.calibration import MappingDraft
 from masterba.change import RevisionPatch
 from masterba.diff import ItemChange
 from masterba.models import (
@@ -59,6 +60,7 @@ SCHEMA_MODELS: tuple[type[BaseModel], ...] = (
     DetailDesignDraft,
     UnitTestDraft,
     RevisionPatch,
+    MappingDraft,
     QaReport,
     TeamTask,
     TeamMessage,

@@ -1,0 +1,189 @@
+{
+  "$defs": {
+    "ColumnMap": {
+      "additionalProperties": false,
+      "properties": {
+        "col": {
+          "pattern": "^[A-Z]{1,3}$",
+          "title": "Col",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "header": {
+          "default": "",
+          "title": "Header",
+          "type": "string"
+        },
+        "value_map": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value Map"
+        }
+      },
+      "required": [
+        "col"
+      ],
+      "title": "ColumnMap",
+      "type": "object"
+    },
+    "DocType": {
+      "enum": [
+        "BRD",
+        "SRS",
+        "BASIC_DESIGN",
+        "DETAIL_DESIGN",
+        "TEST_IT",
+        "TEST_ST",
+        "TEST_UT",
+        "TEST_UAT"
+      ],
+      "title": "DocType",
+      "type": "string"
+    },
+    "HeaderCell": {
+      "additionalProperties": false,
+      "properties": {
+        "cell": {
+          "pattern": "^[A-Z]{1,3}[1-9][0-9]*$",
+          "title": "Cell",
+          "type": "string"
+        },
+        "sheet": {
+          "minLength": 1,
+          "title": "Sheet",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sheet",
+        "cell",
+        "source"
+      ],
+      "title": "HeaderCell",
+      "type": "object"
+    },
+    "TableMap": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/ColumnMap"
+          },
+          "minItems": 1,
+          "title": "Columns",
+          "type": "array"
+        },
+        "first_row": {
+          "minimum": 1,
+          "title": "First Row",
+          "type": "integer"
+        },
+        "header_row": {
+          "minimum": 1,
+          "title": "Header Row",
+          "type": "integer"
+        },
+        "key": {
+          "pattern": "^[a-z][a-z0-9_]{0,20}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "numbering": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{1,3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Numbering"
+        },
+        "sheet": {
+          "minLength": 1,
+          "title": "Sheet",
+          "type": "string"
+        },
+        "where": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Where",
+          "type": "object"
+        }
+      },
+      "required": [
+        "sheet",
+        "key",
+        "header_row",
+        "first_row",
+        "columns"
+      ],
+      "title": "TableMap",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "doc_type": {
+      "$ref": "#/$defs/DocType"
+    },
+    "headers": {
+      "items": {
+        "$ref": "#/$defs/HeaderCell"
+      },
+      "title": "Headers",
+      "type": "array"
+    },
+    "tables": {
+      "items": {
+        "$ref": "#/$defs/TableMap"
+      },
+      "title": "Tables",
+      "type": "array"
+    },
+    "unmapped": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unmapped",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "doc_type"
+  ],
+  "title": "MappingDraft",
+  "type": "object"
+}

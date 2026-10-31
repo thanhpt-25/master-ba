@@ -21,7 +21,16 @@ IMPORT = re.compile(r"""(?:from|import)\s*\(?\s*["'](\.{1,2}/[^"']+)["']""")
 def test_the_expected_files_exist() -> None:
     names = {p.relative_to(FRONTEND).as_posix() for p in FRONTEND.rglob("*") if p.is_file()}
     assert {"index.html", "app.css", "app.js", "api.js", "dom.js"} <= names
-    for view in ("login", "projects", "overview", "documents", "trace", "activity", "drs"):
+    for view in (
+        "login",
+        "projects",
+        "overview",
+        "documents",
+        "trace",
+        "activity",
+        "drs",
+        "templates",
+    ):
         assert f"views/{view}.js" in names
 
 

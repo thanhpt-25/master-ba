@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Phases 0 (scaffold), 1 (data contracts: models, `trace_store`, diff), 2 (Excel rendering) 3 (BRD walking skeleton), 4 (SRS, QA reviewer, team runtime) 5 (Basic Design + IT/ST tests, three-member team) 6 (Detail Design + UT tests, same loop) and 7 (change management) and 8 (dashboard) are done (live reviews in spec 03/04/05 section 9; the Phase 5 live run has not reached `done` on the free gateway models). Template calibration does not exist yet (Phase 9). Conventions (toolchain, repo layout, ID scheme, ID Stability Rule, document versioning, commit format) are binding and defined in `specs/00-constitution.md` — read it before adding code.
+Phases 0 (scaffold), 1 (data contracts: models, `trace_store`, diff), 2 (Excel rendering) 3 (BRD walking skeleton), 4 (SRS, QA reviewer, team runtime) 5 (Basic Design + IT/ST tests, three-member team) 6 (Detail Design + UT tests, same loop) and 7 (change management) 8 (dashboard) and 9 (template calibration) are done (live reviews in spec 03/04/05 section 9; the Phase 5 live run has not reached `done` on the free gateway models). Phase 9 has only been verified on synthetic samples (no real customer workbook yet). Phase 10 (code generation) is a backlog spec only, `specs/10-dev-extension.md`. Conventions (toolchain, repo layout, ID scheme, ID Stability Rule, document versioning, commit format) are binding and defined in `specs/00-constitution.md` — read it before adding code.
 
 ## Commands
 
@@ -38,6 +38,8 @@ Code lives in `src/masterba/`:
 - `pipeline/brd.py` and `pipeline/srs.py`: `run_brd` / `run_srs` run the team, then (only if done) assign ids in code, write requirements/document/trace links, render, commit the run record. Nothing business-related is written on escalation. Both refuse when the document already exists.
 - `cli.py`: `masterba init-project [--language ja|en]` (default `ja`; sets `ProjectConfig.document_language`, the language of generated content), `masterba run brd --project PRJ-001 --input file.txt` and `masterba run srs --project PRJ-001` and `masterba run basic --project PRJ-001` and `masterba run detail --project PRJ-001` (extra `--test-model`), all with `--model` / `--qa-model` (a stronger separate QA model is recommended); exit code 3 means escalated (installed console script; `--root` is the git work tree, default cwd). Live-model test: `uv run pytest -m live` with `ANTHROPIC_API_KEY` (an Anthropic-compatible gateway works via `ANTHROPIC_BASE_URL` and `MASTERBA_MODEL`).
 - `diff/`: structural diff by stable item id plus `classify_change` (pure similarity, no LLM; numeric edits always count as structural).
+
+- `calibration/`: sample `.xlsx` -> profile -> heuristic (JA/EN label synonyms) -> optional model refinement -> validated `MappingDraft` -> company template under `templates/companies/<company>/`. A calibrated template is ignored by `resolve_template` until `<TYPE>.confirmed` exists; CLI `masterba template ...`, admin-only API `/api/templates`, dashboard Templates view.
 
 ## Intended purpose
 

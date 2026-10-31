@@ -33,6 +33,7 @@ async function request(method, path, { json, form } = {}) {
 export const api = {
   get: (path) => request("GET", path),
   post: (path, json = {}) => request("POST", path, { json }),
+  put: (path, json = {}) => request("PUT", path, { json }),
   upload: (path, file) => {
     const form = new FormData();
     form.append("file", file, file.name);
