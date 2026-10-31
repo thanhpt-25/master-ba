@@ -1,10 +1,11 @@
+import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
-from factories import make_config
+from factories import build_chain, make_config
 from masterba.trace_store import ProjectStore, create_project
 
 
@@ -39,5 +40,44 @@ def commit_log(git_repo: Path) -> Callable[[], list[str]]:
 
     def _log() -> list[str]:
         return _git(git_repo, "log", "--format=%s").splitlines()
+
+    return _log
+
+
+TEMPLATES = Path(__file__).parents[1] / "templates"
+
+
+def _init_repo(path: Path) -> None:
+    _git(path, "init", "-q", "-b", "main")
+    _git(path, "config", "user.name", "Test")
+    _git(path, "config", "user.email", "test@example.com")
+    _git(path, "config", "commit.gpgsign", "false")
+    _git(path, "commit", "-q", "--allow-empty", "-m", "init")
+
+
+@pytest.fixture(scope="session")
+def chain_source(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A git repo holding the whole demo chain, built once per test session."""
+    repo = tmp_path_factory.mktemp("chain")
+    _init_repo(repo)
+    store = create_project(repo / "projects", make_config())
+    build_chain(store, TEMPLATES)
+    return repo
+
+
+@pytest.fixture
+def chain(chain_source: Path, tmp_path: Path) -> ProjectStore:
+    """A private copy of the demo chain: BRD, SRS, Basic Design, Detail Design and all tests."""
+    target = tmp_path / "chain"
+    shutil.copytree(chain_source, target)
+    return ProjectStore(target / "projects", "PRJ-001")
+
+
+@pytest.fixture
+def chain_commits(chain: ProjectStore) -> Callable[[], list[str]]:
+    """Commit subjects of the chain project's repository, newest first."""
+
+    def _log() -> list[str]:
+        return _git(chain.root, "log", "--format=%s").splitlines()
 
     return _log

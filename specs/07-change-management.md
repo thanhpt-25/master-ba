@@ -1,6 +1,6 @@
 # Spec 07 — Change management: Decision Records, impact analysis, propagation
 
-Status: v0.1 (2026-10-31), draft. Sources: [concept-design.md](../docs/concept-design.md) sections 7, 13.3, 13.4 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 7, [00-constitution.md](00-constitution.md) (ID Stability Rule, versioning), [01-data-contracts.md](01-data-contracts.md) (`DecisionRecord`, `query_impact`, diff), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md).
+Status: v0.2 (2026-10-31), implemented; all Acceptance Criteria pass. Section 9 records the live run, section 11 the decisions taken while implementing. Sources: [concept-design.md](../docs/concept-design.md) sections 7, 13.3, 13.4 (Vietnamese), [roadmap-phases.md](../docs/roadmap-phases.md) Phase 7, [00-constitution.md](00-constitution.md) (ID Stability Rule, versioning), [01-data-contracts.md](01-data-contracts.md) (`DecisionRecord`, `query_impact`, diff), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -132,22 +132,26 @@ tests/change/  tests/test_cli_dr.py
 
 ## 8. Acceptance Criteria
 
-- [ ] The lifecycle works as in section 1 with the exact commit messages; invalid transitions are rejected; approving or rejecting without approver or decision fails; DR ids are sequential and never reused; every `--item` must exist.
-- [ ] `dr from-run` on an escalated run creates a `clarification` DR with the escalation text and the item refs found; on a `done` run it is refused.
-- [ ] Impact analysis from a `REQ-####` on the demo chain lists the BRD, SRS, Basic Design, IT, ST, Detail Design and UT items downstream, documents in V order; a `defect` DR also follows upstream; the result is stored at approval and is identical when recomputed.
-- [ ] `apply_patch` keeps every untouched item byte-identical, never reuses a removed item's number, assigns the next `REQ-####` and `TC-` ids, rejects unknown fields, identity-field changes, double operations, inactive targets and dangling references.
-- [ ] `links_for_document` reproduces the links the Phase 3 to 6 pipelines wrote for each document type (test on the demo chain), and a revision adds only the missing ones.
-- [ ] End to end on the demo project (fake models): a `requirement_change` DR on one requirement is approved, propagated through every affected document, each gets a new version `v2` with unchanged items identical, the old version files are untouched in git, the xlsx of `v2` is rendered, requirements and links are updated, the DR is `propagated`, `dr diff` shows the changed rows with the right classification, then `dr close`.
-- [ ] An empty patch creates no new version and is recorded as `unchanged`; a document not in the impact is never touched.
-- [ ] A document whose team escalates stops the propagation (exit code 3), leaves the DR `approved`, and a second `dr propagate` skips the finished documents and retries the rest.
-- [ ] `dr propagate` on a `proposed` or `closed` DR is refused and writes nothing.
-- [ ] The QA reviewer code is unchanged (no stage branch); a unit test shows the checklist chosen per document type.
-- [ ] A live attempt (CLI with a key) is made on a demo project that has at least a BRD and SRS and is recorded in section 9.
-- [ ] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; `RevisionPatch` schema generated and drift-tested.
+- [x] The lifecycle works as in section 1 with the exact commit messages; invalid transitions are rejected; approving or rejecting without approver or decision fails; DR ids are sequential and never reused; every `--item` must exist.
+- [x] `dr from-run` on an escalated run creates a `clarification` DR with the escalation text and the item refs found; on a `done` run it is refused.
+- [x] Impact analysis from a `REQ-####` on the demo chain lists the BRD, SRS, Basic Design, IT, ST, Detail Design and UT items downstream, documents in V order; a `defect` DR also follows upstream; the result is stored at approval and is identical when recomputed.
+- [x] `apply_patch` keeps every untouched item byte-identical, never reuses a removed item's number, assigns the next `REQ-####` and `TC-` ids, rejects unknown fields, identity-field changes, double operations, inactive targets and dangling references.
+- [x] `links_for_document` reproduces the links the Phase 3 to 6 pipelines wrote for each document type (test on the demo chain), and a revision adds only the missing ones.
+- [x] End to end on the demo project (fake models): a `requirement_change` DR on one requirement is approved, propagated through every affected document, each gets a new version `v2` with unchanged items identical, the old version files are untouched in git, the xlsx of `v2` is rendered, requirements and links are updated, the DR is `propagated`, `dr diff` shows the changed rows with the right classification, then `dr close`.
+- [x] An empty patch creates no new version and is recorded as `unchanged`; a document not in the impact is never touched.
+- [x] A document whose team escalates stops the propagation (exit code 3), leaves the DR `approved`, and a second `dr propagate` skips the finished documents and retries the rest.
+- [x] `dr propagate` on a `proposed` or `closed` DR is refused and writes nothing.
+- [x] The QA reviewer code is unchanged (no stage branch); a unit test shows the checklist chosen per document type.
+- [x] A live attempt (CLI with a key) is made on a demo project that has at least a BRD and SRS and is recorded in section 9.
+- [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; `RevisionPatch` schema generated and drift-tested.
 
 ## 9. Manual review record
 
-To be filled after a live attempt.
+**2026-10-31, local Anthropic-compatible gateway, project language `en`, demo project with BRD and SRS (6 requirements), reviser `auto/best-coding`, QA `auto/best-reasoning`.**
+
+DR-0001, `requirement_change`, item `REQ-0006` ("fast" had been left as an open question): "95% of sign-ins complete within 2 seconds". `dr new` computed `affected_documents = [BRD, SRS]`; `dr approve` stored the impact; `dr propagate` revised both documents in one attempt each (RUN-0009, RUN-0010), final status `propagated`.
+
+`dr diff` shows the smallest possible change: BRD item 6 `description` (the open-ended sentence became the 2-second target) and SRS item 5 `statement` plus a new `acceptance_hint`, all other items untouched; both rows classified `structural_change`. This is the first end-to-end proof that a customer decision flows through the traced documents with stable ids and QA review. The Basic Design stage was not part of this project (it did not reach `done`, spec 05 section 9), so the longer chain is covered by the offline tests only.
 
 ## 10. Open points (do not block implementation)
 
@@ -155,3 +159,12 @@ To be filled after a live attempt.
 2. **Large documents.** The reviser receives the whole active document; very large documents may need chunking by kind later.
 3. **Requirement text mirror.** `RequirementItem.text` mirrors the BRD description by convention (Phase 3); revising a BRD item updates it. If the two ever need to differ, `update_requirement` is the single place to change.
 4. **Cross-document consistency after partial propagation.** After an escalation some documents are on the new version and others not; `dr show` reports the progress, and the DR stays `approved` until finished.
+
+## 11. Decisions taken while implementing
+
+1. **Work-in-progress files per DR.** `DR-####.impact.json` (written with the approve commit) and `DR-####.propagation.json` (one commit per finished document) sit next to the DR; both are derived data. `get_dr_extra` / `write_dr_extra` read and write them.
+2. **Empty patches skip QA.** A patch with no operations passes the gate and the review step returns an empty report without calling the model, so an unaffected document costs one reviser call and no QA call.
+3. **New versions are `draft`.** A revised document starts again as `draft` regardless of the status of the version it replaces, so a later approval step (Phase 8) can act on it.
+4. **`Team` has a `trigger`.** `Team.open(..., trigger="DR-0001")` records the DR id in `TeamRun.trigger` (the field already allowed `DR-####`).
+5. **Test chain fixture.** The offline tests build the full demo chain once per test session and copy it per test (`tests/conftest.py`: `chain_source`, `chain`), which keeps the suite at a few minutes.
+6. **`from-run` filters refs.** Item refs that exist only in a discarded draft (typical for an escalation before anything was stored) are dropped from `impacted_items`; the escalation text stays in the description.

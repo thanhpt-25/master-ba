@@ -56,15 +56,21 @@ class Team:
     messages: list[TeamMessage] = field(default_factory=list)
     log_count: int = 0
     exchanges: int = 0
+    trigger: str = "initial"
 
     @classmethod
     def open(
-        cls, store: ProjectStore, stage: DocType, max_rounds: int, token_budget: int | None
+        cls,
+        store: ProjectStore,
+        stage: DocType,
+        max_rounds: int,
+        token_budget: int | None,
+        trigger: str = "initial",
     ) -> "Team":
         runs = store.path / "runs"
         used = [int(m[1]) for p in runs.glob("RUN-*") if (m := _RUN_DIR.match(p.name))]
         run_id = f"RUN-{max(used, default=0) + 1:04d}"
-        team = cls(store, run_id, stage, max_rounds, token_budget)
+        team = cls(store, run_id, stage, max_rounds, token_budget, trigger=trigger)
         team.transcripts_dir.mkdir(parents=True)
         (team.run_dir / ".gitignore").write_text("transcripts/\n", encoding="utf-8")
         return team
@@ -141,7 +147,7 @@ class Team:
         summary = TeamRun(
             run_id=self.run_id,
             stage=self.stage,
-            trigger="initial",
+            trigger=self.trigger,
             status=status,
             rounds=self.rounds,
             issues_raised=self.issues_raised,

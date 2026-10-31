@@ -6,6 +6,7 @@ recorded as exactly one git commit (specs/00-constitution.md section 5).
 
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -127,6 +128,15 @@ def add_requirement(store: ProjectStore, req: RequirementItem) -> None:
         raise NotFoundError(f"parent {req.parent_id} does not exist")
     _write_json(path, _data(req))
     _commit(store, [path], f"req({store.project_id}): add {req.id}")
+
+
+def update_requirement(store: ProjectStore, req: RequirementItem) -> None:
+    """Rewrite an existing requirement (same id) as one commit; ids are never changed."""
+    path = _requirement_path(store, req.id)
+    if not path.exists():
+        raise NotFoundError(f"{req.id} does not exist")
+    _write_json(path, _data(req))
+    _commit(store, [path], f"req({store.project_id}): update {req.id}")
 
 
 def get_requirement(store: ProjectStore, req_id: str) -> RequirementItem:
@@ -293,3 +303,48 @@ def get_decision_record(store: ProjectStore, dr_id: str) -> DecisionRecord:
     if not path.exists():
         raise NotFoundError(f"{dr_id} does not exist")
     return DecisionRecord.model_validate(_read_json(path))
+
+
+def list_decision_records(store: ProjectStore) -> list[DecisionRecord]:
+    folder = store.path / "decision-records"
+    if not folder.exists():
+        return []
+    return [
+        DecisionRecord.model_validate(_read_json(p)) for p in sorted(folder.glob("DR-????.json"))
+    ]
+
+
+def _dr_extra_path(store: ProjectStore, dr_id: str, suffix: str) -> Path:
+    return store.path / "decision-records" / f"{dr_id}.{suffix}.json"
+
+
+def get_dr_extra(store: ProjectStore, dr_id: str, suffix: str) -> Any | None:
+    """Derived data stored next to a DR (``impact``, ``propagation``); None when absent."""
+    path = _dr_extra_path(store, dr_id, suffix)
+    return _read_json(path) if path.exists() else None
+
+
+def write_dr_extra(store: ProjectStore, dr_id: str, suffix: str, data: Any, message: str) -> None:
+    """Write one derived DR file as its own commit with the given message."""
+    path = _dr_extra_path(store, dr_id, suffix)
+    _write_json(path, data)
+    _commit(store, [path], message)
+
+
+def save_decision_record(
+    store: ProjectStore,
+    dr: DecisionRecord,
+    action: str,
+    extras: Mapping[str, Any] | None = None,
+) -> None:
+    """Rewrite an existing DR (and any derived files) as one commit ``dr(P): <action> <id>``."""
+    path = _dr_path(store, dr.id)
+    if not path.exists():
+        raise NotFoundError(f"{dr.id} does not exist")
+    _write_json(path, _data(dr))
+    paths = [path]
+    for suffix, data in (extras or {}).items():
+        extra = _dr_extra_path(store, dr.id, suffix)
+        _write_json(extra, data)
+        paths.append(extra)
+    _commit(store, paths, f"dr({store.project_id}): {action} {dr.id}")

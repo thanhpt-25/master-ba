@@ -251,3 +251,7 @@ tests/ team/  agents/  pipeline/  fixtures/
 ## 12. Changes made by Phase 5
 
 `qa_reviewer.review` and `validate_report` now take `item_counts` (a map from document id to item count) instead of `doc_id` and `item_count`, so one review can cover several documents; `checklist_path` accepts a checklist stem. Behaviour for the BRD and SRS stages is unchanged. See spec 05 section 5 and 11.
+
+## 13. Change made by Phase 7
+
+`Team.open` takes an optional `trigger` (default `initial`) which becomes `TeamRun.trigger`; revision runs started by a Decision Record use the DR id. Nothing else in the runtime changes.

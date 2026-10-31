@@ -1,6 +1,7 @@
 """Builders for contract objects used across tests."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from masterba.agents import (
     BasicDesignDraft,
@@ -46,6 +47,9 @@ from masterba.models.enums import (
     Scope,
     SrsKind,
 )
+
+if TYPE_CHECKING:
+    from masterba.trace_store import ProjectStore
 
 PROJECT = "PRJ-001"
 
@@ -539,3 +543,33 @@ def login_unit_draft_with_exclusion() -> UnitTestDraft:
             DraftExclusion(item_ref=detail_ref(4), reason="A policy, not executable code.")
         ],
     )
+
+
+def build_chain(store: "ProjectStore", templates_root: Path) -> "ProjectStore":
+    """Run all four document stages with scripted models: BRD, SRS, Basic Design, Detail Design."""
+    from masterba.llm import FakeLLM
+    from masterba.pipeline import (
+        run_basic_design,
+        run_brd,
+        run_detail_design,
+        run_srs,
+    )
+
+    run_brd(store, templates_root, FakeLLM([draft_for("login_system.txt"), qa_pass()]),
+            intake_path("login_system.txt"))  # fmt: skip
+    run_srs(store, templates_root, FakeLLM([login_srs_draft(), qa_pass()]))
+    run_basic_design(
+        store,
+        templates_root,
+        FakeLLM([login_design_draft()]),
+        tester_llm=FakeLLM([login_test_draft()]),
+        qa_llm=FakeLLM([qa_pass(), qa_pass()]),
+    )
+    run_detail_design(
+        store,
+        templates_root,
+        FakeLLM([login_detail_draft()]),
+        tester_llm=FakeLLM([login_unit_draft()]),
+        qa_llm=FakeLLM([qa_pass(), qa_pass()]),
+    )
+    return store

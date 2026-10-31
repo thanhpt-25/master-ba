@@ -7,11 +7,23 @@ import re
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 from masterba.agents import QaOutputInvalidError
+from masterba.change import (
+    LifecycleError,
+    approve_dr,
+    close_dr,
+    dr_diff,
+    dr_from_run,
+    new_dr,
+    propagate_dr,
+    reject_dr,
+    rows,
+)
 from masterba.llm import DEFAULT_MODEL, LLM, AnthropicLLM, LLMError
 from masterba.models import ProjectConfig
-from masterba.models.enums import DocLanguage, TeamRunStatus
+from masterba.models.enums import DocLanguage, DrTrigger, TeamRunStatus
 from masterba.models.ids import PROJECT_ID_PATTERN
 from masterba.pipeline import (
     StageResult,
@@ -21,7 +33,15 @@ from masterba.pipeline import (
     run_srs,
 )
 from masterba.rendering import RenderError
-from masterba.trace_store import TraceStoreError, create_project, open_project
+from masterba.trace_store import (
+    ProjectStore,
+    TraceStoreError,
+    create_project,
+    get_decision_record,
+    get_dr_extra,
+    list_decision_records,
+    open_project,
+)
 from masterba.trace_store.git import ensure_ready
 
 LLMFactory = Callable[[str], LLM]
@@ -81,7 +101,109 @@ def build_parser() -> argparse.ArgumentParser:
     detail.add_argument(
         "--qa-model", default=None, help="model for the QA reviewer (default: --model)"
     )
+    _add_dr_parsers(commands)
     return parser
+
+
+def _add_dr_parsers(commands: Any) -> None:
+    dr = commands.add_parser("dr", help="Decision Records: change management")
+    drs = dr.add_subparsers(dest="dr_command", required=True)
+
+    def with_project(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        parser.add_argument("--project", type=_project_id, required=True)
+        return parser
+
+    new = with_project(drs.add_parser("new", help="propose a change"))
+    new.add_argument("--trigger", type=DrTrigger, choices=list(DrTrigger), required=True)
+    new.add_argument("--description", required=True)
+    new.add_argument("--item", action="append", default=[], help="REQ-#### or item ref")
+    from_run = with_project(drs.add_parser("from-run", help="DR from an escalated run"))
+    from_run.add_argument("--run", required=True)
+    for name in ("approve", "reject"):
+        signed = with_project(drs.add_parser(name))
+        signed.add_argument("dr_id")
+        signed.add_argument("--approver", required=True)
+        signed.add_argument("--decision", required=True)
+        signed.add_argument("--rationale", default=None)
+    propagate = with_project(drs.add_parser("propagate", help="revise the affected documents"))
+    propagate.add_argument("dr_id")
+    propagate.add_argument("--model", default=None)
+    propagate.add_argument("--qa-model", default=None)
+    with_project(drs.add_parser("close")).add_argument("dr_id")
+    with_project(drs.add_parser("list"))
+    with_project(drs.add_parser("show")).add_argument("dr_id")
+    diff = with_project(drs.add_parser("diff"))
+    diff.add_argument("dr_id")
+    diff.add_argument("--structural-only", action="store_true")
+
+
+def _dispatch_dr(
+    args: argparse.Namespace, store: ProjectStore, root: Path, llm_factory: LLMFactory
+) -> int:
+    command: str = args.dr_command
+    if command == "new":
+        _emit(new_dr(store, args.trigger, args.description, args.item).model_dump(mode="json"))
+    elif command == "from-run":
+        _emit(dr_from_run(store, args.run).model_dump(mode="json"))
+    elif command == "approve":
+        dr, impact = approve_dr(store, args.dr_id, args.approver, args.decision, args.rationale)
+        _emit({"dr": dr.model_dump(mode="json"), "impact": impact.to_json()})
+    elif command == "reject":
+        dr = reject_dr(store, args.dr_id, args.approver, args.decision, args.rationale)
+        _emit(dr.model_dump(mode="json"))
+    elif command == "close":
+        _emit(close_dr(store, args.dr_id).model_dump(mode="json"))
+    elif command == "list":
+        _emit(
+            {"decision_records": [r.model_dump(mode="json") for r in list_decision_records(store)]}
+        )
+    elif command == "show":
+        dr = get_decision_record(store, args.dr_id)
+        _emit(
+            {
+                "dr": dr.model_dump(mode="json"),
+                "impact": get_dr_extra(store, dr.id, "impact"),
+                "propagation": get_dr_extra(store, dr.id, "propagation"),
+            }
+        )
+    elif command == "diff":
+        diffs = dr_diff(store, args.dr_id, args.structural_only)
+        _emit(
+            {
+                "documents": [
+                    {
+                        "doc_id": d.doc_id,
+                        "old_version": d.old_version,
+                        "new_version": d.new_version,
+                        "rows": rows(d),
+                    }
+                    for d in diffs
+                ]
+            }
+        )
+    else:
+        model = args.model or os.environ.get("MASTERBA_MODEL") or DEFAULT_MODEL
+        reviser = llm_factory(model)
+        reviewer = llm_factory(args.qa_model) if args.qa_model else None
+        result = propagate_dr(store, root / "templates", args.dr_id, reviser, qa_llm=reviewer)
+        _emit(
+            {
+                "dr_id": result.dr_id,
+                "status": result.status.value,
+                "documents": [
+                    {
+                        "doc_id": d.doc_id,
+                        "outcome": d.outcome,
+                        "version": d.version,
+                        "run_id": d.run_id,
+                        "escalations": list(d.escalations),
+                    }
+                    for d in result.documents
+                ],
+            }
+        )
+        return 3 if result.escalated else 0
+    return 0
 
 
 def _default_llm(model: str) -> LLM:
@@ -110,6 +232,8 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
         _emit({"project_id": store.project_id, "path": str(store.path)})
         return 0
     store = open_project(projects, args.project)
+    if args.command == "dr":
+        return _dispatch_dr(args, store, root, llm_factory)
     model = args.model or os.environ.get("MASTERBA_MODEL") or DEFAULT_MODEL
     writer = llm_factory(model)
     reviewer = llm_factory(args.qa_model) if args.qa_model else None
@@ -159,6 +283,7 @@ def main(argv: Sequence[str] | None = None, *, llm_factory: LLMFactory | None = 
         return _dispatch(args, llm_factory or _default_llm)
     except (
         TraceStoreError,
+        LifecycleError,
         RenderError,
         LLMError,
         QaOutputInvalidError,
