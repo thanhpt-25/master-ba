@@ -24,7 +24,7 @@ function mappingTables(data, onSet) {
 }
 
 export async function render({ main, api, toast }) {
-  const company = h("input", { type: "text", maxlength: "40", placeholder: "company id" });
+  const company = h("input", { type: "text", name: "company", maxlength: "40", autocomplete: "off", spellcheck: "false", placeholder: "sample-sier…" });
   const docType = h("select", {}, DOC_TYPES.map((d) => h("option", { value: d }, d)));
   const sample = h("input", { type: "file", accept: ".xlsx" });
   const list = h("div", {});

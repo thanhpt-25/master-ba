@@ -1,5 +1,7 @@
 // Tiny DOM helpers. Text is only ever inserted as text nodes, never as HTML.
 
+const DATE_TIME = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+
 export function append(el, children) {
   for (const child of children.flat(Infinity)) {
     if (child === null || child === undefined || child === false) continue;
@@ -10,6 +12,7 @@ export function append(el, children) {
 
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
+  if (tag === "code") el.translate = false; // ids and tokens must not be machine-translated
   for (const [key, value] of Object.entries(attrs ?? {})) {
     if (value === null || value === undefined || value === false) continue;
     if (key.startsWith("on") && typeof value === "function") {
@@ -46,7 +49,7 @@ export function cellText(value) {
 export function fmtTime(iso) {
   if (!iso) return "";
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? iso : DATE_TIME.format(date);
 }
 
 const STATUS = {

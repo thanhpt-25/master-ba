@@ -56,7 +56,7 @@ export async function render({ main, api, params, me, toast, go }) {
 
   const trigger = h("select", { id: "trigger" }, Object.entries(TRIGGERS).map(([v, l]) => h("option", { value: v }, l)));
   const description = h("textarea", { id: "description", rows: "3", required: true });
-  const items = h("textarea", { id: "items", rows: "3", placeholder: "REQ-0002\nDOC-SRS-0001#item.2" });
+  const items = h("textarea", { id: "items", rows: "3", spellcheck: "false", autocomplete: "off", placeholder: "REQ-0002\nDOC-SRS-0001#item.2…" });
   const createForm = canAct
     ? h(
         "form",
@@ -130,18 +130,18 @@ export async function render({ main, api, params, me, toast, go }) {
             "div",
             { class: "toolbar" },
             h("button", { class: "primary", onClick: () => (decision.value.trim() ? act("approve", { decision: decision.value, rationale: rationale.value || null }) : toast("Write the decision first.", "error")) }, "Approve"),
-            h("button", { onClick: () => (decision.value.trim() ? act("reject", { decision: decision.value, rationale: rationale.value || null }) : toast("Write the decision first.", "error")) }, "Reject"),
+            h("button", { onClick: () => (decision.value.trim() ? confirm("Reject this record? It is closed and never propagated.") && act("reject", { decision: decision.value, rationale: rationale.value || null }) : toast("Write the decision first.", "error")) }, "Reject"),
           ),
         ),
       );
     }
     if (canAct && dr.status === "approved") {
       children.push(
-        h("section", { class: "panel propagate" }, h("h3", {}, "Propagate"), h("p", { class: "muted" }, "Revises the documents above as new versions. This calls the models."), h("button", { class: "primary", onClick: () => act("propagate").then(poll) }, "Propagate")),
+        h("section", { class: "panel propagate" }, h("h3", {}, "Propagate"), h("p", { class: "muted" }, "Revises the documents above as new versions. This calls the models."), h("button", { class: "primary", onClick: () => confirm("Propagate now? The models revise every affected document.") && act("propagate").then(poll) }, "Propagate")),
       );
     }
     if (canAct && dr.status === "propagated") {
-      children.push(h("button", { onClick: () => act("close") }, "Close record"));
+      children.push(h("button", { onClick: () => confirm("Close this record? It cannot be reopened.") && act("close") }, "Close record"));
     }
     if (["propagated", "closed"].includes(dr.status) && data.propagation) {
       const diff = await api.get(`/projects/${pid}/drs/${drId}/diff`);

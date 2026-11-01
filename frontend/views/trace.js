@@ -40,7 +40,7 @@ export async function render({ main, api, params, toast }) {
   }
   select.addEventListener("change", () => load(select.value).catch((e) => toast(e.message, "error")));
 
-  const node = h("input", { type: "text", id: "node", placeholder: "REQ-0001 or DOC-SRS-0001#item.2 or TC-IT-0001" });
+  const node = h("input", { type: "text", id: "node", name: "node", autocomplete: "off", spellcheck: "false", placeholder: "REQ-0001, DOC-SRS-0001#item.2 or TC-IT-0001…" });
   const direction = h("select", { id: "dir", "aria-label": "Direction" }, ["downstream", "upstream", "both"].map((d) => h("option", { value: d }, d)));
   const impact = h("div", {});
   const find = async () => {
