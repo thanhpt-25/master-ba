@@ -15,6 +15,8 @@ from masterba.models.enums import (
     ItemStatus,
     LinkType,
     PropagationMode,
+    QuestionOrigin,
+    QuestionStatus,
     ReqCategory,
     Role,
     TeamRunStatus,
@@ -25,6 +27,7 @@ from masterba.models.ids import (
     DrId,
     NodeId,
     ProjectId,
+    QuestionId,
     ReqId,
     ReqOrItemRef,
     RunId,
@@ -97,6 +100,36 @@ class DecisionRecord(FrozenModel):
     def _approval_fields(self) -> Self:
         if self.status is not DrStatus.PROPOSED and not (self.approver and self.decision):
             raise ValueError("approver and decision are required once a DR leaves 'proposed'")
+        return self
+
+
+class Question(FrozenModel):
+    """A point only the customer can settle (specs/13-customer-questions.md section 2)."""
+
+    id: QuestionId
+    origin: QuestionOrigin
+    stage: DocType
+    run_id: RunId
+    refs: list[str] = Field(default_factory=list)
+    text: str = Field(min_length=1)
+    status: QuestionStatus
+    asked_on: dt.date
+    answer: str | None = None
+    answered_by: str | None = None
+    answered_on: dt.date | None = None
+    dr_id: DrId | None = None
+    source: str | None = None
+
+    @model_validator(mode="after")
+    def _answer_fields(self) -> Self:
+        given = [self.answer, self.answered_by, self.answered_on, self.dr_id]
+        answered = self.status is QuestionStatus.ANSWERED
+        if answered and not all(given):
+            raise ValueError("an answered question needs answer, answered_by, answered_on, dr_id")
+        if not answered and any(given):
+            raise ValueError("only an answered question has answer fields")
+        if self.source and not answered:
+            raise ValueError("only an answered question has a source")
         return self
 
 
