@@ -40,6 +40,10 @@ ROUTES: list[tuple[str, str, dict[str, Any], str]] = [
     ("POST", f"{P}/drs/DR-0001/close", {}, "approver"),
     ("POST", f"{P}/drs/DR-0001/propagate", {}, "approver"),
     ("GET", f"{P}/drs/DR-0001/diff", {}, "viewer"),
+    ("GET", f"{P}/questions", {}, "viewer"),
+    ("GET", f"{P}/questions/Q-0001", {}, "viewer"),
+    ("POST", f"{P}/questions/Q-0001/answer", {"json": {"answer": "ok"}}, "approver"),
+    ("POST", f"{P}/questions/Q-0001/withdraw", {}, "approver"),
     ("GET", "/api/me", {}, "viewer"),
 ]
 

@@ -10,7 +10,14 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from masterba.agents import QaOutputInvalidError
-from masterba.api import routes_docs, routes_drs, routes_projects, routes_templates, routes_trace
+from masterba.api import (
+    routes_docs,
+    routes_drs,
+    routes_projects,
+    routes_questions,
+    routes_templates,
+    routes_trace,
+)
 from masterba.api.auth import LoginThrottle, SessionSigner, UserStore
 from masterba.api.deps import AppState
 from masterba.api.jobs import JobManager
@@ -87,7 +94,14 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
         """Unauthenticated liveness check (spec 11 section 5.4); reads no project data."""
         return {"status": "ok", "version": version("masterba")}
 
-    for module in (routes_projects, routes_docs, routes_trace, routes_drs, routes_templates):
+    for module in (
+        routes_projects,
+        routes_docs,
+        routes_trace,
+        routes_drs,
+        routes_questions,
+        routes_templates,
+    ):
         app.include_router(module.router)
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
