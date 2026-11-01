@@ -26,7 +26,7 @@ export async function render({ main, api, me, go, toast }) {
   main.append(h("h1", {}, "Projects"), list);
   if (me.role !== "admin") return;
 
-  const id = h("input", { type: "text", name: "project_id", placeholder: "PRJ-001", pattern: "PRJ-[0-9]{3}", required: true });
+  const id = h("input", { type: "text", name: "project_id", autocomplete: "off", spellcheck: "false", placeholder: "PRJ-001…", pattern: "PRJ-[0-9]{3}", required: true });
   const company = h("input", { type: "text", name: "company_id", value: "default", required: true });
   const language = h("select", { name: "document_language" }, h("option", { value: "ja" }, "Japanese"), h("option", { value: "en" }, "English"));
   const rounds = h("input", { type: "number", name: "team_max_rounds", min: "1", max: "20", value: "3" });
