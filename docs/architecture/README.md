@@ -13,6 +13,7 @@ what. They describe the code as it is today (Phase 11); the planned work is in
 | 4 | [Team runtime control flow](04-team-runtime-control-flow.md) | who decides what inside a stage: writers, gates, QA, escalation, resume |
 | 5 | [Change management flow](05-change-management-flow.md) | how a Decision Record finds the affected documents and rewrites them |
 | 6 | [Interfaces and deployment](06-interfaces-and-deployment.md) | CLI, dashboard, background jobs, rendering and templates, security, containers, CI |
+| 7 | [Customer questions](07-customer-questions.md) | how a point only the customer can settle is recorded, answered as a Decision Record and given back to the agents |
 
 ## Suggested reading order
 
@@ -34,6 +35,7 @@ what. They describe the code as it is today (Phase 11); the planned work is in
 | Team run (`RUN-####`) | One execution of a stage by writer agents and the QA reviewer; kept under `runs/` |
 | Gate | A deterministic check written in code; it never calls a model |
 | Escalation | A team run that stopped without an accepted result; nothing business-related is stored |
+| Question (`Q-####`) | A point only the customer can settle, kept in the project ledger until a person answers it |
 | Decision Record (`DR-####`) | An approved change request that is propagated to the documents it touches |
 | Template | The Excel layout a document is rendered into; a default set ships with the repository |
 | Work tree | The git repository MasterBA runs in (`--root`); every project lives inside it |

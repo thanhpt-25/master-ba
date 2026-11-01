@@ -174,3 +174,5 @@ dashboard as the job result.
 | `uncovered_lines` | BRD only: intake lines that no requirement cites |
 
 The CLI exit code is `0` for done and `3` for escalated.
+
+`question_ids` and `reasked` complete the result: the ledger entries of this run, and how many of its questions repeat one already answered. The ledger is written after the run record ([document 7](07-customer-questions.md)).

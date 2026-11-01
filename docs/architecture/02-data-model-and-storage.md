@@ -31,6 +31,7 @@ erDiagram
 | Trace link | `TraceLink` | `from_id`, `to_id`, `link_type` |
 | Decision Record | `DecisionRecord` | A change request: trigger, description, impacted items, affected documents, status, approver |
 | Team run | `TeamRun` | The summary of one stage execution: stage, trigger, status, rounds, issues, tokens, escalations |
+| Question | `Question` | A point only the customer can settle, with its status and, once answered, the answer and the Decision Record that fixed it ([document 7](07-customer-questions.md)) |
 | Template | `TemplateDefinition` | An Excel layout: sheet map, cell bindings, validation rules |
 
 ## 2.2 Identifiers
@@ -47,6 +48,7 @@ output contains one.
 | Test case | `TC-<LEVEL>-####` | `TC-UT-0007` | a project |
 | Decision Record | `DR-####` | `DR-0002` | a project |
 | Team run | `RUN-####` | `RUN-0005` | a project |
+| Question | `Q-####` | `Q-0007` | a project |
 
 `<TYPE>` is one of `BRD`, `SRS`, `BASIC_DESIGN`, `DETAIL_DESIGN`, `TEST_IT`, `TEST_ST`, `TEST_UT`,
 `TEST_UAT`. `<LEVEL>` is `UT`, `IT`, `ST` or `UAT`.
@@ -147,6 +149,7 @@ running all four stages on a small intake:
     ├── xlsx/<type>/DOC-...v1.xlsx         # rendered workbooks, same version numbers
     ├── traceability/links.json
     ├── decision-records/                  # DR-0001.json, DR-0001.impact.json, DR-0001.propagation.json
+    ├── questions/Q-0001.json              # the ledger of customer questions
     └── runs/RUN-0005/
         ├── team-summary.json              # TeamRun
         ├── team-tasks.json                # task list of the run
@@ -187,6 +190,7 @@ run(PRJ-001): RUN-0001 done
 | `trace` | `link <from> -> <to>` | `add_trace_link` |
 | `render` | `xlsx <DOC> v<n>` | `render_to_project` |
 | `run` | `<RUN> done` or `escalated`, with ` (resumed)` after a resume | `Team.finish` |
+| `question` | `add <Q>`, `answer <Q>`, `withdraw <Q>` | `trace_store/store.py` |
 | `dr` | `create <DR>`, `approve <DR>`, `reject <DR>`, `close <DR>`, `propagate <DR>` (status becomes propagated), `propagate <DR> <DOC>` (progress after one document) | `change/lifecycle.py`, `change/propagate.py` |
 
 A stage that finishes writes many small commits in a fixed order: requirements, document, trace
