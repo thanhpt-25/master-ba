@@ -103,6 +103,11 @@ Thư mục mới ngoài danh sách trên phải được thêm vào spec này (h
   - Bỏ hai thư mục `backend/` và `mcp-configs/` khỏi mục 2. Backend nằm trong `src/masterba/api/`; hiện chưa có cấu hình MCP nào.
   - Thêm ở thư mục gốc: `.github/workflows/` (CI), cùng các file `Dockerfile`, `.dockerignore`, `compose.yaml`, `.env.example`. `work/` (work tree mặc định của Docker Compose) và `.env` được gitignore.
 
+- **2026-11-01 (spec 13):**
+  - Thêm ID `Q-####` (Question, sổ câu hỏi cho khách hàng), duy nhất trong 1 project, ví dụ `Q-0007`. Bảng mục 3 giữ nguyên để lưu lịch sử.
+  - Thêm thư mục `questions/` vào `projects/<project_id>/` (mục 2), mỗi câu hỏi một file `Q-####.json`.
+  - Thêm scope commit `question` (mục 5): `question(PRJ-001): add Q-0007`, `question(PRJ-001): answer Q-0007`, `question(PRJ-001): withdraw Q-0007`.
+
 ## Rủi ro & rollback
 - ID scheme (mục 3) thiếu trường hợp (vd. cần ID cho "field" chứ không chỉ "item") → sửa spec này trước, bump version (`v0.1`→`v0.2`), rà soát lại `trace_store` ở Phase 1 — không patch ngầm ở Phase 7.
 - Đổi toolchain (vd. bỏ `ruff`) → phải sửa spec này trước, không đổi lặt vặt trong CI config mà không cập nhật spec.
