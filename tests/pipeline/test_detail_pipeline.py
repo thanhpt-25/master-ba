@@ -218,7 +218,8 @@ def test_escalation_writes_no_document(
     blocked = qa_block("UT-01", "DOC-TEST_UT-0001#item.1", "Vague.")
     result, *_ = detail(store, [login_detail_draft()], [login_unit_draft()], [qa_pass(), blocked])
     assert result.status is TeamRunStatus.ESCALATED
-    assert commit_log()[0].endswith("escalated")
+    run_commits = [c for c in commit_log() if c.startswith("run(")]
+    assert run_commits[0].endswith("escalated")
     for doc_id in (DETAIL_DOC_ID, UT_DOC_ID):
         with pytest.raises(NotFoundError):
             get_document(store, doc_id)

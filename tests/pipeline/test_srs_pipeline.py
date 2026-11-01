@@ -136,8 +136,10 @@ def test_never_satisfying_qa_escalates_after_max_rounds_and_writes_nothing(
     result = run_srs(store, TEMPLATES, llm)
     assert result.status is TeamRunStatus.ESCALATED
     assert result.rounds == 2
-    assert commit_log()[0] == "run(PRJ-001): RUN-0002 escalated"
-    assert commit_log()[1].startswith("run(PRJ-001): RUN-0001")
+    # Questions are the one thing an escalated run writes besides its record (spec 13 section 3).
+    runs = [c for c in commit_log() if c.startswith("run(")]
+    assert runs[0] == "run(PRJ-001): RUN-0002 escalated"
+    assert runs[1].startswith("run(PRJ-001): RUN-0001")
     with pytest.raises(NotFoundError):
         get_document(store, SRS_DOC_ID)
     assert not (store.path / "xlsx" / "srs").exists()
