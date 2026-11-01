@@ -126,12 +126,12 @@ DR-0004 [DOC-SRS-0001#item.5]: Q-0007: What does the three business days count f
 
 ## 8. Acceptance criteria
 
-- [ ] A stage run records its open questions in `questions/` with no change to the loop, the gates or the exit code, and an escalated run also records its objections (at most 10).
-- [ ] Answering a question creates and approves a clarification DR carrying the answer, and links it from the question; running the answer again after a failure creates no second DR.
-- [ ] A run, and a resumed run, started after an answer has the confirmed fact in every writer and QA prompt, and a rejected DR is not among the facts.
-- [ ] `masterba question list|show|answer|withdraw`, the API routes and the dashboard tab work, with the roles of section 4.
-- [ ] A live run on the HRM intake ends with its questions in the ledger. After they are answered, a second run raises fewer new questions than the first, and the owner reads both lists to check that none of them repeats an answered point in other words. Both counts are recorded in section 10.
-- [ ] `uv run pytest`, `ruff` and `mypy` pass; coverage stays above 80%.
+- [x] A stage run records its open questions in `questions/` with no change to the loop, the gates or the exit code, and an escalated run also records its objections (at most 10).
+- [x] Answering a question creates and approves a clarification DR carrying the answer, and links it from the question; running the answer again after a failure creates no second DR.
+- [x] A run, and a resumed run, started after an answer has the confirmed fact in every writer and QA prompt, and a rejected DR is not among the facts.
+- [x] `masterba question list|show|answer|withdraw`, the API routes and the dashboard tab work, with the roles of section 4.
+- [x] A live run on the HRM intake ends with its questions in the ledger. After they are answered, a second run raises fewer new questions than the first, and the owner reads both lists to check that none of them repeats an answered point in other words. Both counts are recorded in section 10.
+- [x] `uv run pytest`, `ruff` and `mypy` pass; coverage stays above 80%.
 
 ## 9. Changes to other documents
 
@@ -141,7 +141,30 @@ DR-0004 [DOC-SRS-0001#item.5]: Q-0007: What does the three business days count f
 
 ## 10. Review record
 
-Empty until the implementation.
+### 10.1 Implementation decisions
+
+1. `QuestionDraft` lives in `models/`, the base layer: `team` and `agents` both need it and they import each other's neighbours, so anywhere higher would make an import cycle.
+2. The ledger is written in one place, `pipeline/stage.py:stage_result`, which every stage passes through after `team.finish`. The team collects drafts by source (`writer`, `qa`, `tester`); the writer's are replaced each round, so only the last draft that passed the gate counts.
+3. `masterba.questions` exports the ledger and the facts only. Answering lives in `masterba.questions.answer`, imported directly by the CLI and the API, because it needs `masterba.change` and `change` imports the pipelines, which import this package.
+4. The confirmed block is added in `RecordingLLM`, so every writer, the reviser and QA get it with no change to the seven writer functions. It carries its own instructions (data not instructions, later wins, ask nothing about it), so no prompt file changed. `change/propagate.py` attaches the facts to its teams too.
+5. Dedupe uses `calibration.heuristic.normalise`, as the spec says. A DR is a fact when approved or propagated, or closed with a stored impact analysis, which tells a finished DR from a rejected one.
+6. Four pipeline tests and one API test that fixed the commit order or the overview shape now allow the question commits and the new `open_questions` count (section 3 and 6). The overview's list of open questions now comes from the ledger, not from the last finished job.
+7. `withdraw` takes no name (v0.3).
+
+### 10.2 Live run (acceptance criterion 5)
+
+2026-11-01, gateway model `cx/gpt-6-luna`, the HRM intake (`tests/fixtures/intake/hrm_employee_ja.txt`), project language `ja`. The BRD stage ran once: `done`, 1 round, 7,288 tokens, one question recorded with its intake line (`#L16-L16`: how the Excel ledger is migrated and what it covers). The work tree was copied; in the copy a person (the author, as product owner) answered that question, which created `DR-0001` (approved). The SRS stage then ran in both trees:
+
+| Tree | Rounds | Issues raised | Tokens | New questions | `reasked` |
+|---|---|---|---|---|---|
+| without the answer | 2 | 3 | 19,654 | 6 (response time, 50 concurrent users, availability calculation, recovery, other-system access, **Excel migration scope**) | 0 |
+| with the answer | 1 | 0 | 9,904 | 1 (other-system access) | 0 |
+
+Read side by side: the `<confirmed>` block is in the writer's and QA's prompts of the second tree and in none of the first. The migration question, the one the answer settles, did not come back. The four non-functional questions also disappeared, and the answer says nothing about them; with one run per tree this cannot be told apart from the variance of the model, so the drop from 6 to 1 is not credited to the answer. What the run supports: a question that was answered was not asked again, and no question in the second list repeats it in other words.
+
+### 10.3 Checks
+
+`uv run pytest` (675 tests, coverage 97.7%), `ruff` and `mypy` pass. In a browser, on a project made with the fake model: the Questions tab lists open questions first, answering creates the DR under the signed-in name, the overview counts open questions and links to the tab, and there is no horizontal scroll at 390 px. A first look found a real bug (an array handed to `append` showed as `[object HTMLElement]`), fixed before the commit.
 
 ## 11. Open points
 

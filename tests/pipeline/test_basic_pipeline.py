@@ -224,7 +224,9 @@ def test_never_satisfying_qa_escalates_and_writes_no_document(
     result, *_ = basic(store, [login_design_draft()], [login_test_draft()], [qa_pass(), blocked])
     assert result.status is TeamRunStatus.ESCALATED
     assert result.escalations[0] == "max rounds reached (1)"
-    assert commit_log()[0] == "run(PRJ-001): RUN-0003 escalated"
+    # An escalated run also writes its questions (spec 13 section 3); its record comes first.
+    runs = [c for c in commit_log() if c.startswith("run(")]
+    assert runs[0] == "run(PRJ-001): RUN-0003 escalated"
     for doc_id in (DESIGN_DOC_ID, IT_DOC_ID, ST_DOC_ID):
         with pytest.raises(NotFoundError):
             get_document(store, doc_id)
