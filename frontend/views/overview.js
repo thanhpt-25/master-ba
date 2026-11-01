@@ -109,7 +109,7 @@ export async function render(context) {
       h(
         "p",
         { class: "muted" },
-        `${overview.counts.requirements} requirements · ${overview.counts.links} trace links · ${overview.counts.open_drs} open decision record(s) · documents in ${overview.project.document_language === "ja" ? "Japanese" : "English"}`,
+        `${overview.counts.requirements} requirements · ${overview.counts.links} trace links · ${overview.counts.open_drs} open decision record(s) · ${overview.counts.open_questions} open question(s) · documents in ${overview.project.document_language === "ja" ? "Japanese" : "English"}`,
       ),
       h(
         "div",
@@ -120,7 +120,7 @@ export async function render(context) {
       ),
       jobPanel(job),
       overview.open_questions.length
-        ? h("section", { class: "panel" }, h("h2", {}, "Open questions for the customer"), h("ul", {}, overview.open_questions.map((q) => h("li", {}, q))))
+        ? h("section", { class: "panel" }, h("h2", {}, "Open questions for the customer"), h("ul", {}, overview.open_questions.map((q) => h("li", {}, q))), h("p", {}, h("a", { href: `#/p/${pid}/questions` }, "Answer them in the Questions tab")))
         : null,
     );
   };

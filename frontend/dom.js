@@ -65,6 +65,9 @@ const STATUS = {
   propagated: { icon: "✓", label: "Propagated", cls: "ok" },
   closed: { icon: "■", label: "Closed", cls: "idle" },
   planned: { icon: "·", label: "Planned", cls: "idle" },
+  open: { icon: "○", label: "Open", cls: "warn" },
+  answered: { icon: "✓", label: "Answered", cls: "ok" },
+  withdrawn: { icon: "■", label: "Withdrawn", cls: "idle" },
 };
 
 // Status is shown as icon plus word; colour is never the only signal.

@@ -24,7 +24,7 @@ from masterba.api.schemas import (
 )
 from masterba.api.settings import MAX_UPLOAD_CHARS, Settings
 from masterba.models import ProjectConfig
-from masterba.models.enums import DrStatus
+from masterba.models.enums import DrStatus, QuestionStatus
 from masterba.pipeline import (
     Resume,
     run_basic_design,
@@ -42,6 +42,7 @@ from masterba.trace_store import (
     get_document,
     get_trace_links,
     list_decision_records,
+    list_questions,
     list_requirements,
 )
 from masterba.trace_store.git import ensure_ready
@@ -155,12 +156,9 @@ def overview(request: Request, store: Store) -> dict[str, Any]:
         _stage_status(store, stage, job is not None and job.kind == f"stage:{stage}")
         for stage in STAGES
     ]
-    jobs = app.jobs.for_project(store.project_id)
-    questions: list[str] = []
-    for finished in jobs:
-        if finished.result and finished.result.get("open_questions"):
-            questions = list(finished.result["open_questions"])
-            break
+    questions = [
+        f"{q.id}: {q.text}" for q in list_questions(store) if q.status is QuestionStatus.OPEN
+    ]
     return {
         "project": get_config(store).model_dump(mode="json"),
         "stages": stages,
@@ -170,6 +168,7 @@ def overview(request: Request, store: Store) -> dict[str, Any]:
             "open_drs": sum(
                 1 for d in list_decision_records(store) if d.status is not DrStatus.CLOSED
             ),
+            "open_questions": len(questions),
         },
         "job": job.to_json() if job else None,
         "open_questions": questions,
