@@ -1,6 +1,6 @@
 # Spec 13 — Customer questions ledger
 
-Status: v0.2 (2026-11-01), draft for the owner's approval. v0.2 answers a review of v0.1 (13 findings, see section 12). Sources: dry-runs 4 and 5 ([11-hardening.md](11-hardening.md) section 10.3 and section 11), [architecture/04-team-runtime-control-flow.md](../docs/architecture/04-team-runtime-control-flow.md), [architecture/05-change-management-flow.md](../docs/architecture/05-change-management-flow.md), [07-change-management.md](07-change-management.md). The number 12 stays with the local RAG phase in [../docs/next-steps.md](../docs/next-steps.md); this spec does not depend on it.
+Status: v0.3 (2026-11-01), approved by the owner and implemented; v0.3 drops the unused name option of withdraw (section 4). v0.2 answers a review of v0.1 (13 findings, see section 12). Sources: dry-runs 4 and 5 ([11-hardening.md](11-hardening.md) section 10.3 and section 11), [architecture/04-team-runtime-control-flow.md](../docs/architecture/04-team-runtime-control-flow.md), [architecture/05-change-management-flow.md](../docs/architecture/05-change-management-flow.md), [07-change-management.md](07-change-management.md). The number 12 stays with the local RAG phase in [../docs/next-steps.md](../docs/next-steps.md); this spec does not depend on it.
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -84,7 +84,7 @@ The steps are separate commits, so a failure between them leaves the DR in the s
 
 `dr propagate` stays a separate, explicit step (`manual_gate`, spec 07): it revises the documents the DR reaches, if any exist. When the stage escalated and no document exists yet, the DR has no affected documents and simply records the decision; the next run uses it (section 5).
 
-`withdraw_question(store, question_id, by)` moves an `open` question to `withdrawn` without a DR, for a question that no longer applies.
+`withdraw_question(store, question_id)` moves an `open` question to `withdrawn` without a DR, for a question that no longer applies. It takes no name: the question has no field for who withdrew it, and the git history of the commit is the record.
 
 Who may answer: approver or admin. The person at the keyboard is often a business analyst writing down what the product owner said, which is why `source` exists. In the API the recorded name is the signed-in user, never a field the client sends (as for `dr approve`). Separating the answerer from the approver is possible with the `dr` commands by hand and is outside this spec.
 
@@ -109,7 +109,7 @@ DR-0004 [DOC-SRS-0001#item.5]: Q-0007: What does the three business days count f
 
 ## 6. Surfaces
 
-- **CLI:** `masterba question list --project P [--status open|answered|withdrawn]`, `question show Q-0007`, `question answer Q-0007 --by NAME --text TEXT [--source TEXT]`, `question withdraw Q-0007 --by NAME`. Stage output gains `question_ids` and `reasked`.
+- **CLI:** `masterba question list --project P [--status open|answered|withdrawn]`, `question show Q-0007`, `question answer Q-0007 --by NAME --text TEXT [--source TEXT]`, `question withdraw Q-0007`. Stage output gains `question_ids` and `reasked`.
 - **API** under `/api/projects/{pid}/questions`: `GET` (viewer; `?status=` filter), `GET /{qid}`, `POST /{qid}/answer` with `{"answer": "...", "source": "..."}` (approver), `POST /{qid}/withdraw` (approver). Same error mapping and CSRF header as the other routes.
 - **Dashboard:** a Questions tab that shows the number of open questions, lists open questions first, marks `qa_blocker` ones as objections, shows their references (each a link to its document or requirement), the stage and run that raised them, and an answer form with a source field. An answered question shows its DR as a link. The overview stage card shows "N open questions" with a link to the tab.
 
