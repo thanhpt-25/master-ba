@@ -62,6 +62,7 @@ def test_full_run_writes_everything_in_the_documented_commit_order(
         *[f"trace(PRJ-001): link REQ-000{n} -> {item}.{n}" for n in range(1, 6)],
         f"render(PRJ-001): xlsx {BRD_DOC_ID} v1",
         "run(PRJ-001): RUN-0001 done",
+        "question(PRJ-001): add Q-0001",  # the draft's open question (spec 13 section 3)
     ]
     assert list(reversed(commit_log()[: len(expected)])) == expected
     assert (result.rounds, result.tokens_used) == (1, 300)
@@ -176,7 +177,11 @@ def test_exhausting_the_rounds_escalates_and_leaves_only_the_intake_and_the_run(
     assert result.rounds == 2
     assert result.escalations[0] == "max rounds reached (2)"
     assert result.document_id is None
-    assert commit_log()[:2] == [
+    # Besides its record, an escalated run writes only questions (spec 13 section 3): the
+    # draft's open question and QA's objection.
+    assert commit_log()[:4] == [
+        "question(PRJ-001): add Q-0002",
+        "question(PRJ-001): add Q-0001",
         "run(PRJ-001): RUN-0001 escalated",
         "intake(PRJ-001): add login_system.txt",
     ]

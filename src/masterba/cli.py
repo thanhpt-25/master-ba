@@ -29,7 +29,13 @@ from masterba.change import (
 from masterba.doctor import init_root, run_checks
 from masterba.llm import DEFAULT_MODEL, LLM, AnthropicLLM, LLMError
 from masterba.models import ProjectConfig
-from masterba.models.enums import DocLanguage, DocType, DrTrigger, TeamRunStatus
+from masterba.models.enums import (
+    DocLanguage,
+    DocType,
+    DrTrigger,
+    QuestionStatus,
+    TeamRunStatus,
+)
 from masterba.models.ids import PROJECT_ID_PATTERN
 from masterba.pipeline import (
     Resume,
@@ -39,6 +45,7 @@ from masterba.pipeline import (
     run_srs,
     stage_summary,
 )
+from masterba.questions.answer import answer_question, withdraw_question
 from masterba.rendering import RenderError
 from masterba.team import ResumeError
 from masterba.trace_store import (
@@ -47,7 +54,9 @@ from masterba.trace_store import (
     create_project,
     get_decision_record,
     get_dr_extra,
+    get_question,
     list_decision_records,
+    list_questions,
     open_project,
 )
 from masterba.trace_store.git import ensure_ready
@@ -139,6 +148,7 @@ def build_parser() -> argparse.ArgumentParser:
             "--rounds", type=int, default=None, help="with --resume: rounds to add"
         )
     _add_dr_parsers(commands)
+    _add_question_parsers(commands)
     _add_template_parsers(commands)
     doctor = commands.add_parser("doctor", help="check this root and print what to fix")
     doctor.add_argument("--init", action="store_true", help="prepare an empty folder first")
@@ -231,6 +241,44 @@ def _dispatch_template(args: argparse.Namespace, root: Path, llm_factory: LLMFac
     else:
         changed = calibration.set_column(root, company, doc_type, args.sheet, args.col, args.field)
         _emit({"state": "draft", "warnings": changed.warnings})
+    return 0
+
+
+def _add_question_parsers(commands: Any) -> None:
+    question = commands.add_parser("question", help="customer questions and their answers")
+    subs = question.add_subparsers(dest="question_command", required=True)
+
+    def with_project(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        parser.add_argument("--project", type=_project_id, required=True)
+        return parser
+
+    listing = with_project(subs.add_parser("list", help="the ledger, optionally by status"))
+    listing.add_argument("--status", type=QuestionStatus, choices=list(QuestionStatus))
+    with_project(subs.add_parser("show")).add_argument("question_id")
+    answer = with_project(subs.add_parser("answer", help="record an answer as a Decision Record"))
+    answer.add_argument("question_id")
+    answer.add_argument("--by", required=True, help="who records the answer")
+    answer.add_argument("--text", required=True, help="the answer")
+    answer.add_argument("--source", default=None, help="who gave it and where, outside the system")
+    with_project(subs.add_parser("withdraw")).add_argument("question_id")
+
+
+def _dispatch_question(args: argparse.Namespace, store: ProjectStore) -> int:
+    command: str = args.question_command
+    if command == "list":
+        found = [q for q in list_questions(store) if args.status in (None, q.status)]
+        _emit({"questions": [q.model_dump(mode="json") for q in found]})
+        return 0
+    if command == "show":
+        question = get_question(store, args.question_id)
+    elif command == "answer":
+        question = answer_question(store, args.question_id, args.text, args.by, source=args.source)
+    else:
+        question = withdraw_question(store, args.question_id)
+    data: dict[str, object] = {"question": question.model_dump(mode="json")}
+    if question.dr_id:
+        data["dr"] = get_decision_record(store, question.dr_id).model_dump(mode="json")
+    _emit(data)
     return 0
 
 
@@ -382,6 +430,8 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
         _emit({"project_id": store.project_id, "path": str(store.path)})
         return 0
     store = open_project(projects, args.project)
+    if args.command == "question":
+        return _dispatch_question(args, store)
     if args.command == "dr":
         return _dispatch_dr(args, store, root, llm_factory)
     model = args.model or os.environ.get("MASTERBA_MODEL") or DEFAULT_MODEL
