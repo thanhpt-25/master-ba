@@ -78,9 +78,14 @@ def test_the_whole_pipeline_runs_through_the_api_alone(
 
     overview = viewer.get(P).json()
     assert [s["status"] for s in overview["stages"]] == ["done"] * 4
-    assert overview["counts"] == {"requirements": 5, "links": 34, "open_drs": 0}
+    assert overview["counts"] == {
+        "requirements": 5,
+        "links": 34,
+        "open_drs": 0,
+        "open_questions": 1,
+    }
     assert overview["job"] is None
-    assert overview["open_questions"] == ["L8-L8: What response time counts as fast?"]
+    assert overview["open_questions"] == ["Q-0001: What response time counts as fast?"]
     assert overview["stages"][2]["last_run"]["stage"] == "BASIC_DESIGN"
 
     documents = viewer.get(f"{P}/documents").json()

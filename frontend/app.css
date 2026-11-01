@@ -172,6 +172,7 @@ textarea { resize: vertical; }
 .toolbar select, .toolbar input[type="text"] { width: auto; min-width: 11rem; }
 label.inline { display: inline-flex; gap: 0.35rem; align-items: center; font-weight: 500; }
 
+.q-answer { margin-top: 0.8rem; }
 .panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; margin: 1.2rem 0; box-shadow: var(--shadow); }
 .form-grid { max-width: 38rem; }
 

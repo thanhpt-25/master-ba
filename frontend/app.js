@@ -14,6 +14,7 @@ const VIEWS = {
   trace: () => import("./views/trace.js"),
   activity: () => import("./views/activity.js"),
   drs: () => import("./views/drs.js"),
+  questions: () => import("./views/questions.js"),
   templates: () => import("./views/templates.js"),
 };
 
@@ -22,6 +23,7 @@ const TABS = [
   ["documents", "Documents"],
   ["trace", "Traceability"],
   ["activity", "Activity"],
+  ["questions", "Questions"],
   ["drs", "Decision Records"],
 ];
 
