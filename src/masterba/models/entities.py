@@ -103,6 +103,14 @@ class DecisionRecord(FrozenModel):
         return self
 
 
+class QuestionDraft(FrozenModel):
+    """A question an agent raised, before it is recorded in the ledger (spec 13 section 3)."""
+
+    origin: QuestionOrigin = QuestionOrigin.AGENT
+    refs: list[str] = Field(default_factory=list)
+    text: str = Field(min_length=1)
+
+
 class Question(FrozenModel):
     """A point only the customer can settle (specs/13-customer-questions.md section 2)."""
 

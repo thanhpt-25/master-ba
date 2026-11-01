@@ -14,6 +14,7 @@ from pydantic import Field, ValidationError, model_validator
 
 from masterba.agents.requirements_analyst import REPO_ROOT, load_system_prompt
 from masterba.llm import LLM, LLMOutputError
+from masterba.models import QuestionDraft
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DocLanguage, DocType
 from masterba.models.ids import ItemRef
@@ -83,6 +84,7 @@ class QaReview:
     attempts: int
     notes: tuple[str, ...] = ()
     customer_questions: tuple[str, ...] = ()
+    question_drafts: tuple[QuestionDraft, ...] = ()
 
 
 def checklist_path(stage: DocType | str) -> Path:
@@ -199,5 +201,12 @@ def review(
         errors = validate_report(result.value, checklist, item_counts)
         if not errors:
             report, notes, questions = normalise_report(cap_severity(result.value, checklist))
-            return QaReview(report, tokens_in, tokens_out, attempt, tuple(notes), tuple(questions))
+            drafts = tuple(
+                QuestionDraft(refs=[i.ref] if i.ref else [], text=i.message)
+                for i in report.issues
+                if i.customer_question
+            )
+            return QaReview(
+                report, tokens_in, tokens_out, attempt, tuple(notes), tuple(questions), drafts
+            )
     raise QaOutputInvalidError(errors, tokens_in, tokens_out)

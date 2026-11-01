@@ -20,6 +20,7 @@ from masterba.models import (
     BrdContent,
     BrdItem,
     Document,
+    QuestionDraft,
     RequirementItem,
     TraceLink,
 )
@@ -175,6 +176,13 @@ def run_brd(
         ),
         start=checkpoint_draft(checkpoint, "draft", BrdDraft),
         start_feedback=checkpoint_feedback(checkpoint, "writer"),
+        writer_questions=lambda d: [
+            QuestionDraft(
+                refs=[citation(f"intake/{intake_file.name}", q.start_line, q.end_line)],
+                text=q.question,
+            )
+            for q in d.open_questions
+        ],
     )
     if draft is None:
         return stage_result(team, team.finish(TeamRunStatus.ESCALATED))

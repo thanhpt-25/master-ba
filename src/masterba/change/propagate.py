@@ -22,6 +22,7 @@ from masterba.llm import LLM
 from masterba.models import DecisionRecord, RequirementItem, payload_items
 from masterba.models.enums import DocStatus, DrStatus, ItemStatus, TeamRunStatus
 from masterba.pipeline.brd import next_requirement_number
+from masterba.questions.facts import attach_facts
 from masterba.rendering import render_to_project
 from masterba.team import RecordingLLM, Team, run_writer_review
 from masterba.trace_store import (
@@ -123,6 +124,7 @@ def _revise(
         config.team_token_budget,
         trigger=dr.id,
     )
+    attach_facts(team)
     writer, reviewer = RecordingLLM(llm, team), RecordingLLM(qa_llm or llm, team)
     focus = _focus(dr, impact, doc_id)
     upstream_text = f"{dr_text(dr)}\n\nChanges already made above this document:\n" + (

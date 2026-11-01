@@ -17,8 +17,8 @@ from pydantic import BaseModel
 from masterba.agents.qa_reviewer import QaIssue
 from masterba.llm import LLM, LLMResult
 from masterba.llm.base import T
-from masterba.models import TeamRun
-from masterba.models.enums import DocType, TeamRunStatus
+from masterba.models import QuestionDraft, TeamRun
+from masterba.models.enums import DocType, QuestionOrigin, TeamRunStatus
 from masterba.team.models import (
     MessageType,
     RunCheckpoint,
@@ -40,6 +40,7 @@ ARTIFACT_OWNERS = {
 _RUN_DIR = re.compile(r"^RUN-(\d{4})$")
 _OPEN = {TaskStatus.TODO, TaskStatus.IN_PROGRESS}
 CHECKPOINT = "checkpoint.json"
+OBJECTION_CAP = 10  # objections recorded as questions per escalated run (spec 13 section 3)
 _RUN_GITIGNORE = f"transcripts/\n{CHECKPOINT}\n"
 
 
@@ -83,6 +84,9 @@ class Team:
     resumed: int = 0
     carried_tasks: int = 0
     blocking_seen: dict[str, set[tuple[str, str | None]]] = field(default_factory=dict)
+    question_sources: dict[str, list[QuestionDraft]] = field(default_factory=dict)
+    facts: Callable[[], str] = lambda: ""  # the confirmed block for model calls (spec 13 section 5)
+    objections: dict[str, list[QaIssue]] = field(default_factory=dict)
 
     @classmethod
     def open(
@@ -259,6 +263,39 @@ class Team:
             settled.append(issue)
         return settled, notes
 
+    def offer_questions(
+        self, source: str, drafts: Sequence[QuestionDraft], replace: bool = False
+    ) -> None:
+        """Questions for the customer, by the role that raised them (spec 13 section 3)."""
+        kept = [] if replace else self.question_sources.get(source, [])
+        self.question_sources[source] = [*kept, *drafts]
+
+    def hold_objection(self, owner: str, issues: Sequence[QaIssue]) -> None:
+        """The blocking issues of the owner's latest review; they matter if the run escalates."""
+        self.objections[owner] = list(issues)
+
+    def _objections(self) -> list[QuestionDraft]:
+        found = [
+            QuestionDraft(
+                origin=QuestionOrigin.QA_BLOCKER,
+                refs=[],
+                text=(
+                    f"QA ({issue.checklist_id}), {self.run_id}, "
+                    f"{f'{issue.ref} of the draft' if issue.ref else 'the draft'}: "
+                    f"{issue.message} Specify the missing detail or accept the draft as it is."
+                ),
+            )
+            for issues in self.objections.values()
+            for issue in issues
+        ]
+        return found
+
+    def collected_questions(self, escalated: bool = False) -> list[QuestionDraft]:
+        questions = [q for drafts in self.question_sources.values() for q in drafts]
+        if escalated:
+            questions.extend(self._objections()[:OBJECTION_CAP])
+        return questions
+
     def note_review(self, to: str, notes: Sequence[str], questions: Sequence[str]) -> None:
         """Record what QA normalisation changed (spec 11 section 1)."""
         for note in notes:
@@ -278,6 +315,12 @@ class Team:
             t.status is not TaskStatus.DONE for t in self.tasks[self.carried_tasks :]
         ):
             raise RuntimeError("a team cannot finish done with unfinished tasks")
+        if status is TeamRunStatus.ESCALATED:
+            left_out = len(self._objections()) - OBJECTION_CAP
+            if left_out > 0:
+                self.escalations.append(
+                    f"{left_out} more QA objections were not recorded as questions"
+                )
         summary = TeamRun(
             run_id=self.run_id,
             stage=self.stage,
@@ -318,6 +361,9 @@ class RecordingLLM:
     team: Team
 
     def generate(self, *, system: str, user: str, output: type[T], tool_name: str) -> LLMResult[T]:
+        facts = self.team.facts()
+        if facts:
+            user = f"{user}\n\n{facts}"
         self.team.log(f"{tool_name}-request", f"{system}\n\n--- user ---\n\n{user}")
         result = self.inner.generate(system=system, user=user, output=output, tool_name=tool_name)
         self.team.log(f"{tool_name}-response", result.value.model_dump_json(indent=2))

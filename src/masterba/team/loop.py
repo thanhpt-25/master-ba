@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from masterba.agents.qa_reviewer import QaIssue, QaOutputInvalidError, QaReview
 from masterba.llm import LLMOutputError, LLMResult
+from masterba.models import QuestionDraft
 from masterba.team.models import MessageType, TaskStatus
 from masterba.team.workspace import Team
 
@@ -30,6 +31,7 @@ def run_writer_review(
     review: Callable[[D], QaReview],
     start: D | None = None,
     start_feedback: Sequence[str] = (),
+    writer_questions: Callable[[D], Sequence[QuestionDraft]] | None = None,
 ) -> D | None:
     """Return the accepted draft, or None after escalating (reasons are in `team.escalations`).
 
@@ -76,6 +78,8 @@ def run_writer_review(
                 team.post("gate", "writer", MessageType.FEEDBACK, None, error)
             feedback = errors
             continue
+        if writer_questions is not None:
+            team.offer_questions("writer", writer_questions(draft), replace=True)
         team.save_checkpoint({"draft": draft}, {"writer": []})
 
         if team.budget_exhausted():
@@ -103,6 +107,8 @@ def run_writer_review(
             if issue.severity == "advisory":
                 team.advisory.append(format_issue(issue))
         team.note_review("writer", [*outcome.notes, *limited], outcome.customer_questions)
+        team.offer_questions("qa", outcome.question_drafts)
+        team.hold_objection("writer", blocking)
         team.issues_raised += len(blocking)
         open_blocking = len(blocking)
         if not blocking:
