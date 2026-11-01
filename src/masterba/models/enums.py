@@ -110,3 +110,14 @@ class DetailDesignKind(StrEnum):
     PROCESSING_STEP = "processing_step"
     DB_TABLE = "db_table"
     API = "api"
+
+
+class QuestionStatus(StrEnum):
+    OPEN = "open"
+    ANSWERED = "answered"
+    WITHDRAWN = "withdrawn"
+
+
+class QuestionOrigin(StrEnum):
+    AGENT = "agent"
+    QA_BLOCKER = "qa_blocker"

@@ -20,6 +20,7 @@ from masterba.models import (
     Document,
     Payload,
     ProjectConfig,
+    Question,
     RequirementItem,
     TestSpecContent,
     TraceLink,
@@ -317,6 +318,41 @@ def list_decision_records(store: ProjectStore) -> list[DecisionRecord]:
     return [
         DecisionRecord.model_validate(_read_json(p)) for p in sorted(folder.glob("DR-????.json"))
     ]
+
+
+def _question_path(store: ProjectStore, question_id: str) -> Path:
+    return store.path / "questions" / f"{question_id}.json"
+
+
+def add_question(store: ProjectStore, question: Question) -> None:
+    path = _question_path(store, question.id)
+    if path.exists():
+        raise DuplicateIdError(f"{question.id} already exists")
+    _write_json(path, _data(question))
+    _commit(store, [path], f"question({store.project_id}): add {question.id}")
+
+
+def get_question(store: ProjectStore, question_id: str) -> Question:
+    path = _question_path(store, question_id)
+    if not path.exists():
+        raise NotFoundError(f"{question_id} does not exist")
+    return Question.model_validate(_read_json(path))
+
+
+def list_questions(store: ProjectStore) -> list[Question]:
+    folder = store.path / "questions"
+    if not folder.exists():
+        return []
+    return [Question.model_validate(_read_json(p)) for p in sorted(folder.glob("Q-????.json"))]
+
+
+def save_question(store: ProjectStore, question: Question, action: str) -> None:
+    """Rewrite an existing question as one commit ``question(P): <action> <id>``."""
+    path = _question_path(store, question.id)
+    if not path.exists():
+        raise NotFoundError(f"{question.id} does not exist")
+    _write_json(path, _data(question))
+    _commit(store, [path], f"question({store.project_id}): {action} {question.id}")
 
 
 def _dr_extra_path(store: ProjectStore, dr_id: str, suffix: str) -> Path:

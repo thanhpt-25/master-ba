@@ -24,6 +24,7 @@ REQ_ID_PATTERN = r"^REQ-\d{4}$"
 DOC_ID_PATTERN = rf"^DOC-(?:{_TYPE_ALT})-\d{{4}}$"
 ITEM_REF_PATTERN = rf"^DOC-(?:{_TYPE_ALT})-\d{{4}}#item\.\d+$"
 DR_ID_PATTERN = r"^DR-\d{4}$"
+QUESTION_ID_PATTERN = r"^Q-\d{4}$"
 TC_ID_PATTERN = rf"^TC-(?:{_LEVEL_ALT})-\d{{4}}$"
 RUN_ID_PATTERN = r"^RUN-\d{4}$"
 TEAM_TRIGGER_PATTERN = r"^(?:initial|DR-\d{4})$"
@@ -37,6 +38,7 @@ ReqId = Annotated[str, StringConstraints(pattern=REQ_ID_PATTERN)]
 DocId = Annotated[str, StringConstraints(pattern=DOC_ID_PATTERN)]
 ItemRef = Annotated[str, StringConstraints(pattern=ITEM_REF_PATTERN)]
 DrId = Annotated[str, StringConstraints(pattern=DR_ID_PATTERN)]
+QuestionId = Annotated[str, StringConstraints(pattern=QUESTION_ID_PATTERN)]
 TcId = Annotated[str, StringConstraints(pattern=TC_ID_PATTERN)]
 RunId = Annotated[str, StringConstraints(pattern=RUN_ID_PATTERN)]
 TeamTrigger = Annotated[str, StringConstraints(pattern=TEAM_TRIGGER_PATTERN)]

@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "DocType": {
+      "enum": [
+        "BRD",
+        "SRS",
+        "BASIC_DESIGN",
+        "DETAIL_DESIGN",
+        "TEST_IT",
+        "TEST_ST",
+        "TEST_UT",
+        "TEST_UAT"
+      ],
+      "title": "DocType",
+      "type": "string"
+    },
+    "QuestionOrigin": {
+      "enum": [
+        "agent",
+        "qa_blocker"
+      ],
+      "title": "QuestionOrigin",
+      "type": "string"
+    },
+    "QuestionStatus": {
+      "enum": [
+        "open",
+        "answered",
+        "withdrawn"
+      ],
+      "title": "QuestionStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A point only the customer can settle (specs/13-customer-questions.md section 2).",
+  "properties": {
+    "answer": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Answer"
+    },
+    "answered_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Answered By"
+    },
+    "answered_on": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Answered On"
+    },
+    "asked_on": {
+      "format": "date",
+      "title": "Asked On",
+      "type": "string"
+    },
+    "dr_id": {
+      "anyOf": [
+        {
+          "pattern": "^DR-\\d{4}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dr Id"
+    },
+    "id": {
+      "pattern": "^Q-\\d{4}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "origin": {
+      "$ref": "#/$defs/QuestionOrigin"
+    },
+    "refs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Refs",
+      "type": "array"
+    },
+    "run_id": {
+      "pattern": "^RUN-\\d{4}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source"
+    },
+    "stage": {
+      "$ref": "#/$defs/DocType"
+    },
+    "status": {
+      "$ref": "#/$defs/QuestionStatus"
+    },
+    "text": {
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "origin",
+    "stage",
+    "run_id",
+    "text",
+    "status",
+    "asked_on"
+  ],
+  "title": "Question",
+  "type": "object"
+}
