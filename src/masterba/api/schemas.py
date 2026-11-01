@@ -5,12 +5,19 @@ import re
 from pydantic import BaseModel, ConfigDict, Field
 
 from masterba.models.enums import DocLanguage, DrTrigger
-from masterba.models.ids import DOC_ID_PATTERN, DR_ID_PATTERN, PROJECT_ID_PATTERN, RUN_ID_PATTERN
+from masterba.models.ids import (
+    DOC_ID_PATTERN,
+    DR_ID_PATTERN,
+    PROJECT_ID_PATTERN,
+    QUESTION_ID_PATTERN,
+    RUN_ID_PATTERN,
+)
 
 INTAKE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.(txt|md)$")
 PROJECT_ID = re.compile(PROJECT_ID_PATTERN)
 DOC_ID = re.compile(DOC_ID_PATTERN)
 DR_ID = re.compile(DR_ID_PATTERN)
+QUESTION_ID = re.compile(QUESTION_ID_PATTERN)
 RUN_ID = re.compile(RUN_ID_PATTERN)
 STAGES = ("brd", "srs", "basic", "detail")
 
@@ -52,6 +59,11 @@ class FromRunBody(Body):
 class DecisionBody(Body):
     decision: str = Field(min_length=1, max_length=5000)
     rationale: str | None = Field(default=None, max_length=5000)
+
+
+class AnswerBody(Body):
+    answer: str = Field(min_length=1, max_length=2000)
+    source: str | None = Field(default=None, max_length=500)
 
 
 class SetColumnBody(Body):
