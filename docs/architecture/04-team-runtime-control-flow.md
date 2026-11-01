@@ -61,6 +61,7 @@ Points to notice:
   `team_max_rounds` in `project.json`, or per stage with `team_max_rounds_by_stage`.
 - **`team_token_budget`** is optional. When set, the run stops before the next model call once the
   sum of input and output tokens reaches it.
+- **A model answer that does not fit its schema is feedback, not a crash.** An `LLMOutputError` from the writer, designer or tester becomes a gate message (`the last answer could not be used: ...`), costs one round and is not charged tokens; other model errors still end the run.
 - **Escalation returns nothing.** The loop returns `None`; the pipeline then writes only the run
   record. The escalation reasons are the stop reason followed by the last feedback, so a reader sees
   what was still unresolved.
@@ -137,6 +138,7 @@ flowchart LR
   checklist (TS-02, TS-05) tell the reviewer not to demand a case, a check or an exclusion for a
   detail the upstream material does not state, such as the event a deadline is counted from.
 - **Advisory issues never block.** They are collected in `advisory_issues` and shown in the result.
+- **Only the first review of an artifact may raise new blocking issues.** `Team.settle` keeps a later blocking issue blocking only if the same (checklist id, item reference) was blocking before; any other becomes advisory with a note. Without this a reviewer that samples a different part of the draft each time never runs out of new points (dry-run 5: 56 issues in 7 rounds). The pairs are saved in the checkpoint, so a resumed run does not get a second first review.
 
 ## 4.5 The run workspace
 
@@ -202,7 +204,11 @@ Rules of a resume:
 - The checkpoint is local to the machine: it is gitignored on purpose, so drafts that were never
   accepted do not enter the project history.
 
-## 4.8 Why it is built this way
+## 4.8 Questions and confirmed facts
+
+The loops collect what only the customer can settle and give back what the customer decided ([document 7](07-customer-questions.md)). `Team` keeps question drafts by source (the writer's open questions, QA's `customer_question` issues, the tester's unresolved questions) and QA's latest blocking issues. After `finish`, `stage_result` records them in the ledger; an escalated run also records at most 10 of its blocking issues as objections. Every model call of the team, writer or QA, carries the project's confirmed facts as a `<confirmed>` block, added in `RecordingLLM`.
+
+## 4.9 Why it is built this way
 
 | Decision | Reason |
 |---|---|

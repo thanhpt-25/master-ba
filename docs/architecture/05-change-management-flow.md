@@ -191,7 +191,11 @@ A changed number is always structural, even when the text is 99% the same (100 t
 `--structural-only` the reworded changes are hidden, so a reviewer can look at what matters first.
 The dashboard shows the same comparison.
 
-## 5.7 When a stage run escalated
+## 5.7 Answering a customer question
+
+A question in the ledger is answered with `question answer`: it creates a `clarification` DR, approves it with the answer as the decision and the person who recorded it as the approver, and saves the question as answered with the DR's id ([document 7](07-customer-questions.md)). Propagation stays a separate step. If an earlier attempt left the DR half done, running the answer again reuses it.
+
+## 5.8 When a stage run escalated
 
 ```mermaid
 flowchart LR

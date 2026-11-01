@@ -37,6 +37,7 @@ CLI refuses to run outside a work tree that can commit (only `doctor` runs witho
 | `run detail --project P` | Basic Design to Detail Design with UT tests |
 | `dr new / from-run / approve / reject / propagate / close / list / show / diff` | Decision Records ([document 5](05-change-management-flow.md)) |
 | `template calibrate / show / check / set / preview / confirm / unconfirm / list` | company templates from a sample workbook (6.6) |
+| `question list / show / answer / withdraw` | the ledger of customer questions ([document 7](07-customer-questions.md)) |
 | `user add / list / remove` | dashboard accounts |
 | `serve [--host H] [--port N]` | run the dashboard (default `127.0.0.1:8000`) |
 
@@ -92,6 +93,7 @@ request, so changing a role takes effect at once without signing out.
 | Documents | `GET /projects/{pid}/documents`, `.../documents/{doc_id}`, `.../documents/{doc_id}/xlsx`, `.../documents/{doc_id}/diff` |
 | Runs and activity | `GET /projects/{pid}/runs`, `.../runs/{run_id}`, `.../activity` |
 | Trace | `GET /projects/{pid}/requirements`, `.../rtm/{req_id}`, `.../links`, `.../impact` |
+| Questions | `GET /projects/{pid}/questions[?status=]`, `.../questions/{qid}`, `POST .../answer`, `POST .../withdraw` |
 | Decision Records | `GET/POST /projects/{pid}/drs`, `.../drs/from-run`, `.../drs/{dr_id}`, `.../approve`, `.../reject`, `.../close`, `.../propagate`, `.../diff` |
 | Templates (admin) | `GET /templates`, `POST /templates/{company}/{type}/calibrate`, `.../mapping`, `.../preview`, `.../confirm`, `.../unconfirm` |
 | Health | `GET /health`, the only endpoint that needs no sign-in |
@@ -132,7 +134,7 @@ stateDiagram-v2
 
 `frontend/` is plain ES modules with no build step: `app.js` starts it, `api.js` is the only place
 that calls the server, `dom.js` builds elements, and `views/` has one module per screen (login,
-overview, projects, activity, documents, trace, DRs, templates). Text is inserted only as text nodes
+overview, projects, activity, documents, trace, questions, DRs, templates). Text is inserted only as text nodes
 and the CSP forbids inline script and style, so content from a model cannot run in the page.
 
 ## 6.4 Rendering: JSON to Excel
