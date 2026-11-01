@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from masterba.models import Document, TeamRun, TraceLink
 from masterba.models.enums import DocStatus, DocType, TeamRunStatus
+from masterba.questions import attach_facts, record_run_questions
 from masterba.team import ResumeError, RunCheckpoint, Team
 from masterba.trace_store import NotFoundError, ProjectStore, get_config, get_document
 
@@ -32,6 +33,7 @@ def open_team(
     if resume is None:
         team = Team.open(store, stage, limit, config.team_token_budget)
         team.upstream = dict(upstream)
+        attach_facts(team)
         return team, None
     team, checkpoint = Team.reopen(
         store, stage, resume.run_id, resume.rounds or limit, config.team_token_budget
@@ -41,6 +43,7 @@ def open_team(
             f"the inputs of {resume.run_id} changed since it ran "
             f"(then {checkpoint.upstream}, now {upstream}); start a new run"
         )
+    attach_facts(team)
     return team, checkpoint
 
 
@@ -77,6 +80,8 @@ class StageResult:
     xlsx_path: Path | None = None
     open_questions: tuple[str, ...] = ()
     uncovered_lines: tuple[int, ...] = ()
+    question_ids: tuple[str, ...] = ()
+    reasked: int = 0
 
 
 def stage_result(
@@ -90,6 +95,7 @@ def stage_result(
     open_questions: tuple[str, ...] = (),
     uncovered_lines: tuple[int, ...] = (),
 ) -> StageResult:
+    recorded = record_run_questions(team, run)
     return StageResult(
         stage=run.stage,
         status=run.status,
@@ -107,6 +113,8 @@ def stage_result(
         xlsx_path=xlsx_path,
         open_questions=tuple(dict.fromkeys([*open_questions, *run.customer_questions])),
         uncovered_lines=uncovered_lines,
+        question_ids=recorded.ids,
+        reasked=recorded.reasked,
     )
 
 
@@ -155,4 +163,6 @@ def stage_summary(result: StageResult) -> dict[str, object]:
         "xlsx": str(result.xlsx_path) if result.xlsx_path else None,
         "open_questions": list(result.open_questions),
         "uncovered_lines": list(result.uncovered_lines),
+        "question_ids": list(result.question_ids),
+        "reasked": result.reasked,
     }

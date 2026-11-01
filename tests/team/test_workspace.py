@@ -187,3 +187,18 @@ def test_the_blocking_pairs_of_a_run_survive_a_resume(store: ProjectStore) -> No
 
     assert [i.severity for i in settled] == ["blocking", "advisory"]
     assert notes == ["[BRD-01] DOC-BRD-0001#item.2: downgraded (new after the first review)"]
+
+
+def test_the_confirmed_block_is_added_to_every_model_call(store: ProjectStore) -> None:
+    team = open_team(store)
+    team.facts = lambda: "<confirmed>\nDR-0001: x\n</confirmed>"
+    fake = FakeLLM([draft_for("login_system.txt")])
+    RecordingLLM(fake, team).generate(system="s", user="source", output=BrdDraft, tool_name="t")
+    assert fake.calls[0].user == "source\n\n<confirmed>\nDR-0001: x\n</confirmed>"
+
+
+def test_a_call_is_unchanged_when_there_are_no_facts(store: ProjectStore) -> None:
+    team = open_team(store)
+    fake = FakeLLM([draft_for("login_system.txt")])
+    RecordingLLM(fake, team).generate(system="s", user="source", output=BrdDraft, tool_name="t")
+    assert fake.calls[0].user == "source"

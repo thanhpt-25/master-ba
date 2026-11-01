@@ -15,7 +15,14 @@ from masterba.agents import (
 )
 from masterba.agents.srs_writer import brd_view, draft_view
 from masterba.llm import LLM
-from masterba.models import BrdContent, Document, SrsContent, SrsItem, TraceLink
+from masterba.models import (
+    BrdContent,
+    Document,
+    QuestionDraft,
+    SrsContent,
+    SrsItem,
+    TraceLink,
+)
 from masterba.models.enums import DocStatus, DocType, LinkType, TeamRunStatus
 from masterba.pipeline.brd import BRD_DOC_ID
 from masterba.pipeline.stage import (
@@ -142,6 +149,9 @@ def run_srs(
         ),
         start=checkpoint_draft(checkpoint, "draft", SrsDraft),
         start_feedback=checkpoint_feedback(checkpoint, "writer"),
+        writer_questions=lambda d: [
+            QuestionDraft(refs=list(q.req_ids), text=q.question) for q in d.open_questions
+        ],
     )
     if draft is None:
         return stage_result(team, team.finish(TeamRunStatus.ESCALATED))

@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from masterba.agents.qa_reviewer import QaIssue, QaOutputInvalidError, QaReview
 from masterba.llm import LLMOutputError, LLMResult
+from masterba.models import QuestionDraft
 from masterba.team.loop import format_issue, unusable_answer
 from masterba.team.models import MessageType, TaskStatus
 from masterba.team.workspace import Team
@@ -217,6 +218,9 @@ class _Loop(Generic[D, T]):
                         "tester", "customer", MessageType.QUESTION, question.ref, question.text
                     )
             self.unresolved = [f"{q.ref}: {q.text}" for q in stale]
+            self.team.offer_questions(
+                "tester", [QuestionDraft(refs=[q.ref], text=q.text) for q in stale], replace=True
+            )
             if not questions:
                 return _Next.READY
             for question in questions:
@@ -257,6 +261,8 @@ class _Loop(Generic[D, T]):
             else:
                 blocking.append(issue)
         team.note_review(owner, [*outcome.notes, *limited], outcome.customer_questions)
+        team.offer_questions("qa", outcome.question_drafts)
+        team.hold_objection(owner, blocking)
         return blocking
 
     def _review(self) -> _Next | None:

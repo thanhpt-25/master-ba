@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from masterba.agents import QaIssue, QaOutputInvalidError, QaReport, QaReview
 from masterba.llm import LLMOutputError, LLMResult
+from masterba.models import QuestionDraft
 from masterba.models.enums import DocType, TeamRunStatus
 from masterba.team import MessageType, TaskStatus, Team, run_writer_review
 from masterba.trace_store import ProjectStore
@@ -258,3 +259,42 @@ def test_the_first_review_may_raise_any_number_of_blocking_issues(team: Team) ->
     assert run(team, Script([many, QaReport()])) == Draft(text="draft 2")
     assert team.issues_raised == 2
     assert team.advisory == []
+
+
+def test_question_drafts_from_qa_and_the_writer_reach_the_team(team: Team) -> None:
+    asked = QuestionDraft(refs=[REF], text="Which tax rate?")
+
+    class Asking(Script):
+        def review(self, draft: Draft) -> QaReview:
+            self.reviews += 1
+            return QaReview(QaReport(), 8, 2, 1, (), ("q",), (asked,))
+
+    draft = run_writer_review(
+        team,
+        write=(script := Asking([])).write,
+        gate=script.gate,
+        review=script.review,
+        writer_questions=lambda d: [QuestionDraft(refs=[], text=f"Writer asks about {d.text}?")],
+    )
+    assert draft == Draft(text="draft 1")
+    assert [q.text for q in team.collected_questions()] == [
+        "Writer asks about draft 1?",
+        "Which tax rate?",
+    ]
+
+
+def test_a_draft_that_fails_the_gate_offers_no_questions(team: Team) -> None:
+    script = Script([QaReport()], gates=[["bad quote"], []])
+    run_writer_review(
+        team,
+        write=script.write,
+        gate=script.gate,
+        review=script.review,
+        writer_questions=lambda d: [QuestionDraft(refs=[], text=f"About {d.text}?")],
+    )
+    assert [q.text for q in team.collected_questions()] == ["About draft 2?"]
+
+
+def test_the_blocking_issues_of_the_last_review_are_held_as_objections(team: Team) -> None:
+    assert run(team, Script([block("A"), block("A"), block("A")])) is None
+    assert [i.message for i in team.objections["writer"]] == ["A"]
