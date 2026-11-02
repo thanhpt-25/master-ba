@@ -42,6 +42,7 @@ from masterba.pipeline.stage import (
     latest_version,
     open_team,
     stage_result,
+    store_document,
 )
 from masterba.rendering import render_to_project
 from masterba.team import RecordingLLM, run_writer_review
@@ -50,7 +51,6 @@ from masterba.trace_store import (
     InvalidDocumentError,
     NotFoundError,
     ProjectStore,
-    add_document,
     add_trace_link,
     get_config,
     get_document,
@@ -82,6 +82,7 @@ def assign_srs_ids(draft: SrsDraft, *, project_id: str) -> SrsArtifacts:
                 statement=item.statement,
                 acceptance_hint=item.acceptance_hint,
                 derives_from=sources,
+                kb_citations=item.kb_citations,
             )
         )
         links.extend(
@@ -180,7 +181,7 @@ def run_srs(
         return stage_result(team, team.finish(TeamRunStatus.ESCALATED))
 
     artifacts = assign_srs_ids(draft, project_id=store.project_id)
-    add_document(store, artifacts.document, artifacts.content)
+    store_document(store, artifacts.document, artifacts.content)
     for link in artifacts.links:
         add_trace_link(store, link)
     xlsx_path = render_to_project(store, SRS_DOC_ID, templates_root)

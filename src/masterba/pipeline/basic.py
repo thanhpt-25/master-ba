@@ -49,6 +49,7 @@ from masterba.pipeline.stage import (
     make_document,
     open_team,
     stage_result,
+    store_document,
     unique_links,
 )
 from masterba.rendering import render_to_project
@@ -66,7 +67,6 @@ from masterba.trace_store import (
     InvalidDocumentError,
     NotFoundError,
     ProjectStore,
-    add_document,
     add_trace_link,
     get_config,
     get_document,
@@ -99,6 +99,7 @@ def assign_basic_ids(
                 name=item.name,
                 description=item.description,
                 realizes=list(dict.fromkeys(item.realizes)),
+                kb_citations=item.kb_citations,
             )
         )
         links.extend(
@@ -125,6 +126,7 @@ def assign_basic_ids(
                     steps=case.steps,
                     expected=case.expected,
                     verifies=targets,
+                    kb_citations=case.kb_citations,
                 )
             )
             links.extend(
@@ -262,7 +264,7 @@ def run_basic_design(
 
     artifacts = assign_basic_ids(outcome, project_id=store.project_id)
     for document, doc_content in artifacts.documents:
-        add_document(store, document, doc_content)
+        store_document(store, document, doc_content)
     for link in artifacts.links:
         add_trace_link(store, link)
     paths = [

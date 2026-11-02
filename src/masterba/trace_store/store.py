@@ -6,7 +6,7 @@ recorded as exactly one git commit (specs/00-constitution.md section 5).
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -244,18 +244,56 @@ def _validate_new_document(store: ProjectStore, doc: Document, content: Payload)
     return versions
 
 
-def add_document(store: ProjectStore, doc: Document, content: Payload) -> None:
+def _knowledge_path(store: ProjectStore) -> Path:
+    return store.path / "traceability" / "knowledge-nodes.json"
+
+
+def knowledge_nodes(store: ProjectStore) -> list[str]:
+    """Source_Ids recorded as Knowledge_Nodes (spec 12, Requirement 13.1)."""
+    path = _knowledge_path(store)
+    return list(_read_json(path)) if path.exists() else []
+
+
+def add_document(
+    store: ProjectStore,
+    doc: Document,
+    content: Payload,
+    *,
+    links: Sequence[TraceLink] = (),
+    knowledge: Sequence[str] = (),
+) -> None:
+    """Store a document version; `knowledge` Source_Ids and `links` go into the same commit."""
     versions = _validate_new_document(store, doc, content)
     if versions:
         _check_id_stability(get_document(store, doc.id, versions[-1])[1], content)
+    paths: list[Path] = []
+    if knowledge or links:
+        own = {doc.id, *(item.item_id for item in payload_items(content))}
+        known = {*known_nodes(store), *own, *knowledge}
+        missing = sorted({e for x in links for e in (x.from_id, x.to_id) if e not in known})
+        if missing:
+            raise NotFoundError(f"unknown trace endpoints: {missing}")
     path = _doc_dir(store, doc.type) / f"{doc.id}.v{doc.version}.json"
     _write_json(path, {"document": _data(doc), "content": _data(content)})
-    _commit(store, [path], f"doc({store.project_id}): create {doc.id} v{doc.version}")
+    paths.append(path)
+    if knowledge:
+        nodes = sorted({*knowledge_nodes(store), *knowledge})
+        _write_json(_knowledge_path(store), nodes)
+        paths.append(_knowledge_path(store))
+    if links:
+        existing = get_trace_links(store)
+        merged = [*existing, *(x for x in dict.fromkeys(links) if x not in existing)]
+        ordered = sorted(merged, key=lambda x: (x.from_id, x.to_id, x.link_type.value))
+        _write_json(_links_path(store), [_data(x) for x in ordered])
+        paths.append(_links_path(store))
+    _commit(store, paths, f"doc({store.project_id}): create {doc.id} v{doc.version}")
 
 
 def known_nodes(store: ProjectStore) -> dict[str, str]:
-    """Map every traceable id to its kind: requirement, document, item, test_case, test_id."""
+    """Map every traceable id to its kind: requirement, document, item, test_case, test_id,
+    knowledge."""
     nodes: dict[str, str] = {r.id: "requirement" for r in list_requirements(store)}
+    nodes.update({source_id: "knowledge" for source_id in knowledge_nodes(store)})
     for doc, content in latest_documents(store):
         nodes[doc.id] = "document"
         is_test = doc.type in LEVEL_BY_TEST_TYPE

@@ -41,6 +41,7 @@ from masterba.pipeline.stage import (
     kb_text,
     open_team,
     stage_result,
+    store_document,
 )
 from masterba.rendering import render_to_project
 from masterba.team import RecordingLLM, run_writer_review
@@ -49,7 +50,6 @@ from masterba.trace_store import (
     InvalidDocumentError,
     NotFoundError,
     ProjectStore,
-    add_document,
     add_intake,
     add_requirement,
     add_trace_link,
@@ -105,6 +105,7 @@ def assign_ids(
                 description=req.description,
                 scope=req.scope,
                 source_ref=source,
+                kb_citations=req.kb_citations,
             )
         )
         links.append(TraceLink(from_id=req_id, to_id=item_ref, link_type=LinkType.REALIZES))
@@ -219,7 +220,7 @@ def run_brd(
     )
     for requirement in artifacts.requirements:
         add_requirement(store, requirement)
-    add_document(store, artifacts.document, artifacts.content)
+    store_document(store, artifacts.document, artifacts.content)
     for link in artifacts.links:
         add_trace_link(store, link)
     xlsx_path = render_to_project(store, BRD_DOC_ID, templates_root)

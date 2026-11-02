@@ -7,6 +7,7 @@ Test case ids (``TC-...``) are canonicalised to their test item ref.
 
 from __future__ import annotations
 
+import re
 from collections import deque
 from dataclasses import dataclass
 from typing import Literal
@@ -92,6 +93,8 @@ def query_impact(
     graph = build_graph(store)
     start = _aliases(store).get(node_id, node_id)
     if start not in graph:
+        if re.fullmatch(r"KB-\d{4}", node_id):
+            raise NotFoundError(f"no Knowledge_Node exists for {node_id}")
         raise NotFoundError(f"{node_id} is not a known trace node")
     view = _trace_view(graph)
     found: list[ImpactNode] = []

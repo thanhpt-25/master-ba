@@ -49,6 +49,7 @@ from masterba.pipeline.stage import (
     make_document,
     open_team,
     stage_result,
+    store_document,
     unique_links,
 )
 from masterba.rendering import render_to_project
@@ -66,7 +67,6 @@ from masterba.trace_store import (
     InvalidDocumentError,
     NotFoundError,
     ProjectStore,
-    add_document,
     add_trace_link,
     get_config,
     get_document,
@@ -94,7 +94,12 @@ def assign_detail_ids(
         refines = list(dict.fromkeys(item.refines))
         items.append(
             DetailDesignItem(
-                item_id=ref, kind=item.kind, name=item.name, spec=item.spec, refines=refines
+                item_id=ref,
+                kind=item.kind,
+                name=item.name,
+                spec=item.spec,
+                refines=refines,
+                kb_citations=item.kb_citations,
             )
         )
         links.extend(
@@ -115,6 +120,7 @@ def assign_detail_ids(
                 steps=case.steps,
                 expected=case.expected,
                 verifies=targets,
+                kb_citations=case.kb_citations,
             )
         )
         links.extend(
@@ -242,7 +248,7 @@ def run_detail_design(
 
     artifacts = assign_detail_ids(outcome, project_id=store.project_id)
     for document, doc_content in artifacts.documents:
-        add_document(store, document, doc_content)
+        store_document(store, document, doc_content)
     for link in artifacts.links:
         add_trace_link(store, link)
     paths = [

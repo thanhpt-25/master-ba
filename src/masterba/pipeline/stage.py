@@ -8,11 +8,18 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from masterba.knowledge import KnowledgeSession
-from masterba.models import Document, KbCitation, TeamRun, TraceLink
+from masterba.knowledge.trace import knowledge_links
+from masterba.models import Document, KbCitation, Payload, TeamRun, TraceLink
 from masterba.models.enums import DocStatus, DocType, TeamRunStatus
 from masterba.questions import attach_facts, record_run_questions
 from masterba.team import ResumeError, RunCheckpoint, Team
-from masterba.trace_store import NotFoundError, ProjectStore, get_config, get_document
+from masterba.trace_store import (
+    NotFoundError,
+    ProjectStore,
+    add_document,
+    get_config,
+    get_document,
+)
 
 TEMPLATE_ID = "default/v1"
 M = TypeVar("M", bound=BaseModel)
@@ -44,6 +51,12 @@ def kb_gate(
     session: KnowledgeSession | None, role: str, citations: Sequence[tuple[str, KbCitation]]
 ) -> list[str]:
     return session.gate(role, citations) if session else []
+
+
+def store_document(store: ProjectStore, doc: Document, content: Payload) -> None:
+    """Store a document with its Knowledge_Nodes and `derives_from` links in one commit."""
+    nodes, links = knowledge_links(content)
+    add_document(store, doc, content, links=links, knowledge=nodes)
 
 
 def kb_citations(doc_id: str, items: Iterable[object]) -> list[tuple[str, KbCitation]]:
