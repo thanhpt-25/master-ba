@@ -14,6 +14,13 @@ from masterba.trace_store.errors import GitError
 from masterba.trace_store.git import ensure_ready
 
 SOURCE_TEMPLATES = Path(__file__).resolve().parents[2] / "templates" / "default"
+# Knowledge base files that stay out of git; only knowledge/manifest.json is committed (spec 12).
+KNOWLEDGE_IGNORES = (
+    "projects/*/knowledge/sources/",
+    "projects/*/knowledge/index/",
+    "projects/*/knowledge/.lock",
+)
+WORK_TREE_GITIGNORE = "".join(f"{line}\n" for line in (".masterba/", *KNOWLEDGE_IGNORES))
 
 
 @dataclass(frozen=True)
@@ -37,8 +44,9 @@ def init_root(root: Path) -> None:
     if root.exists() and any(root.iterdir()):
         raise ValueError(f"{root} is not empty; --init only prepares an empty folder")
     root.mkdir(parents=True, exist_ok=True)
-    # Users, the session secret and uploads live in .masterba/ and must never be committed.
-    (root / ".gitignore").write_text(".masterba/\n", encoding="utf-8")
+    # Users, the session secret and uploads live in .masterba/ and must never be committed;
+    # neither must knowledge base copies and indexes.
+    (root / ".gitignore").write_text(WORK_TREE_GITIGNORE, encoding="utf-8")
     steps = (["init", "-q"], ["add", ".gitignore"], ["commit", "-q", "-m", "chore: init work tree"])
     for args in steps:
         done = _git(args, root)
@@ -100,6 +108,21 @@ def _check_state(root: Path) -> Check:
     return Check("state", True, "writable, dashboard users exist")
 
 
+def _check_ignores(root: Path) -> Check:
+    path = root / ".gitignore"
+    try:
+        lines = {line.strip() for line in path.read_text(encoding="utf-8").splitlines()}
+    except FileNotFoundError:
+        lines = set()
+    except (OSError, UnicodeDecodeError) as exc:
+        return Check("ignores", False, f"{path} is unreadable: {exc}", False)
+    missing = [pattern for pattern in KNOWLEDGE_IGNORES if pattern not in lines]
+    if missing:
+        fix = f"add these lines to {path}: {', '.join(missing)}"
+        return Check("ignores", False, f"knowledge base files may be committed; {fix}", False)
+    return Check("ignores", True, "knowledge base sources, index and lock are ignored")
+
+
 def _check_model() -> Check:
     if os.environ.get("ANTHROPIC_API_KEY"):
         return Check("model", True, "ANTHROPIC_API_KEY is set", False)
@@ -110,5 +133,5 @@ def _check_model() -> Check:
 def run_checks(root: Path) -> list[Check]:
     checks = _check_git(root)
     if all(c.ok for c in checks):
-        checks += [_check_templates(root), _check_state(root)]
+        checks += [_check_templates(root), _check_state(root), _check_ignores(root)]
     return [*checks, _check_model()]

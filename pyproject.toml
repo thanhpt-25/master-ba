@@ -13,7 +13,12 @@ dependencies = [
     "fastapi>=0.162.0",
     "uvicorn>=0.54.0",
     "python-multipart>=0.0.32",
+    "python-docx>=1.1",
+    "pypdf>=4.0",
 ]
+
+[project.optional-dependencies]
+rag = ["sentence-transformers>=3", "lancedb>=0.13", "huggingface-hub>=0.24"]
 
 [project.scripts]
 masterba = "masterba.cli:main"
@@ -34,6 +39,7 @@ dev = [
     "types-networkx>=3.6.1.20261029",
     "types-openpyxl>=3.1.5.20261017",
     "httpx>=0.28.1",
+    "hypothesis>=6.100",
 ]
 
 [tool.uv]
@@ -56,9 +62,10 @@ explicit_package_bases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
-addopts = "--cov --cov-report=term-missing -m 'not live'"
+addopts = "--cov --cov-report=term-missing -m 'not live and not rag_eval'"
 markers = [
     "live: calls the real model; needs ANTHROPIC_API_KEY (run with -m live)",
+    "rag_eval: retrieval quality eval; needs the rag extra and the model (run with -m rag_eval)",
     "slow: measured slow (pytest --durations); skipped by the quick CI job",
 ]
 
