@@ -173,9 +173,13 @@ def write_brd(
     feedback: Sequence[str],
     doc_id: str,
     system_prompt: str | None = None,
+    *,
+    references: str = "",
 ) -> LLMResult[BrdDraft]:
     """One writer call: a first draft, or a revision when `previous` and `feedback` are given."""
     user = f"<intake>\n{number_lines(intake_text)}\n</intake>"
+    if references:  # the Reference_Block (spec 12); empty keeps the prompt unchanged
+        user += f"\n\n{references}"
     if previous is not None:
         listing = "\n".join(f"- {f}" for f in feedback)
         user += (

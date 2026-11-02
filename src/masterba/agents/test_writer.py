@@ -157,12 +157,16 @@ def write_tests(
     it_doc_id: str,
     st_doc_id: str,
     system_prompt: str | None = None,
+    *,
+    references: str = "",
 ) -> LLMResult[TestDraft]:
     """One tester call: first tests, or a revision with the pending feedback."""
     user = (
         f"<srs>\n{srs_view(srs_items)}\n</srs>\n\n"
         f"<design>\n{design_view(design, design_doc_id)}\n</design>"
     )
+    if references:  # the Reference_Block (spec 12); empty keeps the prompt unchanged
+        user += f"\n\n{references}"
     if previous is not None:
         listing = "\n".join(f"- {f}" for f in feedback)
         user += (

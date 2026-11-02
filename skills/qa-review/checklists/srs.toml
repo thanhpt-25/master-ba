@@ -34,3 +34,9 @@ text = "The SRS is faithful to the BRD: nothing is invented that the BRD does no
 id = "SRS-07"
 severity = "advisory"
 text = "Vague wording such as 'fast', 'user-friendly' or 'as needed' is not left undefined in a statement."
+
+[[checks]]
+id = "SRS-KB"
+severity = "blocking"
+requires_reference = true
+text = "A draft statement contradicts a passage in the knowledge block when it gives a different value, name, term, number, unit or rule for the same subject, or negates what the passage states. A statement on a subject no passage mentions is not a contradiction. Name exactly one item in ref, the passage refs in chunk_refs, and quote the contradicting statement."

@@ -108,9 +108,13 @@ def write_detail(
     feedback: Sequence[str],
     doc_id: str,
     system_prompt: str | None = None,
+    *,
+    references: str = "",
 ) -> LLMResult[DetailDesignDraft]:
     """One designer call: a first detail design, or a revision with the pending feedback."""
     user = f"<basic_design>\n{basic_view(basic_items)}\n</basic_design>"
+    if references:  # the Reference_Block (spec 12); empty keeps the prompt unchanged
+        user += f"\n\n{references}"
     if previous is not None:
         listing = "\n".join(f"- {f}" for f in feedback)
         user += (

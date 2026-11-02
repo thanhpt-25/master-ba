@@ -24,3 +24,9 @@ text = "Every exclusion has a convincing reason, and no item that can be tested 
 id = "UT-05"
 severity = "advisory"
 text = "Cases are not duplicated and do not test several unrelated things at once."
+
+[[checks]]
+id = "UT-KB"
+severity = "blocking"
+requires_reference = true
+text = "A draft statement contradicts a passage in the knowledge block when it gives a different value, name, term, number, unit or rule for the same subject, or negates what the passage states. A statement on a subject no passage mentions is not a contradiction. Name exactly one item in ref, the passage refs in chunk_refs, and quote the contradicting statement."
