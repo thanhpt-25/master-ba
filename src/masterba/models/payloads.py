@@ -15,11 +15,13 @@ from masterba.models.enums import (
     SrsKind,
 )
 from masterba.models.ids import ItemRef, ReqId, ReqOrItemRef, TcId
+from masterba.models.knowledge import KbCitation
 
 
 class PayloadItem(FrozenModel):
     item_id: ItemRef
     status: ItemStatus = ItemStatus.ACTIVE
+    kb_citations: list[KbCitation] = Field(default_factory=list)
 
 
 class BrdItem(PayloadItem):

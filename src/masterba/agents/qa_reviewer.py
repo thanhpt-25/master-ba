@@ -17,7 +17,7 @@ from masterba.llm import LLM, LLMOutputError
 from masterba.models import QuestionDraft
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DocLanguage, DocType
-from masterba.models.ids import ItemRef
+from masterba.models.ids import ChunkRef, ItemRef
 
 PROMPT_PATH = REPO_ROOT / "agents" / "qa-reviewer.md"
 CHECKLIST_DIR = REPO_ROOT / "skills" / "qa-review" / "checklists"
@@ -35,6 +35,7 @@ class Check(FrozenModel):
     id: str = Field(min_length=1)
     severity: Severity
     text: str = Field(min_length=1)
+    requires_reference: bool = False
 
 
 class Checklist(FrozenModel):
@@ -56,6 +57,7 @@ class QaIssue(FrozenModel):
     message: str = Field(min_length=1)
     action_required: str | None = None
     customer_question: bool = False
+    chunk_refs: list[ChunkRef] = Field(default_factory=list)
 
 
 class QaReport(FrozenModel):

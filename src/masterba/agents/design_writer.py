@@ -14,6 +14,7 @@ from masterba.models import SrsContent, SrsItem
 from masterba.models.base import FrozenModel
 from masterba.models.enums import BasicDesignKind, DocLanguage, ItemStatus
 from masterba.models.ids import ItemRef
+from masterba.models.knowledge import KbCitation
 
 PROMPT_PATH = REPO_ROOT / "agents" / "basic-design.md"
 TOOL_NAME = "submit_basic_design"
@@ -35,6 +36,7 @@ class DraftDesignItem(FrozenModel):
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     realizes: list[ItemRef] = Field(min_length=1)
+    kb_citations: list[KbCitation] = Field(default_factory=list)
 
 
 class BasicDesignDraft(FrozenModel):

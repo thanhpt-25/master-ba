@@ -20,6 +20,7 @@ from masterba.models import SrsItem
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DocLanguage
 from masterba.models.ids import ItemRef
+from masterba.models.knowledge import KbCitation
 
 PROMPT_PATH = REPO_ROOT / "agents" / "basic-test-design.md"
 TOOL_NAME = "submit_tests"
@@ -37,6 +38,7 @@ class DraftTestCase(FrozenModel):
     steps: list[str] = Field(min_length=1)
     expected: str = Field(min_length=1)
     verifies: list[ItemRef] = Field(min_length=1)
+    kb_citations: list[KbCitation] = Field(default_factory=list)
 
     @field_validator("steps")
     @classmethod

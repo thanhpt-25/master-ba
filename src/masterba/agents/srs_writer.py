@@ -15,6 +15,7 @@ from masterba.models import BrdContent, RequirementItem
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DocLanguage, ItemStatus, ReqCategory, Scope, SrsKind
 from masterba.models.ids import ReqId
+from masterba.models.knowledge import KbCitation
 
 PROMPT_PATH = REPO_ROOT / "agents" / "srs-writer.md"
 TOOL_NAME = "submit_srs"
@@ -30,6 +31,7 @@ class DraftSrsItem(FrozenModel):
     statement: str = Field(min_length=1)
     acceptance_hint: str | None = None
     derives_from: list[ReqId] = Field(min_length=1)
+    kb_citations: list[KbCitation] = Field(default_factory=list)
 
 
 class SrsOpenQuestion(FrozenModel):
