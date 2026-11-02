@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "KbSource": {
+      "additionalProperties": false,
+      "properties": {
+        "added_at": {
+          "format": "date-time",
+          "title": "Added At",
+          "type": "string"
+        },
+        "added_by": {
+          "minLength": 1,
+          "title": "Added By",
+          "type": "string"
+        },
+        "file_name": {
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "File Name",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^KB-\\d{4}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "removed": {
+          "default": false,
+          "title": "Removed",
+          "type": "boolean"
+        },
+        "removed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Removed At"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "suffix": {
+          "enum": [
+            ".md",
+            ".txt",
+            ".xlsx",
+            ".docx",
+            ".pdf"
+          ],
+          "title": "Suffix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "file_name",
+        "suffix",
+        "sha256",
+        "added_by",
+        "added_at"
+      ],
+      "title": "KbSource",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": 1,
+      "default": 1,
+      "title": "Format",
+      "type": "integer"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/KbSource"
+      },
+      "title": "Sources",
+      "type": "array"
+    }
+  },
+  "title": "KbManifest",
+  "type": "object"
+}

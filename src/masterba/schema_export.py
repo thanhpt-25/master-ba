@@ -27,9 +27,15 @@ from masterba.models import (
     DecisionRecord,
     DetailDesignContent,
     Document,
+    KbCitation,
+    KbManifest,
+    KbSource,
+    Passage,
     ProjectConfig,
     Question,
+    ReindexRecord,
     RequirementItem,
+    SourceIndexState,
     SrsContent,
     TeamRun,
     TemplateDefinition,
@@ -66,6 +72,12 @@ SCHEMA_MODELS: tuple[type[BaseModel], ...] = (
     QaReport,
     TeamTask,
     TeamMessage,
+    KbSource,
+    KbManifest,
+    KbCitation,
+    Passage,
+    SourceIndexState,
+    ReindexRecord,
 )
 
 
