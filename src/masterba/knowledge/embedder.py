@@ -17,11 +17,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-# shortcut: placeholder default, set by the owner's evaluation (task 19.4, Requirement 6.7)
+# Chosen in spec 12 section 19: ties e5 on the evaluation set; no prefixes, 8,192-token inputs.
 DEFAULT_EMBED_MODEL = "BAAI/bge-m3"
 EMBED_MODEL_ENV = "MASTERBA_EMBED_MODEL"
 SETUP_TIMEOUT_S = 1800
 BATCH_SIZE = 32
+# sentence-transformers needs none of these; multilingual-e5-large ships several GB of them.
+SKIP_FILES = ("onnx/*", "openvino/*", "*.onnx", "*.h5", "*.msgpack", "*.ot", "imgs/*")
 _RAG_PACKAGES = ("sentence_transformers", "lancedb", "huggingface_hub")
 
 SetupCause = Literal["network unreachable", "model not found", "timeout"]
@@ -79,7 +81,10 @@ def _offline_snapshot(name: str) -> Path | None:
     from huggingface_hub import snapshot_download
 
     try:
-        return Path(snapshot_download(name, local_files_only=True))
+        # Same skip list as the download, or a snapshot without ONNX files reads as incomplete.
+        return Path(
+            snapshot_download(name, local_files_only=True, ignore_patterns=list(SKIP_FILES))
+        )
     except Exception:  # noqa: BLE001 - any failure means "not in the cache"
         return None
 
@@ -139,7 +144,7 @@ def _download_child(name: str, out: Any) -> None:
     try:
         from huggingface_hub import snapshot_download
 
-        out.put(("ok", snapshot_download(name)))
+        out.put(("ok", snapshot_download(name, ignore_patterns=list(SKIP_FILES))))
     except Exception as exc:  # noqa: BLE001 - reported to the parent process
         text = f"{type(exc).__name__}: {exc}".splitlines()[0]
         out.put((_classify(text), text))
