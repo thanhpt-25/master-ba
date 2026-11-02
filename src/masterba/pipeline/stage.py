@@ -1,12 +1,14 @@
 """Result type shared by the team-run stages (BRD, SRS)."""
 
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
 
 from pydantic import BaseModel
 
-from masterba.models import Document, TeamRun, TraceLink
+from masterba.knowledge import KnowledgeSession
+from masterba.models import Document, KbCitation, TeamRun, TraceLink
 from masterba.models.enums import DocStatus, DocType, TeamRunStatus
 from masterba.questions import attach_facts, record_run_questions
 from masterba.team import ResumeError, RunCheckpoint, Team
@@ -14,6 +16,43 @@ from masterba.trace_store import NotFoundError, ProjectStore, get_config, get_do
 
 TEMPLATE_ID = "default/v1"
 M = TypeVar("M", bound=BaseModel)
+# Opens the knowledge session of a stage; tests pass one built on a FakeRetriever.
+KnowledgeOpener = Callable[[ProjectStore], KnowledgeSession | None]
+
+
+def attach_knowledge(team: Team, session: KnowledgeSession | None) -> None:
+    """Share the run's seen refs with the session, so a checkpoint keeps them (Req. 10.5)."""
+    if session is not None:
+        session.seen_refs = team.kb_seen_refs
+
+
+def kb_block(session: KnowledgeSession | None, role: str, writer_input: str) -> str:
+    """A fresh Reference_Block for one writer call; "" without a knowledge base."""
+    return session.references_for(role, writer_input) if session else ""
+
+
+def kb_text(session: KnowledgeSession | None, role: str) -> str:
+    """The exact block the writer `role` last received, for QA (no new search, Req. 9.6)."""
+    return session.block_for_review(role).text if session else ""
+
+
+def kb_refs(session: KnowledgeSession | None, role: str) -> frozenset[str]:
+    return session.block_for_review(role).refs if session else frozenset()
+
+
+def kb_gate(
+    session: KnowledgeSession | None, role: str, citations: Sequence[tuple[str, KbCitation]]
+) -> list[str]:
+    return session.gate(role, citations) if session else []
+
+
+def kb_citations(doc_id: str, items: Iterable[object]) -> list[tuple[str, KbCitation]]:
+    """(item ref, citation) pairs, numbered as the items will be on commit."""
+    return [
+        (f"{doc_id}#item.{n}", citation)
+        for n, item in enumerate(items, start=1)
+        for citation in getattr(item, "kb_citations", [])
+    ]
 
 
 @dataclass(frozen=True)

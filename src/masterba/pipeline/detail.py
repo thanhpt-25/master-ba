@@ -18,6 +18,7 @@ from masterba.agents.unit_test_writer import (
     validate_unit_test_draft,
     write_unit_tests,
 )
+from masterba.knowledge import open_session
 from masterba.llm import LLM
 from masterba.models import (
     BasicDesignContent,
@@ -32,11 +33,18 @@ from masterba.models import (
 from masterba.models.enums import DocType, Level, LinkType, TeamRunStatus
 from masterba.pipeline.basic import DESIGN_DOC_ID
 from masterba.pipeline.stage import (
+    KnowledgeOpener,
     Resume,
     StageResult,
+    attach_knowledge,
     checkpoint_draft,
     checkpoint_feedback,
     document_exists,
+    kb_block,
+    kb_citations,
+    kb_gate,
+    kb_refs,
+    kb_text,
     latest_version,
     make_document,
     open_team,
@@ -134,6 +142,7 @@ def run_detail_design(
     tester_llm: LLM | None = None,
     qa_llm: LLM | None = None,
     resume: Resume | None = None,
+    knowledge: KnowledgeOpener = open_session,
 ) -> StageResult:
     """Run the Detail Design stage as a three-member team; artifacts are written only when done."""
     for doc_id in (DETAIL_DOC_ID, UT_DOC_ID):
@@ -152,9 +161,11 @@ def run_detail_design(
     language = get_config(store).document_language
     design_checklist = load_checklist(checklist_path(DocType.DETAIL_DESIGN))
     tests_checklist = load_checklist(checklist_path("unit_tests"))
+    session = knowledge(store)  # before the team opens (Requirement 9.8)
     team, checkpoint = open_team(
         store, DocType.DETAIL_DESIGN, {DESIGN_DOC_ID: latest_version(store, DESIGN_DOC_ID)}, resume
     )
+    attach_knowledge(team, session)
     designer = RecordingLLM(designer_llm, team)
     tester = RecordingLLM(tester_llm or designer_llm, team)
     reviewer = RecordingLLM(qa_llm or designer_llm, team)
@@ -162,13 +173,35 @@ def run_detail_design(
 
     hooks: DesignTestHooks[DetailDesignDraft, UnitTestDraft] = DesignTestHooks(
         write_design=lambda previous, feedback: write_detail(
-            designer, basic_items, language, previous, feedback, DETAIL_DOC_ID
+            designer,
+            basic_items,
+            language,
+            previous,
+            feedback,
+            DETAIL_DOC_ID,
+            references=kb_block(session, "designer", basic_text),
         ),
         write_tests=lambda detail, previous, feedback: write_unit_tests(
-            tester, detail, basic_items, language, previous, feedback, DETAIL_DOC_ID, UT_DOC_ID
+            tester,
+            detail,
+            basic_items,
+            language,
+            previous,
+            feedback,
+            DETAIL_DOC_ID,
+            UT_DOC_ID,
+            references=kb_block(
+                session, "tester", f"{basic_text}\n{detail_view(detail, DETAIL_DOC_ID)}"
+            ),
         ),
-        gate_design=lambda d: validate_detail_draft(d, basic_items, DETAIL_DOC_ID, language),
-        gate_tests=lambda d, t: validate_unit_test_draft(t, d, DETAIL_DOC_ID, language),
+        gate_design=lambda d: [
+            *validate_detail_draft(d, basic_items, DETAIL_DOC_ID, language),
+            *kb_gate(session, "designer", kb_citations(DETAIL_DOC_ID, d.items)),
+        ],
+        gate_tests=lambda d, t: [
+            *validate_unit_test_draft(t, d, DETAIL_DOC_ID, language),
+            *kb_gate(session, "tester", kb_citations(UT_DOC_ID, t.ut_cases)),
+        ],
         questions=lambda t: [Question(q.ref, q.question) for q in t.questions],
         answers=lambda d: [Answer(a.ref, a.text) for a in d.answers],
         review_design=lambda d: review(
@@ -178,6 +211,8 @@ def run_detail_design(
             upstream=basic_text,
             draft_view=detail_view(d, DETAIL_DOC_ID),
             language=language,
+            references=kb_text(session, "designer"),
+            reference_refs=kb_refs(session, "designer"),
         ),
         review_tests=lambda d, t: review(
             reviewer,
@@ -186,6 +221,8 @@ def run_detail_design(
             upstream=f"{basic_text}\n\nDetail Design:\n{detail_view(d, DETAIL_DOC_ID)}",
             draft_view=unit_cases_view(t, UT_DOC_ID),
             language=language,
+            references=kb_text(session, "tester"),
+            reference_refs=kb_refs(session, "tester"),
         ),
     )
     start = (

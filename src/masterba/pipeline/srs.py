@@ -14,6 +14,7 @@ from masterba.agents import (
     write_srs,
 )
 from masterba.agents.srs_writer import brd_view, draft_view
+from masterba.knowledge import open_session
 from masterba.llm import LLM
 from masterba.models import (
     BrdContent,
@@ -27,10 +28,17 @@ from masterba.models.enums import DocStatus, DocType, LinkType, TeamRunStatus
 from masterba.pipeline.brd import BRD_DOC_ID
 from masterba.pipeline.stage import (
     TEMPLATE_ID,
+    KnowledgeOpener,
     Resume,
     StageResult,
+    attach_knowledge,
     checkpoint_draft,
     checkpoint_feedback,
+    kb_block,
+    kb_citations,
+    kb_gate,
+    kb_refs,
+    kb_text,
     latest_version,
     open_team,
     stage_result,
@@ -118,6 +126,7 @@ def run_srs(
     *,
     qa_llm: LLM | None = None,
     resume: Resume | None = None,
+    knowledge: KnowledgeOpener = open_session,
 ) -> StageResult:
     """Run the SRS stage as a writer + QA team; business artifacts are written only when done."""
     if _exists(store, SRS_DOC_ID):
@@ -127,25 +136,39 @@ def run_srs(
     brd = _load_brd(store)
     language = get_config(store).document_language
     checklist = load_checklist(checklist_path(DocType.SRS))
+    session = knowledge(store)  # before the team opens (Requirement 9.8)
+    brd_text = brd_view(brd)
     team, checkpoint = open_team(
         store, DocType.SRS, {BRD_DOC_ID: latest_version(store, BRD_DOC_ID)}, resume
     )
+    attach_knowledge(team, session)
     writer = RecordingLLM(llm, team)
     reviewer = RecordingLLM(qa_llm or llm, team)
 
     draft = run_writer_review(
         team,
         write=lambda previous, feedback: write_srs(
-            writer, brd, language, previous, feedback, SRS_DOC_ID
+            writer,
+            brd,
+            language,
+            previous,
+            feedback,
+            SRS_DOC_ID,
+            references=kb_block(session, "writer", brd_text),
         ),
-        gate=lambda d: validate_srs_draft(d, brd, language),
+        gate=lambda d: [
+            *validate_srs_draft(d, brd, language),
+            *kb_gate(session, "writer", kb_citations(SRS_DOC_ID, d.items)),
+        ],
         review=lambda d: review(
             reviewer,
             checklist=checklist,
             item_counts={SRS_DOC_ID: len(d.items)},
-            upstream=brd_view(brd),
+            upstream=brd_text,
             draft_view=draft_view(d, SRS_DOC_ID),
             language=language,
+            references=kb_text(session, "writer"),
+            reference_refs=kb_refs(session, "writer"),
         ),
         start=checkpoint_draft(checkpoint, "draft", SrsDraft),
         start_feedback=checkpoint_feedback(checkpoint, "writer"),
