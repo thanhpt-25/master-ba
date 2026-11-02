@@ -60,6 +60,11 @@ strict = true
 mypy_path = "src:tests"
 explicit_package_bases = true
 
+# The rag extra is optional; its packages are imported only inside functions.
+[[tool.mypy.overrides]]
+module = ["lancedb", "lancedb.*", "sentence_transformers", "sentence_transformers.*", "huggingface_hub", "huggingface_hub.*", "pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
