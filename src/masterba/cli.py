@@ -26,6 +26,7 @@ from masterba.change import (
     reject_dr,
     rows,
 )
+from masterba.cli_kb import KB_ERRORS, add_kb_parsers, dispatch_kb
 from masterba.doctor import init_root, run_checks
 from masterba.llm import DEFAULT_MODEL, LLM, AnthropicLLM, LLMError
 from masterba.models import ProjectConfig
@@ -150,6 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dr_parsers(commands)
     _add_question_parsers(commands)
     _add_template_parsers(commands)
+    add_kb_parsers(commands, _project_id)
     doctor = commands.add_parser("doctor", help="check this root and print what to fix")
     doctor.add_argument("--init", action="store_true", help="prepare an empty folder first")
     serve = commands.add_parser("serve", help="run the dashboard (API and web app)")
@@ -414,6 +416,8 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
         return 0
     if args.command == "template":
         return _dispatch_template(args, root, llm_factory)
+    if args.command == "kb":
+        return dispatch_kb(args, root)
     projects = root / "projects"
     if args.command == "init-project":
         store = create_project(
@@ -475,6 +479,7 @@ def main(argv: Sequence[str] | None = None, *, llm_factory: LLMFactory | None = 
         RenderError,
         LLMError,
         QaOutputInvalidError,
+        *KB_ERRORS,
         OSError,
         ValueError,
     ) as exc:
