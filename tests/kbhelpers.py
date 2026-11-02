@@ -2,11 +2,15 @@
 
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from masterba.knowledge.embedder import Embedder, HashEmbedder
 from masterba.knowledge.indexer import IndexBackend
 from masterba.knowledge.store import IncomingFile
 from masterba.knowledge.vectors import InMemoryVectorStore, VectorStore
+
+if TYPE_CHECKING:
+    from masterba.trace_store import ProjectStore
 
 
 class MemoryVectors:
@@ -63,3 +67,20 @@ def last_commit(repo: Path) -> tuple[str, list[str]]:
         check=True,
     ).stdout.split("\n")
     return out[0], [line for line in out[1:] if line]
+
+
+def fresh_project(tmp: Path) -> "ProjectStore":
+    """A new git repo with project PRJ-001, for property tests that cannot use fixtures."""
+    from factories import make_config
+    from masterba.trace_store import ProjectStore, create_project
+
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["config", "user.name", "Test"],
+        ["config", "user.email", "test@example.com"],
+        ["config", "commit.gpgsign", "false"],
+        ["commit", "-q", "--allow-empty", "-m", "init"],
+    ):
+        subprocess.run(["git", *args], cwd=tmp, capture_output=True, check=True)
+    store: ProjectStore = create_project(tmp / "projects", make_config())
+    return store
