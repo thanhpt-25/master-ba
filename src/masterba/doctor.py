@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from masterba.api.auth import UserStore
+from masterba.knowledge.paths import KNOWLEDGE_IGNORES
 from masterba.models.enums import DocType
 from masterba.rendering.errors import InvalidTemplateError
 from masterba.rendering.template import load_template
@@ -14,12 +15,6 @@ from masterba.trace_store.errors import GitError
 from masterba.trace_store.git import ensure_ready
 
 SOURCE_TEMPLATES = Path(__file__).resolve().parents[2] / "templates" / "default"
-# Knowledge base files that stay out of git; only knowledge/manifest.json is committed (spec 12).
-KNOWLEDGE_IGNORES = (
-    "projects/*/knowledge/sources/",
-    "projects/*/knowledge/index/",
-    "projects/*/knowledge/.lock",
-)
 WORK_TREE_GITIGNORE = "".join(f"{line}\n" for line in (".masterba/", *KNOWLEDGE_IGNORES))
 
 

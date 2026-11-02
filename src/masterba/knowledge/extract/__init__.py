@@ -11,7 +11,14 @@ from masterba.knowledge.extract.split import MAX_CHUNK_CHARS, split_rows, split_
 
 EXTRACTOR_VERSION = 1
 
-__all__ = ["EXTRACTOR_VERSION", "MAX_CHUNK_CHARS", "Chunk", "ExtractionError", "extract_source"]
+__all__ = [
+    "EXTRACTOR_VERSION",
+    "MAX_CHUNK_CHARS",
+    "Chunk",
+    "ExtractionError",
+    "extract_source",
+    "index_text_of",
+]
 
 
 @dataclass(frozen=True)
@@ -55,7 +62,7 @@ def _pieces(block: Block) -> Iterator[tuple[str, tuple[int, int] | None]]:
             yield text, None
 
 
-def _index_text(heading_path: tuple[str, ...], text: str) -> str:
+def index_text_of(heading_path: tuple[str, ...], text: str) -> str:
     return unicodedata.normalize("NFKC", "\n".join([*heading_path, text]))
 
 
@@ -74,7 +81,7 @@ def extract_source(source_id: str, path: Path, suffix: str) -> list[Chunk]:
                     Chunk(
                         ref=f"{source_id}#chunk.{len(chunks) + 1}",
                         text=text,
-                        index_text=_index_text(block.heading_path, text),
+                        index_text=index_text_of(block.heading_path, text),
                         heading_path=block.heading_path,
                         sheet=block.sheet,
                         rows=rows,
