@@ -145,7 +145,7 @@ Tất cả hàm nhận `ProjectStore` (gốc `projects/` + `project_id`), **khô
 
     | Hàm | Hành vi |
     |---|---|
-    | `add_document(store, doc, content, *, links: Sequence[TraceLink] = (), knowledge_nodes: Sequence[str] = ())` | Như cũ; khi có `links`/`knowledge_nodes` thì ghi thêm `knowledge-nodes.json` (hợp với danh sách cũ) và `links.json` (bỏ link đã có) trong **cùng commit** `doc(P): create DOC-... v<n>`. Caller cũ không truyền gì và không đổi hành vi. |
+    | `add_document(store, doc, content, *, links: Sequence[TraceLink] = (), knowledge: Sequence[str] = ())` | Như cũ; tham số tên `knowledge` vì `knowledge_nodes` là tên hàm đọc trong cùng module. Khi có `links`/`knowledge` thì ghi thêm `knowledge-nodes.json` (hợp với danh sách cũ) và `links.json` (bỏ link đã có) trong **cùng commit** `doc(P): create DOC-... v<n>`. Caller cũ không truyền gì và không đổi hành vi. |
     | `knowledge_nodes(store) -> list[str]` | Đọc `traceability/knowledge-nodes.json`. |
 
     `query_impact(store, "KB-0003")` đi theo các cạnh `derives_from`; Source_Id chưa có Knowledge_Node → `NotFoundError`.
@@ -154,11 +154,11 @@ Tất cả hàm nhận `ProjectStore` (gốc `projects/` + `project_id`), **khô
     | Hàm (module) | Hành vi | Commit message |
     |---|---|---|
     | `read_manifest(store: ProjectStore) -> KbManifest` (`store.py`) | Đọc manifest; file chưa có → manifest rỗng | — |
-    | `add_sources(store: ProjectStore, files: Sequence[IncomingFile], added_by: str, *, now: Clock = utc_now) -> AddReport` (`store.py`) | Kiểm file, bỏ qua file trùng sha256 với nguồn đang active, gán `KB-####` mới, chép vào `sources/`, cập nhật chỉ mục | `kb(P): add KB-0003, KB-0004` |
-    | `replace_source(store: ProjectStore, source_id: str, file: IncomingFile, added_by: str, *, now: Clock = utc_now) -> ReplaceReport` (`store.py`) | Thay nội dung, giữ nguyên Source_Id | `kb(P): replace KB-0003` |
-    | `remove_source(store: ProjectStore, source_id: str) -> KbSource` (`store.py`) | Đánh dấu `removed=true`, `removed_at`; xoá file nguồn sau khi commit; số id không tái sử dụng | `kb(P): remove KB-0003` |
-    | `list_sources(store: ProjectStore) -> list[SourceView]` (`store.py`) | Các nguồn active, sắp tăng theo id, kèm trạng thái | — |
-    | `reindex(store: ProjectStore, *, embedder_factory: EmbedderFactory = default_factory) -> BuildOutcome` (`indexer.py`) | Dựng lại toàn bộ chỉ mục từ `sources/`; không đổi manifest | — (không commit) |
+    | `add_sources(store: ProjectStore, files: Sequence[IncomingFile], added_by: str, *, backend: IndexBackend = DEFAULT_BACKEND, now: Clock = utc_now) -> AddReport` (`store.py`) | Kiểm file, bỏ qua file trùng sha256 với nguồn đang active, gán `KB-####` mới, chép vào `sources/`, cập nhật chỉ mục | `kb(P): add KB-0003, KB-0004` |
+    | `replace_source(store: ProjectStore, source_id: str, file: IncomingFile, added_by: str, *, backend=..., now=..., before_commit=None) -> ReplaceReport` (`store.py`) | Thay nội dung, giữ nguyên Source_Id | `kb(P): replace KB-0003` |
+    | `remove_source(store: ProjectStore, source_id: str, *, backend=..., now=..., before_commit=None) -> KbSource` (`store.py`) | Đánh dấu `removed=true`, `removed_at`; xoá file nguồn sau khi commit; số id không tái sử dụng | `kb(P): remove KB-0003` |
+    | `list_sources(store: ProjectStore, backend: IndexBackend = DEFAULT_BACKEND) -> list[SourceView]` (`store.py`) | Các nguồn active, sắp tăng theo id, kèm trạng thái | — |
+    | `reindex(store: ProjectStore, *, backend: IndexBackend = DEFAULT_BACKEND, now: Clock = utc_now) -> BuildOutcome` (`indexer.py`) | Dựng lại toàn bộ chỉ mục từ `sources/`; không đổi manifest | — (không commit) |
     | `replace_with_proposal(store, source_id, file, added_by) -> tuple[ReplaceReport, DecisionRecord \| None]` (`proposal.py`) | Như `replace_source`; nếu nguồn đang được trích dẫn thì trước đó tạo một DR `proposed` (trigger `knowledge_change`) qua `new_dr` | `dr(P): create DR-####` (khi có trích dẫn), rồi `kb(P): replace KB-0003` |
     | `remove_with_proposal(store, source_id) -> tuple[KbSource, DecisionRecord \| None]` (`proposal.py`) | Như `remove_source`, cùng quy tắc DR; Knowledge_Node và link của nguồn vẫn giữ lại | `dr(P): create DR-####` (khi có trích dẫn), rồi `kb(P): remove KB-0003` |
 

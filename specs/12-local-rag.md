@@ -1,6 +1,6 @@
 # Spec 12 — Local RAG: a per-project knowledge base for the generating stages
 
-Status: v0.2 (2026-11-02), approved by the owner, not yet implemented; v0.2 records the owner's approval of v0.1 without other changes. Sources: [next-steps.md](../docs/next-steps.md) section "Phase 12: local RAG" (goal 12.1, design 12.2, security 12.3, acceptance 12.4, owner decisions 12.5, containers 12.6), [00-constitution.md](00-constitution.md) (ids, project layout, one commit per business action), [01-data-contracts.md](01-data-contracts.md) (frozen models, generated schemas, store functions), [07-change-management.md](07-change-management.md) (Decision Records, impact analysis), [08-dashboard.md](08-dashboard.md) (roles, `X-MasterBA` header), [11-hardening.md](11-hardening.md) (containers, resume), [13-customer-questions.md](13-customer-questions.md) open point 5. The planning requirements and design this spec is written from are kept outside the repository (`.kiro/specs/local-rag/`).
+Status: v0.3 (2026-11-02), implemented and verified offline; sections 18 to 21 (evaluation, default model, container check, live run) wait for the owner's manual runs, and the phase is not accepted before section 21 records a passing live run. v0.2 recorded the owner's approval of v0.1; v0.3 aligns section 14 and section 8 with the code. Sources: [next-steps.md](../docs/next-steps.md) section "Phase 12: local RAG" (goal 12.1, design 12.2, security 12.3, acceptance 12.4, owner decisions 12.5, containers 12.6), [00-constitution.md](00-constitution.md) (ids, project layout, one commit per business action), [01-data-contracts.md](01-data-contracts.md) (frozen models, generated schemas, store functions), [07-change-management.md](07-change-management.md) (Decision Records, impact analysis), [08-dashboard.md](08-dashboard.md) (roles, `X-MasterBA` header), [11-hardening.md](11-hardening.md) (containers, resume), [13-customer-questions.md](13-customer-questions.md) open point 5. The planning requirements and design this spec is written from are kept outside the repository (`.kiro/specs/local-rag/`).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -135,7 +135,7 @@ Shared rules:
 
 ## 8. Passages in prompts
 
-`open_session(store)` runs before `Team.open` in `run_brd`, `run_srs`, `run_basic` and `run_detail`. It returns none when the Manifest is absent or no active Source is `indexed`; it raises `KnowledgeUnavailableError` (naming the project and saying to run `masterba kb reindex`) when Sources exist but the index cannot be opened. A broken index therefore stops the stage before any model call, run directory or commit; a failure during a later retrieval ends the stage the same way, and `team.finish` is never reached.
+`open_session(store)` runs before `Team.open` in `run_brd`, `run_srs`, `run_basic_design` and `run_detail_design`; each takes `knowledge=` (default `open_session`) so tests can pass a session over a `FakeRetriever`. It returns none when the Manifest is absent or no active Source is `indexed`; it raises `KnowledgeUnavailableError` (naming the project and saying to run `masterba kb reindex`) when Sources exist but the index cannot be opened. A broken index therefore stops the stage before any model call, run directory or commit; a failure during a later retrieval ends the stage the same way, and `team.finish` is never reached.
 
 The `KnowledgeSession` wraps the existing write, gate and review closures, so `run_writer_review` and `run_design_test_team` do not change.
 
@@ -230,6 +230,7 @@ src/masterba/
   models/ids.py              + SOURCE_ID_PATTERN, CHUNK_REF_PATTERN, SourceId, ChunkRef, chunk_key, parse_chunk_ref
   knowledge/                 paths, safety, store, extract/, keyword, embedder, vectors, indexer,
                              retriever, reference, session, citations, trace, proposal, evaluation
+  cli_kb.py                  the `masterba kb` command group, registered by cli.py
   api/routes_knowledge.py
 frontend/views/knowledge.js
 ```
@@ -239,12 +240,16 @@ frontend/views/knowledge.js
 Public functions (the names the constitution and data-contract amendments record):
 
 ```python
-add_sources(store, files: Sequence[IncomingFile], added_by: str, *, now=utc_now) -> AddReport
-replace_source(store, source_id: str, file: IncomingFile, added_by: str, *, now=utc_now) -> ReplaceReport
-remove_source(store, source_id: str) -> KbSource
-list_sources(store) -> list[SourceView]
+# `backend` (IndexBackend: model probe, embedder loader, vector store) replaces the planned
+# `embedder_factory`; tests pass a hash embedder with in-memory vectors through it.
+add_sources(store, files: Sequence[IncomingFile], added_by: str, *, backend=DEFAULT_BACKEND, now=utc_now) -> AddReport
+replace_source(store, source_id: str, file: IncomingFile, added_by: str, *, backend=..., now=..., before_commit=None) -> ReplaceReport
+remove_source(store, source_id: str, *, backend=..., now=..., before_commit=None) -> KbSource
+list_sources(store, backend=DEFAULT_BACKEND) -> list[SourceView]
 read_manifest(store) -> KbManifest
-reindex(store, *, embedder_factory=default_factory) -> BuildOutcome
+reindex(store, *, backend=DEFAULT_BACKEND, now=utc_now) -> BuildOutcome
+open_session(store, retriever_factory=HybridRetriever, backend=DEFAULT_BACKEND) -> KnowledgeSession | None
+add_document(store, doc, content, *, links=(), knowledge=()) -> None   # trace_store
 replace_with_proposal(store, source_id, file, added_by) -> tuple[ReplaceReport, DecisionRecord | None]
 remove_with_proposal(store, source_id) -> tuple[KbSource, DecisionRecord | None]
 ```
