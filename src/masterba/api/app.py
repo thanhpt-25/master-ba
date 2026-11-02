@@ -13,6 +13,7 @@ from masterba.agents import QaOutputInvalidError
 from masterba.api import (
     routes_docs,
     routes_drs,
+    routes_knowledge,
     routes_projects,
     routes_questions,
     routes_templates,
@@ -24,6 +25,14 @@ from masterba.api.jobs import JobManager
 from masterba.api.settings import Settings
 from masterba.calibration import CalibrationError
 from masterba.change import LifecycleError, PatchError
+from masterba.knowledge import (
+    KbCommitError,
+    KbError,
+    KnowledgeUnavailableError,
+    SearchArgumentError,
+    UnknownSourceError,
+)
+from masterba.knowledge.embedder import RagUnavailableError
 from masterba.llm import LLMError
 from masterba.rendering import RenderError
 from masterba.trace_store import NotFoundError, TraceStoreError
@@ -74,6 +83,21 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
     async def not_found(_: Request, exc: NotFoundError) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=404)
 
+    @app.exception_handler(UnknownSourceError)
+    async def unknown_source(_: Request, exc: UnknownSourceError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=404)
+
+    @app.exception_handler(KnowledgeUnavailableError)
+    async def kb_unavailable(_: Request, exc: KnowledgeUnavailableError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=409)
+
+    @app.exception_handler(KbCommitError)
+    async def kb_commit(_: Request, exc: KbCommitError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=500)
+
+    @app.exception_handler(KbError)
+    @app.exception_handler(SearchArgumentError)
+    @app.exception_handler(RagUnavailableError)
     @app.exception_handler(TraceStoreError)
     @app.exception_handler(LifecycleError)
     @app.exception_handler(CalibrationError)
@@ -100,6 +124,7 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
         routes_trace,
         routes_drs,
         routes_questions,
+        routes_knowledge,
         routes_templates,
     ):
         app.include_router(module.router)

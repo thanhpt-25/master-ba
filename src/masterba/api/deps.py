@@ -7,7 +7,7 @@ from fastapi import HTTPException, Request
 
 from masterba.api.auth import RANK, LoginThrottle, SessionSigner, User, UserStore
 from masterba.api.jobs import JobManager
-from masterba.api.schemas import DOC_ID, DR_ID, PROJECT_ID, QUESTION_ID, RUN_ID
+from masterba.api.schemas import DOC_ID, DR_ID, PROJECT_ID, QUESTION_ID, RUN_ID, SOURCE_ID
 from masterba.api.settings import Settings
 from masterba.trace_store import NotFoundError, ProjectStore, open_project
 
@@ -60,7 +60,13 @@ def project_store(request: Request, pid: str) -> ProjectStore:
 
 def checked(pattern_name: str, value: str) -> str:
     """Validate an id taken from a path or query before it touches the file system."""
-    pattern = {"doc": DOC_ID, "dr": DR_ID, "run": RUN_ID, "question": QUESTION_ID}[pattern_name]
+    pattern = {
+        "doc": DOC_ID,
+        "dr": DR_ID,
+        "run": RUN_ID,
+        "question": QUESTION_ID,
+        "source": SOURCE_ID,
+    }[pattern_name]
     if not pattern.match(value):
         raise HTTPException(status_code=404, detail=f"no such {pattern_name}")
     return value
