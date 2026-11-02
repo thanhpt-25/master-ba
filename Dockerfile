@@ -20,10 +20,11 @@ ARG UID=1000
 ARG GID=1000
 RUN groupadd -g "$GID" masterba \
     && useradd -u "$UID" -g "$GID" -m masterba \
-    && mkdir /work && chown masterba:masterba /work \
+    && mkdir /work /models && chown masterba:masterba /work /models \
     && git config --system safe.directory /work
 COPY --from=builder /app /app
-ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1
+# HF_HOME is the model-cache volume; `kb setup` downloads the embedding model there (spec 12).
+ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 HF_HOME=/models MASTERBA_IN_CONTAINER=1
 USER masterba
 WORKDIR /work
 ENTRYPOINT ["masterba", "--root", "/work"]
