@@ -1,6 +1,6 @@
 # Spec 12 — Local RAG: a per-project knowledge base for the generating stages
 
-Status: v0.3 (2026-11-02), implemented and verified offline; sections 18 to 21 (evaluation, default model, container check, live run) wait for the owner's manual runs, and the phase is not accepted before section 21 records a passing live run. v0.2 recorded the owner's approval of v0.1; v0.3 aligns section 14 and section 8 with the code. Sources: [next-steps.md](../docs/next-steps.md) section "Phase 12: local RAG" (goal 12.1, design 12.2, security 12.3, acceptance 12.4, owner decisions 12.5, containers 12.6), [00-constitution.md](00-constitution.md) (ids, project layout, one commit per business action), [01-data-contracts.md](01-data-contracts.md) (frozen models, generated schemas, store functions), [07-change-management.md](07-change-management.md) (Decision Records, impact analysis), [08-dashboard.md](08-dashboard.md) (roles, `X-MasterBA` header), [11-hardening.md](11-hardening.md) (containers, resume), [13-customer-questions.md](13-customer-questions.md) open point 5. The planning requirements and design this spec is written from are kept outside the repository (`.kiro/specs/local-rag/`).
+Status: v0.4 (2026-11-02), implemented and accepted: sections 18 to 21 record the evaluation, the default model, the container check and a passing live run. v0.2 recorded the owner's approval of v0.1; v0.3 aligned section 14 and section 8 with the code; v0.4 records the manual results and the CPU-only torch source. Sources: [next-steps.md](../docs/next-steps.md) section "Phase 12: local RAG" (goal 12.1, design 12.2, security 12.3, acceptance 12.4, owner decisions 12.5, containers 12.6), [00-constitution.md](00-constitution.md) (ids, project layout, one commit per business action), [01-data-contracts.md](01-data-contracts.md) (frozen models, generated schemas, store functions), [07-change-management.md](07-change-management.md) (Decision Records, impact analysis), [08-dashboard.md](08-dashboard.md) (roles, `X-MasterBA` header), [11-hardening.md](11-hardening.md) (containers, resume), [13-customer-questions.md](13-customer-questions.md) open point 5. The planning requirements and design this spec is written from are kept outside the repository (`.kiro/specs/local-rag/`).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -290,43 +290,55 @@ The design's open points, taken as decisions of this spec. Each is easy to chang
 
 ## 18. Evaluation results
 
-To be filled after the evaluation runs (`uv run python -m masterba.knowledge.evaluation`, marker `rag_eval`).
+Measured with `uv run python -m masterba.knowledge.evaluation --model <name>` and `uv run pytest -m rag_eval` (2 passed: hybrid is at least as good as each mode in both languages, and indexing and search work with the socket guard active).
 
-- Date of the measurement: _pending_
-- Embedder model: _pending_
-- Questions: _pending_ Japanese, _pending_ English (at least 20 each)
+- Date of the measurement: 2026-11-02, macOS arm64, CPU embedding
+- Embedder model: `BAAI/bge-m3`; the same values were measured with `intfloat/multilingual-e5-large` (section 19)
+- Questions: 20 Japanese, 20 English, over `tests/knowledge/eval/sources/` (2 sources, 40 chunks)
 
 | Retrieval | Japanese Recall@5 (hits / questions) | English Recall@5 (hits / questions) |
 |---|---|---|
-| keyword only | _pending_ | _pending_ |
-| vector only | _pending_ | _pending_ |
-| hybrid | _pending_ | _pending_ |
+| keyword only | 1.000 (20 / 20) | 1.000 (20 / 20) |
+| vector only | 1.000 (20 / 20) | 1.000 (20 / 20) |
+| hybrid | 1.000 (20 / 20) | 1.000 (20 / 20) |
+
+Limit of this measurement: keyword search alone already finds every expected chunk, because each question shares terms with its chunk and the set has only 40 chunks. The set shows that every mode works, not how much the vector index adds. A harder set (paraphrased questions, more distractor chunks) is needed before these numbers can rank models.
 
 ## 19. Default embedding model
 
-To be filled after the evaluation is run once with `bge-m3` and once with `multilingual-e5`: the model with the higher Recall@5 becomes `DEFAULT_EMBED_MODEL`, with both sets of values recorded here.
-
-- Chosen default: _pending_
-- Values for both models: _pending_
+- Chosen default: `BAAI/bge-m3` (unchanged `DEFAULT_EMBED_MODEL`)
+- Values for both models: `BAAI/bge-m3` and `intfloat/multilingual-e5-large` both reach 1.000 (20 / 20) in all six cells of section 18, so Recall@5 does not separate them on this set.
+- Reason for the tie-break: `bge-m3` needs no `query:` / `passage:` prefixes and accepts inputs up to 8,192 tokens, against 512 for `multilingual-e5-large`, so long chunks are not truncated. Revisit the choice with a harder evaluation set.
+- Found while measuring: the `multilingual-e5-large` repository also ships several GB of ONNX and OpenVINO files that sentence-transformers does not load. The first `kb setup` timed out after 30 minutes and cleaned up correctly (no marker, partial snapshot removed). `setup_model` and `model_present` now skip those files (`SKIP_FILES` in `embedder.py`).
 
 ## 20. Container manual check
 
-To be filled after a manual run with the rag image:
+Run on 2026-11-02 with the image built `EXTRAS=rag` (Docker 29.9.2, Docker Desktop on macOS arm64, so `linux/aarch64`), a throw-away work tree and a throw-away compose project.
 
-- `docker compose run --rm masterba kb setup` writes the model into the `model-cache` volume and reports a cache path inside `/models`: _pending_
-- Sources, Manifest, keyword index and vector index are unchanged after `docker compose down` and a restart: _pending_
-- After the container is recreated, the model loads from the volume with no download and no network access to model hubs: _pending_
+- `docker compose run --rm masterba kb setup --model BAAI/bge-m3` writes the model into the `model-cache` volume and reports `cache: /models` (292 s for the download). `kb add` then indexes a glossary as `indexed`: passed
+- Sources, Manifest, keyword index and vector index are unchanged after `docker compose down` (same sha256 over every file before and after): passed
+- A new container with `docker run --network none` on the same volume returns the glossary chunk from `kb search` in hybrid mode (no keyword-only notice), and `kb setup` reports `already present` without downloading: passed (`docker compose run` on this Docker version has no `--network` flag, so this step used `docker run` with the same image and volume)
+
+Found while checking: the first rag image build ran for more than 70 minutes without finishing, because PyPI's Linux `torch` wheel pulls about 3 GB of NVIDIA CUDA wheels that the CPU embedder never uses. `pyproject.toml` now takes `torch` from the PyTorch CPU index on Linux (`[tool.uv.sources]`); the rag image builds in about 4 minutes, is 2.87 GB, has `torch 2.15.0+cpu` and no `nvidia-*` package. macOS keeps the PyPI build.
 
 ## 21. Live run
 
 To be filled after the live BRD and SRS run with a real model and the hybrid retriever on a demo project whose knowledge base holds a glossary (`.md` or `.xlsx`, at least 10 terms). If no glossary chunk passes the gate, or the run stops before the SRS draft reaches the gate, the run is recorded here as failed with the reason and the phase is not accepted.
 
-- Date, demo project id, glossary Source_Id: _pending_
+- Date, demo project id, glossary Source_Id: 2026-11-02, `PRJ-001` (test project of `tests/test_live_kb.py`, intake `login_system.txt`), `KB-0001` (Markdown glossary, 10 terms)
+- Model: `kr/claude-opus-5.5` through an Anthropic-compatible gateway (`ANTHROPIC_BASE_URL`); retrieval hybrid with `BAAI/bge-m3`
+- Result: passed (`uv run pytest -m live tests/test_live_kb.py`: 2 passed in 149 s). The canary test also passed: the draft did not contain the string the injected passage asked for.
 
-| Stage | Model | Writer rounds | QA rounds | Input tokens | Output tokens | Cited Chunk_Refs | Gate |
-|---|---|---|---|---|---|---|---|
-| BRD | _pending_ | | | | | | |
-| SRS | _pending_ | | | | | | |
+| Stage | Model | Writer rounds | QA rounds | Tokens (input + output) | Cited Chunk_Refs | Gate |
+|---|---|---|---|---|---|---|
+| BRD | `kr/claude-opus-5.5` | 1 | 1 | 4,147 | `KB-0001#chunk.1`, `.2`, `.4`, `.6` | passed |
+| SRS | `kr/claude-opus-5.5` | 2 | 2 | 9,103 | `KB-0001#chunk.2`, `.4` | passed |
+
+Two earlier attempts on the same day escalated and were fixed before this run:
+1. BRD: the model wrote `{"ref": ...}` in `kb_citations` (the block's tag attribute is also named `ref`), which does not fit the schema. `DATA_STATEMENT` now names the field `chunk_ref`.
+2. SRS: the model named the `open_questions` list `derives_from` or `requirement_ids` instead of `req_ids`. This was older than Phase 12; `agents/srs-writer.md` now names the fields.
+
+The stage summary reported `tokens=0` for the escalated attempts, because answers that do not fit the schema are not charged to the run. This is a reporting gap in the team runtime, not part of this phase.
 
 ## Changes to other documents
 
