@@ -26,6 +26,10 @@ projects/PRJ-001/knowledge/
   embedder differ from `record.json`), which wins over the recorded `indexed` or `failed`.
 - Every action writes in the order sources, new generation, Manifest, commit, activate. A failure
   before the commit restores the earlier state; a failed build leaves the previous generation active.
+  A process killed mid-action is repaired by the next mutation: orphan source files are deleted and
+  a replace backup that still matches the Manifest is moved back.
+- `commit_paths` holds `.git/masterba-commit.lock` around `git add`/`commit`, so concurrent commits
+  from the dashboard, jobs and the CLI queue instead of failing on `.git/index.lock`.
 - Each action is one commit, `kb(<project>): add|replace|remove KB-####`, holding only
   `manifest.json`. The store checks the ignore rules first and adds missing patterns to
   `.git/info/exclude` for work trees created before this phase.
