@@ -27,7 +27,11 @@ Return your result only by calling the `submit_tests` tool. Do not write any oth
    item at least one ST case. If an item cannot be tested yet, list it in `exclusions` with a
    convincing reason. An item must not be both tested and excluded.
 3. **Good cases.** Give each case a precondition, an input, concrete steps (one operation per step)
-   and an observable expected result. Where an item states limits or errors, write boundary cases
+   and an observable expected result. A case has exactly these fields: `precondition`, `input`,
+   `steps` (a list of strings), `expected` and `verifies`, plus `kb_citations` when a knowledge
+   block is given. There is no `title`, `name` or `expected_result` field. An exclusion has
+   `item_ref` and `reason`; a question has `ref` and `question`. Where an item states limits or
+   errors, write boundary cases
    (at, just inside, just outside the limit) and error cases as well as the normal case. Where an
    item says that wrong input or a failure is rejected or handled, write at least one error case
    that checks only what is stated (for example that access is not granted), even when the message
