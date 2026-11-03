@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from masterba.agents import QaIssue, QaOutputInvalidError, QaReport, QaReview
-from masterba.llm import LLMOutputError, LLMResult
+from masterba.llm import LLMConfigError, LLMError, LLMOutputError, LLMResult
 from masterba.models.enums import DocType, TeamRunStatus
 from masterba.team import (
     MAX_EXCHANGES,
@@ -371,3 +371,32 @@ def test_a_new_design_issue_after_the_first_review_only_advises(team: Team) -> N
     assert run(team, script) is not None
     assert (team.rounds, team.issues_raised) == (2, 1)
     assert team.advisory == [f"[X-1] {D_REF3}: B"]
+
+
+class Broken(Script):
+    """The tester's model request fails (spec 11 section 1.6: a 67-item tester call timed out)."""
+
+    def write_tests(
+        self, design: Design, previous: Tests | None, feedback: Sequence[str]
+    ) -> LLMResult[Tests]:
+        raise LLMError("model request failed: APITimeoutError: Request timed out.")
+
+
+def test_a_failed_request_escalates_with_a_summary_and_a_checkpoint(team: Team) -> None:
+    script = Broken()
+    assert run(team, script) is None
+    assert team.escalations[0].startswith("model request failed in tester: ")
+    assert "APITimeoutError" in team.escalations[0]
+    summary = team.finish(TeamRunStatus.ESCALATED)  # no open task is left behind
+    assert summary.status is TeamRunStatus.ESCALATED
+
+
+def test_a_configuration_error_still_raises(team: Team) -> None:
+    class Unconfigured(Script):
+        def write_design(
+            self, previous: Design | None, feedback: Sequence[str]
+        ) -> LLMResult[Design]:
+            raise LLMConfigError("ANTHROPIC_API_KEY is not set")
+
+    with pytest.raises(LLMConfigError):
+        run(team, Unconfigured())

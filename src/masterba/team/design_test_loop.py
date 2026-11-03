@@ -12,9 +12,9 @@ from typing import Generic, TypeVar
 from pydantic import BaseModel
 
 from masterba.agents.qa_reviewer import QaIssue, QaOutputInvalidError, QaReview
-from masterba.llm import LLMOutputError, LLMResult
+from masterba.llm import LLMConfigError, LLMError, LLMOutputError, LLMResult
 from masterba.models import QuestionDraft
-from masterba.team.loop import format_issue, unusable_answer
+from masterba.team.loop import format_issue, request_failed, unusable_answer
 from masterba.team.models import MessageType, TaskStatus
 from masterba.team.workspace import Team
 
@@ -144,6 +144,11 @@ class _Loop(Generic[D, T]):
             if message not in self.to_designer:
                 self.to_designer = [*self.to_designer, message]
             return _Next.END_CYCLE
+        except LLMConfigError:
+            raise
+        except LLMError as exc:
+            self._done(task)
+            return self._stop([request_failed("designer", exc)])
         team.charge(written.input_tokens + written.output_tokens)
         self.design = written.value
         team.write("designer", "design-draft", self.design)
@@ -183,6 +188,11 @@ class _Loop(Generic[D, T]):
             if message not in self.to_tester:
                 self.to_tester = [*self.to_tester, message]
             return _Next.END_CYCLE
+        except LLMConfigError:
+            raise
+        except LLMError as exc:
+            self._done(task)
+            return self._stop([request_failed("tester", exc)])
         team.charge(written.input_tokens + written.output_tokens)
         self.tests = written.value
         team.write("tester", "test-draft", self.tests)
@@ -250,6 +260,12 @@ class _Loop(Generic[D, T]):
             self.to_designer = []
             self.to_tester = []
             self._stop([f"qa output invalid: {'; '.join(exc.errors)}"])
+            return None
+        except LLMConfigError:
+            raise
+        except LLMError as exc:
+            self._done(task)
+            self._stop([request_failed("qa", exc)])
             return None
         team.charge(outcome.input_tokens + outcome.output_tokens)
         team.write("qa", "qa-report", outcome.report)

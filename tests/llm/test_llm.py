@@ -129,3 +129,15 @@ def test_requests_time_out_instead_of_hanging(monkeypatch: pytest.MonkeyPatch) -
     assert captured["timeout"] == 180.0
     AnthropicLLM("m", timeout=5.0)
     assert captured["timeout"] == 5.0
+
+
+def test_request_limits_come_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MASTERBA_REQUEST_TIMEOUT", "600")
+    monkeypatch.setenv("MASTERBA_MAX_TOKENS", "32000")
+    llm = AnthropicLLM(client=stub_client(StubMessages(tool_response({}))))
+    assert llm._max_tokens == 32000
+    monkeypatch.setenv("MASTERBA_MAX_TOKENS", "zero")
+    with pytest.raises(LLMConfigError, match="MASTERBA_MAX_TOKENS"):
+        AnthropicLLM(client=stub_client(StubMessages(tool_response({}))))
+    monkeypatch.delenv("MASTERBA_MAX_TOKENS")
+    assert AnthropicLLM(client=stub_client(StubMessages(tool_response({}))))._max_tokens == 16000

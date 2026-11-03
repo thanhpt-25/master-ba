@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel
 
 from masterba.agents import QaIssue, QaOutputInvalidError, QaReport, QaReview
-from masterba.llm import LLMOutputError, LLMResult
+from masterba.llm import LLMError, LLMOutputError, LLMResult
 from masterba.models import QuestionDraft
 from masterba.models.enums import DocType, TeamRunStatus
 from masterba.team import MessageType, TaskStatus, Team, run_writer_review
@@ -298,3 +298,22 @@ def test_a_draft_that_fails_the_gate_offers_no_questions(team: Team) -> None:
 def test_the_blocking_issues_of_the_last_review_are_held_as_objections(team: Team) -> None:
     assert run(team, Script([block("A"), block("A"), block("A")])) is None
     assert [i.message for i in team.objections["writer"]] == ["A"]
+
+
+def test_a_failed_writer_request_escalates_instead_of_raising(team: Team) -> None:
+    class Down(Script):
+        def write(self, previous: Draft | None, feedback: Sequence[str]) -> LLMResult[Draft]:
+            raise LLMError("model request failed: APIConnectionError: Connection error.")
+
+    assert run(team, Down([])) is None
+    assert team.escalations[0].startswith("model request failed in writer: ")
+    team.finish(TeamRunStatus.ESCALATED)
+
+
+def test_a_failed_qa_request_escalates_instead_of_raising(team: Team) -> None:
+    class QaDown(Script):
+        def review(self, draft: Draft) -> QaReview:
+            raise LLMError("model request failed: InternalServerError: 502")
+
+    assert run(team, QaDown([])) is None
+    assert team.escalations[0].startswith("model request failed in qa: ")
