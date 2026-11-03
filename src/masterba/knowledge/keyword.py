@@ -88,16 +88,23 @@ class KeywordIndex:
             self._db.execute("DELETE FROM chunks WHERE source_id = ?", (source_id,))
             self._db.execute("DELETE FROM fts WHERE source_id = ?", (source_id,))
 
-    def _match(self, expression: str, sources: frozenset[str] | None) -> list[str]:
-        rows = self._db.execute(
-            "SELECT ref, source_id, bm25(fts) FROM fts WHERE fts MATCH ?", (expression,)
-        ).fetchall()
-        kept = [
-            (score, chunk_key(ref), ref)
-            for ref, sid, score in rows
-            if sources is None or sid in sources
-        ]
-        return [ref for _, _, ref in sorted(kept)]
+    def _match(self, expression: str, limit: int, sources: frozenset[str] | None) -> list[str]:
+        """The best `limit` refs by bm25, ties by chunk_key; limit and filter run in SQL."""
+        if sources is not None and not sources:
+            return []
+        where, params = "fts MATCH ?", [expression]
+        if sources is not None:
+            where += f" AND source_id IN ({','.join('?' * len(sources))})"
+            params.extend(sorted(sources))
+        scored = f"SELECT ref, bm25(fts) AS score FROM fts WHERE {where}"
+        top = self._db.execute(f"{scored} ORDER BY score LIMIT ?", [*params, limit]).fetchall()
+        if len(top) == limit:
+            # Rows tied with the last score are all fetched, so chunk_key decides the cut.
+            top = self._db.execute(
+                f"SELECT ref, score FROM ({scored}) WHERE score <= ?", [*params, top[-1][1]]
+            ).fetchall()
+        ranked = sorted((score, chunk_key(ref), ref) for ref, score in top)
+        return [ref for _, _, ref in ranked[:limit]]
 
     def search(self, query: str, limit: int, sources: frozenset[str] | None) -> list[str]:
         """Phrase matches first, then any-token matches, each by bm25 then chunk_key."""
@@ -108,7 +115,7 @@ class KeywordIndex:
         # and the expression is still passed as one bound parameter.
         phrase = '"' + " ".join(ordered) + '"'
         anyone = " OR ".join(f'"{t}"' for t in dict.fromkeys(ordered))
-        found = [*self._match(phrase, sources), *self._match(anyone, sources)]
+        found = [*self._match(phrase, limit, sources), *self._match(anyone, limit, sources)]
         return list(dict.fromkeys(found))[:limit]
 
     def chunk(self, ref: str) -> StoredChunk | None:

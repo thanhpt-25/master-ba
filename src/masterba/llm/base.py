@@ -17,7 +17,15 @@ class LLMConfigError(LLMError):
 
 
 class LLMOutputError(LLMError):
-    """The model returned nothing usable or output that does not fit the schema."""
+    """The model returned nothing usable or output that does not fit the schema.
+
+    The call still used tokens; they are carried so the run can charge them.
+    """
+
+    def __init__(self, message: str, input_tokens: int = 0, output_tokens: int = 0) -> None:
+        super().__init__(message)
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
 
 
 @dataclass(frozen=True)

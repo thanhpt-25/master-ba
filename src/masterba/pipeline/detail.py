@@ -217,8 +217,8 @@ def run_detail_design(
             upstream=basic_text,
             draft_view=detail_view(d, DETAIL_DOC_ID),
             language=language,
-            references=kb_text(session, "designer"),
-            reference_refs=kb_refs(session, "designer"),
+            references=kb_text(session, "designer", basic_text),
+            reference_refs=kb_refs(session, "designer", basic_text),
         ),
         review_tests=lambda d, t: review(
             reviewer,
@@ -227,8 +227,10 @@ def run_detail_design(
             upstream=f"{basic_text}\n\nDetail Design:\n{detail_view(d, DETAIL_DOC_ID)}",
             draft_view=unit_cases_view(t, UT_DOC_ID),
             language=language,
-            references=kb_text(session, "tester"),
-            reference_refs=kb_refs(session, "tester"),
+            references=kb_text(session, "tester", f"{basic_text}\n{detail_view(d, DETAIL_DOC_ID)}"),
+            reference_refs=kb_refs(
+                session, "tester", f"{basic_text}\n{detail_view(d, DETAIL_DOC_ID)}"
+            ),
         ),
     )
     start = (

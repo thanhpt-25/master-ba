@@ -60,6 +60,7 @@ def run_writer_review(
         try:
             written = write(draft, feedback)
         except LLMOutputError as exc:
+            team.charge(exc.input_tokens + exc.output_tokens)
             message = unusable_answer(exc)
             team.post("gate", "writer", MessageType.FEEDBACK, None, message)
             feedback = feedback if message in feedback else [*feedback, message]

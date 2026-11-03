@@ -5,6 +5,7 @@ inside functions, so every module imports without the extra (Requirement 15.3).
 """
 
 import datetime as dt
+import functools
 import hashlib
 import importlib.util
 import json
@@ -116,8 +117,13 @@ class SentenceTransformerEmbedder:
         return self._encode([f"query: {text}" if self._e5 else text])[0]
 
 
+@functools.lru_cache(maxsize=2)
 def load_embedder(name: str) -> Embedder:
-    """Load a cached model with network access disabled."""
+    """Load a cached model with network access disabled.
+
+    Kept per process: a writer call searches up to 32 segments, and loading a model
+    such as bge-m3 from disk takes seconds and gigabytes each time.
+    """
     if not rag_available():
         raise RagUnavailableError("the rag extra is not installed")
     os.environ["HF_HUB_OFFLINE"] = "1"

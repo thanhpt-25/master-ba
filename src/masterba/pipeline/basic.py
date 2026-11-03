@@ -233,8 +233,8 @@ def run_basic_design(
             upstream=srs_text,
             draft_view=design_view(d, DESIGN_DOC_ID),
             language=language,
-            references=kb_text(session, "designer"),
-            reference_refs=kb_refs(session, "designer"),
+            references=kb_text(session, "designer", srs_text),
+            reference_refs=kb_refs(session, "designer", srs_text),
         ),
         review_tests=lambda d, t: review(
             reviewer,
@@ -243,8 +243,10 @@ def run_basic_design(
             upstream=f"{srs_text}\n\nBasic Design:\n{design_view(d, DESIGN_DOC_ID)}",
             draft_view=cases_view(t, IT_DOC_ID, ST_DOC_ID),
             language=language,
-            references=kb_text(session, "tester"),
-            reference_refs=kb_refs(session, "tester"),
+            references=kb_text(session, "tester", f"{srs_text}\n{design_view(d, DESIGN_DOC_ID)}"),
+            reference_refs=kb_refs(
+                session, "tester", f"{srs_text}\n{design_view(d, DESIGN_DOC_ID)}"
+            ),
         ),
     )
     start = (

@@ -29,7 +29,11 @@ from masterba.models.ids import ItemRef
 from masterba.models.payloads import LEVEL_BY_TEST_TYPE
 from masterba.rendering.bindings import item_class
 
-IDENTITY_FIELDS = frozenset({"item_id", "status", "test_id", "level", "requirement_id"})
+# kb_citations included: only a stage run checks a citation against its knowledge block
+# (spec 12), and the reviser gets no block, so a revision keeps them as they are.
+IDENTITY_FIELDS = frozenset(
+    {"item_id", "status", "test_id", "level", "requirement_id", "kb_citations"}
+)
 _ITEM_NUMBER = re.compile(r"#item\.(\d+)$")
 
 
@@ -128,7 +132,7 @@ def apply_patch(
     for n, op in enumerate(patch.operations, start=1):
         label = f"operation {n} ({op.op})"
         if op.op == "add":
-            bad = sorted(set(op.fields) & {"item_id", "status", "test_id", "level"})
+            bad = sorted(set(op.fields) & {"item_id", "status", "test_id", "level", "kb_citations"})
             if bad:
                 errors.append(f"{label}: fields {bad} are assigned by the system")
                 continue

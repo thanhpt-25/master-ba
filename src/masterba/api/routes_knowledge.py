@@ -3,6 +3,7 @@
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi.concurrency import run_in_threadpool
 
 from masterba.api.auth import User
 from masterba.api.deps import checked, project_store, require_role
@@ -45,7 +46,9 @@ def search(
 @router.post("", status_code=201)
 async def upload(store: Store, file: UploadFile, user: Signed) -> dict[str, Any]:
     # `added_by` is always the signed-in user, never a field the client sends (Req. 14.7).
-    report = add_sources(store, [await _incoming(file)], user.name)
+    incoming = await _incoming(file)
+    # Extraction, embedding and git run in a worker thread so other requests are not blocked.
+    report = await run_in_threadpool(add_sources, store, [incoming], user.name)
     if report.refused:
         raise HTTPException(status_code=400, detail=report.refused[0][1])
     if report.skipped:
@@ -64,7 +67,10 @@ async def upload(store: Store, file: UploadFile, user: Signed) -> dict[str, Any]
 @router.put("/{source_id}")
 async def replace(store: Store, source_id: str, file: UploadFile, user: Signed) -> dict[str, Any]:
     checked("source", source_id)
-    report, dr = replace_with_proposal(store, source_id, await _incoming(file), user.name)
+    incoming = await _incoming(file)
+    report, dr = await run_in_threadpool(
+        replace_with_proposal, store, source_id, incoming, user.name
+    )
     return {
         **report.after.model_dump(mode="json"),
         "status": report.status.status,

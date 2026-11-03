@@ -9,7 +9,14 @@ from dataclasses import dataclass, field
 
 from masterba.knowledge.citations import validate_kb_citations
 from masterba.knowledge.errors import KnowledgeUnavailableError
-from masterba.knowledge.indexer import DEFAULT_BACKEND, IndexBackend, open_index
+from masterba.knowledge.indexer import (
+    DEFAULT_BACKEND,
+    IndexBackend,
+    current_generation,
+    open_index,
+    read_record,
+)
+from masterba.knowledge.keyword import KeywordIndex
 from masterba.knowledge.reference import (
     STAGE_K,
     RenderedBlock,
@@ -24,7 +31,7 @@ from masterba.knowledge.retriever import (
     rrf_fuse,
     source_of,
 )
-from masterba.knowledge.store import kb_paths, list_sources
+from masterba.knowledge.store import kb_paths, list_sources, read_manifest
 from masterba.models import KbCitation, Passage
 from masterba.trace_store import ProjectStore
 
@@ -40,13 +47,18 @@ class KnowledgeSession:
     covers_manifest: Callable[[], bool]  # does the index hold every active source?
     seen_refs: dict[str, set[str]] = field(default_factory=dict)  # per writer role
     blocks: dict[str, RenderedBlock] = field(default_factory=dict)  # last block per role
+    # Active Manifest ids right now; a source removed during the stage drops out of filters.
+    active_ids: Callable[[], frozenset[str]] | None = None
 
     def _search(self, query: str) -> list[Passage]:
-        if len(self.indexed) <= MAX_FILTERS:
-            return self.retriever.search(query, STAGE_K, sorted(self.indexed))
+        ids = self.indexed & self.active_ids() if self.active_ids else self.indexed
+        if not ids:
+            return []
+        if len(ids) <= MAX_FILTERS:
+            return self.retriever.search(query, STAGE_K, sorted(ids))
         # Too many ids for one filter: search everything and drop the other sources.
         found = self.retriever.search(query, MAX_K, None)
-        return [p for p in found if source_of(p.chunk_ref) in self.indexed]
+        return [p for p in found if source_of(p.chunk_ref) in ids]
 
     def references_for(self, role: str, writer_input: str) -> str:
         """Search once per query segment, fuse, render and remember the block for `role`.
@@ -88,29 +100,35 @@ class KnowledgeSession:
         )
 
 
+def _active_ids(store: ProjectStore) -> frozenset[str]:
+    return frozenset(s.id for s in read_manifest(store).sources if not s.removed)
+
+
 def _index_reader(
-    store: ProjectStore, backend: IndexBackend
+    store: ProjectStore,
 ) -> tuple[Callable[[str], str | None], Callable[[], bool]]:
     paths = kb_paths(store)
+    opened: dict[str, KeywordIndex] = {}  # one connection per generation, reused by the gate
+
+    def keyword() -> KeywordIndex:
+        generation = current_generation(paths)
+        path = paths.index / str(generation) / "keyword.sqlite"
+        if generation is None or not path.is_file():
+            raise KnowledgeUnavailableError(
+                f"project {store.project_id}: the knowledge base index is missing; "
+                "run `masterba kb reindex`"
+            )
+        if generation not in opened:
+            opened[generation] = KeywordIndex(path)
+        return opened[generation]
 
     def chunk_text(ref: str) -> str | None:
-        index = open_index(paths, backend)
-        try:
-            chunk = index.keyword.chunk(ref)
-        finally:
-            index.close()
+        chunk = keyword().chunk(ref)
         return chunk.text if chunk is not None else None
 
     def covers() -> bool:
-        try:
-            index = open_index(paths, backend)
-        except KnowledgeUnavailableError:
-            return False
-        try:
-            active = {v.source.id for v in list_sources(store, backend)}
-            return active <= set(index.record.sources)
-        finally:
-            index.close()
+        record = read_record(paths, current_generation(paths))
+        return record is not None and _active_ids(store) <= set(record.sources)
 
     return chunk_text, covers
 
@@ -138,11 +156,12 @@ def open_session(
     indexed = frozenset(v.source.id for v in views if v.status == "indexed")
     if not indexed:
         return None
-    chunk_text, covers = _index_reader(store, backend)
+    chunk_text, covers = _index_reader(store)
     return KnowledgeSession(
         retriever=retriever_factory(store),
         indexed=indexed,
         manifest_ids=frozenset(v.source.id for v in views),
         chunk_text=chunk_text,
         covers_manifest=covers,
+        active_ids=lambda: _active_ids(store),
     )

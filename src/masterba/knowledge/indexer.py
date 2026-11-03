@@ -25,7 +25,7 @@ from masterba.knowledge.errors import IndexBuildError, KbError, KnowledgeUnavail
 from masterba.knowledge.extract import EXTRACTOR_VERSION, ExtractionError, extract_source
 from masterba.knowledge.keyword import KeywordIndex
 from masterba.knowledge.manifest import load_manifest
-from masterba.knowledge.paths import KbPaths, clean_staging, ensure_ignored, locked
+from masterba.knowledge.paths import KbPaths, ensure_ignored, locked, recover_interrupted
 from masterba.knowledge.vectors import LanceVectorStore, VectorStore
 from masterba.models import KbManifest, KbSource, ReindexRecord, SourceIndexState
 from masterba.trace_store import NotFoundError, ProjectStore
@@ -126,14 +126,17 @@ def discard(paths: KbPaths, generation: str) -> None:
     shutil.rmtree(paths.index / generation, ignore_errors=True)
 
 
-def clean_generations(paths: KbPaths) -> None:
-    """Delete old and unfinished generations; run at the start of every mutation."""
+def clean_generations(paths: KbPaths, manifest: KbManifest) -> None:
+    """Start of every mutation, under the lock: drop old and unfinished generations and
+    repair the sources an interrupted action left behind."""
     current = current_generation(paths)
     if paths.index.is_dir():
         for child in paths.index.iterdir():
             if _GEN.match(child.name) and child.name != current:
                 shutil.rmtree(child, ignore_errors=True)
-    clean_staging(paths)
+    recover_interrupted(
+        paths, {s.id: (s.suffix, s.sha256) for s in manifest.sources if not s.removed}
+    )
 
 
 def _new_generation(paths: KbPaths) -> str:
@@ -226,6 +229,9 @@ def build_generation(
             targets = [(s, p) for s, p in targets if p.is_file()]  # missing files stay missing
         for source, path in targets:
             states[source.id] = _index_source(source, path, keyword, vectors, embedder)
+        compact = getattr(vectors, "compact", None)
+        if compact is not None and base_dir is not None:
+            compact()  # the copied table carries every old fragment and version otherwise
         record = ReindexRecord(
             format_version=FORMAT_VERSION,
             embedder=name if embedder else None,
@@ -287,17 +293,21 @@ def reindex(
     if not (store.path / "project.json").is_file():
         raise NotFoundError(f"project {store.project_id} does not exist")
     paths = KbPaths(store.path / "knowledge")
-    manifest = load_manifest(paths)
-    missing = [
-        s.id
-        for s in manifest.sources
-        if not s.removed and not paths.source_file(s.id, s.suffix).is_file()
-    ]
-    if missing:
-        raise KbError("cannot reindex; these sources are missing: " + ", ".join(missing))
     with locked(paths):
+        manifest = load_manifest(paths)
+        # Recovery first: a source restored from a replace backup is not missing.
+        recover_interrupted(
+            paths, {s.id: (s.suffix, s.sha256) for s in manifest.sources if not s.removed}
+        )
+        missing = [
+            s.id
+            for s in manifest.sources
+            if not s.removed and not paths.source_file(s.id, s.suffix).is_file()
+        ]
+        if missing:
+            raise KbError("cannot reindex; these sources are missing: " + ", ".join(missing))
         ensure_ignored(paths)
-        clean_generations(paths)
+        clean_generations(paths, manifest)
         outcome = build_generation(paths, manifest, base=None, backend=backend, now=now)
         activate(paths, outcome.generation)
     return outcome

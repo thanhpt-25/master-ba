@@ -202,7 +202,7 @@ def add_sources(
         if not accepted:
             return AddReport((), tuple(skipped), tuple(refused), {}, False, None)
         ensure_ignored(paths)
-        clean_generations(paths)
+        clean_generations(paths, manifest)
         stamp = now()
         new = [
             KbSource(
@@ -291,7 +291,7 @@ def replace_source(
         if twin is not None:
             raise UploadRefusedError(f"{file.name}: the same content is already stored as {twin}")
         ensure_ignored(paths)
-        clean_generations(paths)
+        clean_generations(paths, manifest)
         after = KbSource.model_validate(
             {
                 **before.model_dump(),
@@ -357,7 +357,7 @@ def remove_source(
         manifest = load_manifest(paths)
         entry = _active_entry(manifest, source_id)
         ensure_ignored(paths)
-        clean_generations(paths)
+        clean_generations(paths, manifest)
         removed = KbSource.model_validate(
             {**entry.model_dump(), "removed": True, "removed_at": now()}
         )

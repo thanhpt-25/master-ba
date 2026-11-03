@@ -128,7 +128,11 @@ class Team:
                 f"run {run_id} ended {summary.status.value}; only escalated runs resume"
             )
         if not (run_dir / CHECKPOINT).is_file():
-            raise ResumeError(f"run {run_id} has no checkpoint")
+            # No draft ever passed the gate, so there is nothing to continue from.
+            raise ResumeError(
+                f"run {run_id} has no checkpoint: no draft of it passed the gate; "
+                "start a new run without --resume"
+            )
         checkpoint = RunCheckpoint.model_validate(_load(run_dir / CHECKPOINT))
         tasks = [TeamTask.model_validate(t) for t in _load(run_dir / "team-tasks.json")]
         messages = [TeamMessage.model_validate(m) for m in _load(run_dir / "mailbox.json")]
