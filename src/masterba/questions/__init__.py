@@ -4,7 +4,14 @@ Answering and withdrawing live in `masterba.questions.answer`, which needs `mast
 the pipelines import this package, and `change` imports the pipelines, so they stay apart.
 """
 
-from masterba.questions.facts import Fact, attach_facts, confirmed_facts, facts_block
+from masterba.questions.facts import (
+    Fact,
+    attach_facts,
+    confirmed_facts,
+    facts_block,
+    open_questions,
+    open_questions_block,
+)
 from masterba.questions.ledger import Recorded, record_questions, record_run_questions
 
 __all__ = [
@@ -13,6 +20,8 @@ __all__ = [
     "attach_facts",
     "confirmed_facts",
     "facts_block",
+    "open_questions",
+    "open_questions_block",
     "record_questions",
     "record_run_questions",
 ]

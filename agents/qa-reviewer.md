@@ -42,5 +42,10 @@ Return your result only by calling the `submit_qa_report` tool. Do not write any
 8. Set `customer_question` to true when only the customer can settle the point because the
    upstream material does not contain the answer. Such an issue does not block the draft; it is
    passed on to the customer as an open question.
-9. If the draft is acceptable, return an empty `issues` list.
-10. You do not decide whether the draft passes; that follows from the issues you report.
+9. A question listed between `<open_questions>` tags is still waiting for the customer. A draft
+   statement that answers one of them (a figure, a limit, a rule or a choice the question asks
+   about) is an invention even when the upstream material or a knowledge passage contains it:
+   report it under the checklist entry for unsupported content, with `action_required` naming the
+   statement to reduce to what the source states. Do not raise the same question again.
+10. If the draft is acceptable, return an empty `issues` list.
+11. You do not decide whether the draft passes; that follows from the issues you report.

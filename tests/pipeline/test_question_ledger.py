@@ -110,3 +110,33 @@ def test_there_is_no_block_before_an_answer(projects_root: Path) -> None:
     llm = FakeLLM([login_srs_draft(), qa_pass()])
     run_srs(store, TEMPLATES, llm)
     assert all("<confirmed>" not in call.user for call in llm.calls)
+
+
+def test_an_open_question_reaches_every_later_call_until_it_is_answered(
+    projects_root: Path,
+) -> None:
+    # Spec 13 section 5.1: a later stage may not decide a point the customer was asked about.
+    store = with_brd(projects_root)
+    open_ids = [q.id for q in list_questions(store) if q.status.value == "open"]
+    assert open_ids, "the login BRD draft raises open questions"
+    llm = FakeLLM([login_srs_draft(), qa_pass()])
+    run_srs(store, TEMPLATES, llm)
+    for call in llm.calls:
+        assert "<open_questions>" in call.user and "Do not state an answer" in call.user
+        assert all(qid in call.user for qid in open_ids)
+
+
+def test_answered_and_withdrawn_questions_leave_the_open_block(projects_root: Path) -> None:
+    from masterba.questions import open_questions, open_questions_block
+    from masterba.questions.answer import withdraw_question
+
+    store = with_brd(projects_root)
+    first, *rest = [q.id for q in open_questions(store)]
+    answer_question(store, first, "Yes.", "alice")
+    for qid in rest:
+        withdraw_question(store, qid)
+    assert open_questions(store) == [] and open_questions_block([]) == ""
+    llm = FakeLLM([login_srs_draft(), qa_pass()])
+    run_srs(store, TEMPLATES, llm)
+    assert all("<open_questions>" not in call.user for call in llm.calls)
+    assert all("<confirmed>" in call.user for call in llm.calls)
