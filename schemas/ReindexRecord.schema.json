@@ -1,0 +1,85 @@
+{
+  "$defs": {
+    "SourceIndexState": {
+      "additionalProperties": false,
+      "properties": {
+        "chunks": {
+          "minimum": 0,
+          "title": "Chunks",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "indexed",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha256",
+        "status",
+        "chunks"
+      ],
+      "title": "SourceIndexState",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "built_at": {
+      "format": "date-time",
+      "title": "Built At",
+      "type": "string"
+    },
+    "embedder": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Embedder"
+    },
+    "format_version": {
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "sources": {
+      "patternProperties": {
+        "^KB-\\d{4}$": {
+          "$ref": "#/$defs/SourceIndexState"
+        }
+      },
+      "title": "Sources",
+      "type": "object"
+    }
+  },
+  "required": [
+    "format_version",
+    "embedder",
+    "built_at",
+    "sources"
+  ],
+  "title": "ReindexRecord",
+  "type": "object"
+}

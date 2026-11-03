@@ -13,7 +13,12 @@ dependencies = [
     "fastapi>=0.162.0",
     "uvicorn>=0.54.0",
     "python-multipart>=0.0.32",
+    "python-docx>=1.1",
+    "pypdf>=4.0",
 ]
+
+[project.optional-dependencies]
+rag = ["sentence-transformers>=3", "lancedb>=0.13", "huggingface-hub>=0.24", "torch>=2.4"]
 
 [project.scripts]
 masterba = "masterba.cli:main"
@@ -34,15 +39,27 @@ dev = [
     "types-networkx>=3.6.1.20261029",
     "types-openpyxl>=3.1.5.20261017",
     "httpx>=0.28.1",
+    "hypothesis>=6.100",
 ]
 
 [tool.uv]
 package = true
 
+# On Linux (the container) torch comes from the CPU-only index: the PyPI build pulls about 3 GB
+# of NVIDIA CUDA wheels that the CPU embedder never uses (spec 12 section 13).
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
+extend-exclude = [".kiro"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
@@ -53,12 +70,18 @@ strict = true
 mypy_path = "src:tests"
 explicit_package_bases = true
 
+# The rag extra is optional; its packages are imported only inside functions.
+[[tool.mypy.overrides]]
+module = ["lancedb", "lancedb.*", "sentence_transformers", "sentence_transformers.*", "huggingface_hub", "huggingface_hub.*", "pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
-addopts = "--cov --cov-report=term-missing -m 'not live'"
+addopts = "--cov --cov-report=term-missing -m 'not live and not rag_eval'"
 markers = [
     "live: calls the real model; needs ANTHROPIC_API_KEY (run with -m live)",
+    "rag_eval: retrieval quality eval; needs the rag extra and the model (run with -m rag_eval)",
     "slow: measured slow (pytest --durations); skipped by the quick CI job",
 ]
 

@@ -40,6 +40,13 @@
           "title": "Description",
           "type": "string"
         },
+        "kb_citations": {
+          "items": {
+            "$ref": "#/$defs/KbCitation"
+          },
+          "title": "Kb Citations",
+          "type": "array"
+        },
         "kind": {
           "$ref": "#/$defs/BasicDesignKind"
         },
@@ -65,6 +72,33 @@
         "realizes"
       ],
       "title": "DraftDesignItem",
+      "type": "object"
+    },
+    "KbCitation": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_ref": {
+          "minLength": 1,
+          "title": "Chunk Ref",
+          "type": "string"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quote"
+        }
+      },
+      "required": [
+        "chunk_ref"
+      ],
+      "title": "KbCitation",
       "type": "object"
     }
   },

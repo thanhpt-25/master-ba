@@ -2,6 +2,7 @@
 #   docker compose run --rm masterba doctor --init     # prepare ./work once
 #   docker compose run --rm masterba user add admin --role admin
 #   docker compose up                                  # dashboard on http://127.0.0.1:8000
+#   docker compose run --rm masterba kb setup          # once, with an image built EXTRAS=rag
 # The port is published on 127.0.0.1 only: the dashboard has local accounts and no TLS.
 services:
   masterba:
@@ -10,6 +11,7 @@ services:
       args:
         UID: "${UID:-1000}"
         GID: "${GID:-1000}"
+        EXTRAS: "${EXTRAS:-}"
     command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["127.0.0.1:8000:8000"]
     env_file:
@@ -21,7 +23,8 @@ services:
       GIT_COMMITTER_NAME: "${GIT_AUTHOR_NAME:-MasterBA}"
       GIT_COMMITTER_EMAIL: "${GIT_AUTHOR_EMAIL:-masterba@localhost}"
     extra_hosts: ["host.docker.internal:host-gateway"]
-    volumes: ["${MASTERBA_WORK:-./work}:/work"]
+    # The knowledge base stays in /work/projects; only the embedding model lives in model-cache.
+    volumes: ["${MASTERBA_WORK:-./work}:/work", "model-cache:/models"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
       interval: 30s
@@ -29,3 +32,6 @@ services:
       start_interval: 2s
       timeout: 5s
       retries: 3
+
+volumes:
+  model-cache: {}

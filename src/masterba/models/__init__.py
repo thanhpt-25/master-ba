@@ -11,6 +11,14 @@ from masterba.models.entities import (
     TemplateDefinition,
     TraceLink,
 )
+from masterba.models.knowledge import (
+    KbCitation,
+    KbManifest,
+    KbSource,
+    Passage,
+    ReindexRecord,
+    SourceIndexState,
+)
 from masterba.models.payloads import (
     LEVEL_BY_TEST_TYPE,
     PAYLOAD_BY_TYPE,
@@ -41,10 +49,16 @@ __all__ = [
     "DetailDesignContent",
     "DetailDesignItem",
     "Document",
+    "KbCitation",
+    "KbManifest",
+    "KbSource",
+    "Passage",
     "Payload",
     "PayloadItem",
     "ProjectConfig",
+    "ReindexRecord",
     "RequirementItem",
+    "SourceIndexState",
     "SrsContent",
     "SrsItem",
     "Question",

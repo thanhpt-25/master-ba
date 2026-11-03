@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "chunks": {
+      "minimum": 0,
+      "title": "Chunks",
+      "type": "integer"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    },
+    "sha256": {
+      "title": "Sha256",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "indexed",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sha256",
+    "status",
+    "chunks"
+  ],
+  "title": "SourceIndexState",
+  "type": "object"
+}

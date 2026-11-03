@@ -68,6 +68,9 @@ const STATUS = {
   open: { icon: "○", label: "Open", cls: "warn" },
   answered: { icon: "✓", label: "Answered", cls: "ok" },
   withdrawn: { icon: "■", label: "Withdrawn", cls: "idle" },
+  indexed: { icon: "✓", label: "Indexed", cls: "ok" },
+  stale: { icon: "▲", label: "Stale", cls: "warn" },
+  missing: { icon: "✕", label: "Missing", cls: "bad" },
 };
 
 // Status is shown as icon plus word; colour is never the only signal.

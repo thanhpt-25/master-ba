@@ -29,3 +29,9 @@ text = "Names and terminology are consistent and no two items contradict each ot
 id = "BD-06"
 severity = "advisory"
 text = "Vague wording such as 'quickly', 'appropriate' or 'as needed' is not left undefined in a description."
+
+[[checks]]
+id = "BD-KB"
+severity = "blocking"
+requires_reference = true
+text = "A draft statement contradicts a passage in the knowledge block when it gives a different value, name, term, number, unit or rule for the same subject, or negates what the passage states. A statement on a subject no passage mentions is not a contradiction. Name exactly one item in ref, the passage refs in chunk_refs, and quote the contradicting statement."

@@ -16,6 +16,9 @@ templates/companies/*/*.preview.xlsx
 .env
 work/
 projects/*/runs/*/checkpoint.json
+projects/*/knowledge/sources/
+projects/*/knowledge/index/
+projects/*/knowledge/.lock
 
 # preview workbooks written by `masterba template preview`
 templates/companies/*/*.preview.xlsx

@@ -29,3 +29,9 @@ text = "No programming-language syntax or library calls appear; the text stays a
 id = "DD-06"
 severity = "advisory"
 text = "Vague wording such as 'appropriately' or 'as needed' is not left undefined in a spec."
+
+[[checks]]
+id = "DD-KB"
+severity = "blocking"
+requires_reference = true
+text = "A draft statement contradicts a passage in the knowledge block when it gives a different value, name, term, number, unit or rule for the same subject, or negates what the passage states. A statement on a subject no passage mentions is not a contradiction. Name exactly one item in ref, the passage refs in chunk_refs, and quote the contradicting statement."

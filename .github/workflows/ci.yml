@@ -59,3 +59,18 @@ jobs:
           if docker history --no-trunc masterba:ci | grep -E 'ANTHROPIC_API_KEY=[^ "]'; then exit 1; fi
           found="$(docker run --rm --entrypoint sh masterba:ci -c 'find / -xdev -name .env 2>/dev/null || true')"
           test -z "$found" || { echo "found: $found"; exit 1; }
+      - name: Default image has no rag packages (spec 12)
+        run: |
+          if docker run --rm --entrypoint python masterba:ci -c 'import lancedb'; then exit 1; fi
+          docker run --rm --entrypoint sh masterba:ci -c 'test "$HF_HOME" = /models'
+      - run: docker build -t masterba:rag --build-arg EXTRAS=rag --build-arg UID="$(id -u)" --build-arg GID="$(id -g)" .
+      - name: The rag image passes the extra check and ships no model weights
+        run: |
+          docker run --rm --entrypoint python masterba:rag -c 'from masterba.knowledge.embedder import rag_available; assert rag_available()'
+          for image in masterba:ci masterba:rag; do
+            found="$(docker run --rm --entrypoint sh "$image" -c 'find /models /app/.venv -xdev \( -name "*.safetensors" -o -name "*.bin" \) -size +10M 2>/dev/null || true')"
+            test -z "$found" || { echo "$image: $found"; exit 1; }
+          done
+      - name: Compose mounts the model cache at HF_HOME
+        run: |
+          docker compose config | grep -E 'source: model-cache|target: /models'

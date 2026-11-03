@@ -15,6 +15,7 @@ from masterba.models import BasicDesignContent, BasicDesignItem
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DetailDesignKind, DocLanguage, ItemStatus
 from masterba.models.ids import ItemRef
+from masterba.models.knowledge import KbCitation
 
 PROMPT_PATH = REPO_ROOT / "agents" / "detail-design.md"
 TOOL_NAME = "submit_detail_design"
@@ -29,6 +30,7 @@ class DraftDetailItem(FrozenModel):
     name: str = Field(min_length=1)
     spec: str = Field(min_length=1)
     refines: list[ItemRef] = Field(min_length=1)
+    kb_citations: list[KbCitation] = Field(default_factory=list)
 
 
 class DetailDesignDraft(FrozenModel):
@@ -106,9 +108,13 @@ def write_detail(
     feedback: Sequence[str],
     doc_id: str,
     system_prompt: str | None = None,
+    *,
+    references: str = "",
 ) -> LLMResult[DetailDesignDraft]:
     """One designer call: a first detail design, or a revision with the pending feedback."""
     user = f"<basic_design>\n{basic_view(basic_items)}\n</basic_design>"
+    if references:  # the Reference_Block (spec 12); empty keeps the prompt unchanged
+        user += f"\n\n{references}"
     if previous is not None:
         listing = "\n".join(f"- {f}" for f in feedback)
         user += (

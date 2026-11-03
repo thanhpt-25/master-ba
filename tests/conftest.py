@@ -4,9 +4,14 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from hypothesis import settings
 
 from factories import build_chain, make_config
 from masterba.trace_store import ProjectStore, create_project
+
+# Property tests run at least 100 examples; no deadline because many of them touch the file system.
+settings.register_profile("masterba", max_examples=100, deadline=None)
+settings.load_profile("masterba")
 
 
 def _git(repo: Path, *args: str) -> str:

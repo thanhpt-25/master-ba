@@ -20,6 +20,7 @@ from masterba.models import SrsItem
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DocLanguage
 from masterba.models.ids import ItemRef
+from masterba.models.knowledge import KbCitation
 
 PROMPT_PATH = REPO_ROOT / "agents" / "basic-test-design.md"
 TOOL_NAME = "submit_tests"
@@ -37,6 +38,7 @@ class DraftTestCase(FrozenModel):
     steps: list[str] = Field(min_length=1)
     expected: str = Field(min_length=1)
     verifies: list[ItemRef] = Field(min_length=1)
+    kb_citations: list[KbCitation] = Field(default_factory=list)
 
     @field_validator("steps")
     @classmethod
@@ -155,12 +157,16 @@ def write_tests(
     it_doc_id: str,
     st_doc_id: str,
     system_prompt: str | None = None,
+    *,
+    references: str = "",
 ) -> LLMResult[TestDraft]:
     """One tester call: first tests, or a revision with the pending feedback."""
     user = (
         f"<srs>\n{srs_view(srs_items)}\n</srs>\n\n"
         f"<design>\n{design_view(design, design_doc_id)}\n</design>"
     )
+    if references:  # the Reference_Block (spec 12); empty keeps the prompt unchanged
+        user += f"\n\n{references}"
     if previous is not None:
         listing = "\n".join(f"- {f}" for f in feedback)
         user += (

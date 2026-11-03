@@ -29,3 +29,9 @@ text = "An item is marked out of scope only when the intake itself excludes, pos
 id = "BRD-06"
 severity = "blocking"
 text = "No two items duplicate or contradict each other, and nothing is invented that the intake does not support."
+
+[[checks]]
+id = "BRD-KB"
+severity = "blocking"
+requires_reference = true
+text = "A draft statement contradicts a passage in the knowledge block when it gives a different value, name, term, number, unit or rule for the same subject, or negates what the passage states. A statement on a subject no passage mentions is not a contradiction. Name exactly one item in ref, the passage refs in chunk_refs, and quote the contradicting statement."

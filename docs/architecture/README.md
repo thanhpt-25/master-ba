@@ -2,7 +2,7 @@
 
 These documents explain how MasterBA works as built: what the parts are, where data lives, how a
 document travels from a customer's text to Excel workbooks, and which part of the system decides
-what. They describe the code as it is today (Phase 11); the planned work is in
+what. They describe the code as it is today (Phase 12); the planned work is in
 [../next-steps.md](../next-steps.md).
 
 | # | Document | Read it to learn |
@@ -14,6 +14,7 @@ what. They describe the code as it is today (Phase 11); the planned work is in
 | 5 | [Change management flow](05-change-management-flow.md) | how a Decision Record finds the affected documents and rewrites them |
 | 6 | [Interfaces and deployment](06-interfaces-and-deployment.md) | CLI, dashboard, background jobs, rendering and templates, security, containers, CI |
 | 7 | [Customer questions](07-customer-questions.md) | how a point only the customer can settle is recorded, answered as a Decision Record and given back to the agents |
+| 8 | [Knowledge base](08-knowledge-base.md) | how reference files are indexed, retrieved into prompts, checked by the citation gate and traced |
 
 ## Suggested reading order
 
@@ -37,6 +38,7 @@ what. They describe the code as it is today (Phase 11); the planned work is in
 | Escalation | A team run that stopped without an accepted result; nothing business-related is stored |
 | Question (`Q-####`) | A point only the customer can settle, kept in the project ledger until a person answers it |
 | Decision Record (`DR-####`) | An approved change request that is propagated to the documents it touches |
+| Knowledge source (`KB-####`) | A reference file in the project knowledge base; its chunks are cited as `KB-####` + `#chunk.<n>` |
 | Template | The Excel layout a document is rendered into; a default set ships with the repository |
 | Work tree | The git repository MasterBA runs in (`--root`); every project lives inside it |
 

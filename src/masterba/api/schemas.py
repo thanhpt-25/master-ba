@@ -11,6 +11,7 @@ from masterba.models.ids import (
     PROJECT_ID_PATTERN,
     QUESTION_ID_PATTERN,
     RUN_ID_PATTERN,
+    SOURCE_ID_PATTERN,
 )
 
 INTAKE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.(txt|md)$")
@@ -19,6 +20,7 @@ DOC_ID = re.compile(DOC_ID_PATTERN)
 DR_ID = re.compile(DR_ID_PATTERN)
 QUESTION_ID = re.compile(QUESTION_ID_PATTERN)
 RUN_ID = re.compile(RUN_ID_PATTERN)
+SOURCE_ID = re.compile(SOURCE_ID_PATTERN)
 STAGES = ("brd", "srs", "basic", "detail")
 
 

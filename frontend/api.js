@@ -34,10 +34,11 @@ export const api = {
   get: (path) => request("GET", path),
   post: (path, json = {}) => request("POST", path, { json }),
   put: (path, json = {}) => request("PUT", path, { json }),
-  upload: (path, file) => {
+  del: (path) => request("DELETE", path),
+  upload: (path, file, method = "POST") => {
     const form = new FormData();
     form.append("file", file, file.name);
-    return request("POST", path, { form });
+    return request(method, path, { form });
   },
   // A plain link the browser can follow (downloads rely on the session cookie).
   url: (path) => `/api${path}`,

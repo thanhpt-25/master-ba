@@ -58,3 +58,5 @@ class RunCheckpoint(FrozenModel):
     issues_resolved: int = Field(default=0, ge=0)
     # (checklist id, ref) pairs that were blocking, per reviewed artifact (spec 11 section 1.5)
     blocking_seen: dict[str, list[tuple[str, str | None]]] = Field(default_factory=dict)
+    # Chunk_Refs shown to each writer role in this run (spec 12, Requirement 10.5)
+    kb_seen_refs: dict[str, list[str]] = Field(default_factory=dict)

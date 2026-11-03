@@ -61,3 +61,19 @@ def test_the_page_has_no_inline_script_or_style_and_no_external_resources() -> N
 def test_scripts_never_set_a_style_attribute_directly() -> None:
     for script in SCRIPTS:
         assert 'setAttribute("style"' not in script.read_text("utf-8")
+
+
+def test_the_knowledge_tab_is_registered_and_safe() -> None:
+    app = (FRONTEND / "app.js").read_text("utf-8")
+    assert 'knowledge: () => import("./views/knowledge.js")' in app
+    assert '["knowledge", "Knowledge"]' in app
+    view = (FRONTEND / "views" / "knowledge.js").read_text("utf-8")
+    # Only approvers and admins get upload, replace and remove controls (Requirement 14.9).
+    assert 'const canAct = ["approver", "admin"].includes(me.role);' in view
+    assert view.count("canAct") >= 3
+    assert "No passages found." in view and "The knowledge base is empty." in view
+    # Errors are shown with the API detail and the table is not redrawn (Requirement 14.11).
+    assert 'toast(error.message, "error")' in view
+    assert not re.search(r"\son[a-z]+=", view)  # no inline handlers in markup strings
+    api = (FRONTEND / "api.js").read_text("utf-8")
+    assert 'del: (path) => request("DELETE", path)' in api

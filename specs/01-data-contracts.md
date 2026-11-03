@@ -122,3 +122,44 @@ Tất cả hàm nhận `ProjectStore` (gốc `projects/` + `project_id`), **khô
 13. **Entity `Question`** (module `models/`, đóng băng như các entity khác): `id: QuestionId` (`Q-####`), `origin: agent|qa_blocker`, `stage: DocType`, `run_id: RunId`, `refs: list[str]` (tham chiếu ổn định: `ReqId`, `ItemRef` của tài liệu đã lưu, hoặc dòng intake), `text: str`, `status: open|answered|withdrawn`, `asked_on: date`, và khi `answered`: `answer`, `answered_by`, `answered_on`, `dr_id`, `source?`. Ràng buộc: các field `answer`, `answered_by`, `answered_on`, `dr_id` được đặt cùng nhau khi và chỉ khi `status = answered`; `source` chỉ có khi `answered`.
 14. **Layout**: `questions/Q-0007.json` (một `Question`), bên cạnh `decision-records/`.
 15. **Hàm store**: `add_question`, `get_question`, `list_questions`, `save_question(store, question, action)` (ghi lại câu hỏi đã có, 1 commit `question(P): <action> <id>`). Quy tắc nghiệp vụ (gộp trùng, trả lời thành DR, dữ kiện xác nhận) nằm ngoài `trace_store`, trong gói `questions/` (spec 13).
+
+## Bổ sung 2026-11-02 (spec 12: kho tri thức cục bộ)
+
+16. **Kiểu id mới** (`models/ids.py`): `SourceId` (`^KB-\d{4}$`, ví dụ `KB-0003`) và `ChunkRef` (`^KB-\d{4}#chunk\.[1-9]\d*$`, tức Source_Id theo sau là `#chunk.<n>`, ví dụ `KB-0001#chunk.3`). Số `KB-####` do code gán (lớn nhất từng ghi trong manifest, kể cả nguồn đã `removed`, cộng 1) và không bao giờ tái sử dụng (spec 00 mục "Sửa đổi" 2026-11-02). `NODE_ID_PATTERN` nhận thêm `KB-####` (Knowledge_Node).
+17. **Entity mới** (module `models/knowledge.py`, đóng băng, thêm vào `schema_export.SCHEMA_MODELS` và có test lệch schema):
+    - `KbSource`: `id: SourceId`, `file_name: str` (1 đến 255 ký tự, tên lúc tải lên, chỉ để hiển thị), `suffix: .md|.txt|.xlsx|.docx|.pdf`, `sha256` (64 ký tự hex thường), `added_by: str`, `added_at: datetime` (UTC, dạng `2026-11-02T09:14:05Z`), `removed: bool = False`, `removed_at?: datetime`.
+    - `KbManifest`: `format: 1`, `sources: list[KbSource]` (sắp tăng theo id, id không trùng).
+    - `KbCitation`: `chunk_ref: str`, `quote?: str`. `chunk_ref` là chuỗi thường trong model; dạng `ChunkRef` do citation gate kiểm (spec 12 mục 9).
+    - `Passage`, `SourceIndexState`, `ReindexRecord`: dữ liệu của chỉ mục, nằm trong `knowledge/index/` (gitignore), không commit.
+    - Trạng thái `indexed`/`failed`/`missing`/`stale` của một nguồn **không** nằm trong manifest; manifest chỉ giữ các field của `KbSource`.
+18. **Field thêm vào model có sẵn** (đều rỗng hoặc `false` theo mặc định, nên JSON đã lưu vẫn nạp được): `PayloadItem.kb_citations: list[KbCitation]` và `kb_citations` trên sáu model draft item, `QaIssue.chunk_refs`, `Check.requires_reference`, `RunCheckpoint.kb_seen_refs`, giá trị mới `DrTrigger.KNOWLEDGE_CHANGE = "knowledge_change"`.
+19. **Layout** trong `projects/<project_id>/` (spec 00 mục "Sửa đổi" 2026-11-02):
+    ```
+    knowledge/manifest.json               # KbManifest; commit
+    knowledge/sources/KB-0001.md          # bản sao file nguồn, tên theo Source_Id; gitignore
+    knowledge/index/                      # chỉ mục (CURRENT + gen-####/); gitignore, dựng lại được
+    knowledge/.lock                       # gitignore
+    traceability/knowledge-nodes.json     # list[SourceId] của các Knowledge_Node, sắp tăng; commit
+    ```
+20. **Knowledge_Node và trace link**: `known_nodes()` trả thêm `{source_id: "knowledge"}` cho mỗi Knowledge_Node đã ghi, tức node có kind `knowledge`. Liên kết từ nguồn tới item trích dẫn nó là `TraceLink(from_id=KB-####, to_id=<ItemRef>, link_type=derives_from)`, đúng hướng upstream → downstream của quyết định 1. Hàm `trace_store` mới hoặc đổi:
+
+    | Hàm | Hành vi |
+    |---|---|
+    | `add_document(store, doc, content, *, links: Sequence[TraceLink] = (), knowledge: Sequence[str] = ())` | Như cũ; tham số tên `knowledge` vì `knowledge_nodes` là tên hàm đọc trong cùng module. Khi có `links`/`knowledge` thì ghi thêm `knowledge-nodes.json` (hợp với danh sách cũ) và `links.json` (bỏ link đã có) trong **cùng commit** `doc(P): create DOC-... v<n>`. Caller cũ không truyền gì và không đổi hành vi. |
+    | `knowledge_nodes(store) -> list[str]` | Đọc `traceability/knowledge-nodes.json`. |
+
+    `query_impact(store, "KB-0003")` đi theo các cạnh `derives_from`; Source_Id chưa có Knowledge_Node → `NotFoundError`.
+21. **Hàm public của KB_Store** (gói `src/masterba/knowledge/`, không thuộc `trace_store`; mọi hàm nhận `ProjectStore`, không có state toàn cục; mỗi thao tác ghi giữ khoá `knowledge/.lock` và chỉ commit `knowledge/manifest.json`):
+
+    | Hàm (module) | Hành vi | Commit message |
+    |---|---|---|
+    | `read_manifest(store: ProjectStore) -> KbManifest` (`store.py`) | Đọc manifest; file chưa có → manifest rỗng | — |
+    | `add_sources(store: ProjectStore, files: Sequence[IncomingFile], added_by: str, *, backend: IndexBackend = DEFAULT_BACKEND, now: Clock = utc_now) -> AddReport` (`store.py`) | Kiểm file, bỏ qua file trùng sha256 với nguồn đang active, gán `KB-####` mới, chép vào `sources/`, cập nhật chỉ mục | `kb(P): add KB-0003, KB-0004` |
+    | `replace_source(store: ProjectStore, source_id: str, file: IncomingFile, added_by: str, *, backend=..., now=..., before_commit=None) -> ReplaceReport` (`store.py`) | Thay nội dung, giữ nguyên Source_Id | `kb(P): replace KB-0003` |
+    | `remove_source(store: ProjectStore, source_id: str, *, backend=..., now=..., before_commit=None) -> KbSource` (`store.py`) | Đánh dấu `removed=true`, `removed_at`; xoá file nguồn sau khi commit; số id không tái sử dụng | `kb(P): remove KB-0003` |
+    | `list_sources(store: ProjectStore, backend: IndexBackend = DEFAULT_BACKEND) -> list[SourceView]` (`store.py`) | Các nguồn active, sắp tăng theo id, kèm trạng thái | — |
+    | `reindex(store: ProjectStore, *, backend: IndexBackend = DEFAULT_BACKEND, now: Clock = utc_now) -> BuildOutcome` (`indexer.py`) | Dựng lại toàn bộ chỉ mục từ `sources/`; không đổi manifest | — (không commit) |
+    | `replace_with_proposal(store, source_id, file, added_by) -> tuple[ReplaceReport, DecisionRecord \| None]` (`proposal.py`) | Như `replace_source`; nếu nguồn đang được trích dẫn thì trước đó tạo một DR `proposed` (trigger `knowledge_change`) qua `new_dr` | `dr(P): create DR-####` (khi có trích dẫn), rồi `kb(P): replace KB-0003` |
+    | `remove_with_proposal(store, source_id) -> tuple[KbSource, DecisionRecord \| None]` (`proposal.py`) | Như `remove_source`, cùng quy tắc DR; Knowledge_Node và link của nguồn vẫn giữ lại | `dr(P): create DR-####` (khi có trích dẫn), rồi `kb(P): remove KB-0003` |
+
+    Id không có trong manifest hoặc đã `removed` → `UnknownSourceError` (lớp con của `KbError`) trước mọi thay đổi. `proposal.py` chỉ được `cli.py` và API import, không được `pipeline/` import (giống `questions/answer.py`). Chi tiết hành vi ở spec 12.

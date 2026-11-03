@@ -108,6 +108,20 @@ Thư mục mới ngoài danh sách trên phải được thêm vào spec này (h
   - Thêm thư mục `questions/` vào `projects/<project_id>/` (mục 2), mỗi câu hỏi một file `Q-####.json`.
   - Thêm scope commit `question` (mục 5): `question(PRJ-001): add Q-0007`, `question(PRJ-001): answer Q-0007`, `question(PRJ-001): withdraw Q-0007`.
 
+- **2026-11-02 (spec 12, kho tri thức cục bộ):**
+  - Thêm ID `KB-####` (Source_Id, một file nguồn trong kho tri thức của project), duy nhất trong 1 project, ví dụ `KB-0003`. Code gán số, model không bao giờ gán: số mới = số lớn nhất từng ghi trong `manifest.json` cộng 1. Nguồn bị xoá vẫn ở lại trong manifest (đánh dấu `removed`), nên số của nó **không bao giờ được tái sử dụng**, kể cả khi thêm lại đúng file đó (file thêm lại nhận số mới). Bảng mục 3 giữ nguyên để lưu lịch sử.
+  - Thêm dạng Chunk_Ref `<Source_Id>#chunk.<n>`, ví dụ `KB-0001#chunk.3`, theo kiểu của item ref `DOC-SRS-0001#item.4`. `<n>` bắt đầu từ 1, liên tiếp theo thứ tự trong tài liệu nguồn. Thứ tự "Chunk_Ref tăng dần" so theo cặp (số nguồn, số chunk), nên `KB-0001#chunk.2` đứng trước `KB-0001#chunk.10`.
+  - Thêm loại node `knowledge` (Knowledge_Node) vào trace graph: id của node là Source_Id, mỗi nguồn được trích dẫn có đúng một node.
+  - Thêm thư mục `knowledge/` vào `projects/<project_id>/` (mục 2):
+    ```
+    knowledge/
+      manifest.json        # commit; file duy nhất của kho tri thức nằm trong git
+      sources/             # gitignore; mỗi nguồn lưu dưới tên KB-####<đuôi gốc>, vd. KB-0001.md
+      index/               # gitignore; chỉ mục, dựng lại được bất cứ lúc nào
+      .lock                # gitignore; khoá giữ trong suốt mỗi thao tác ghi
+    ```
+  - Thêm scope commit `kb` (mục 5), mỗi commit chỉ chứa `knowledge/manifest.json`: `kb(PRJ-001): add KB-0003, KB-0004`, `kb(PRJ-001): replace KB-0003`, `kb(PRJ-001): remove KB-0003`.
+
 ## Rủi ro & rollback
 - ID scheme (mục 3) thiếu trường hợp (vd. cần ID cho "field" chứ không chỉ "item") → sửa spec này trước, bump version (`v0.1`→`v0.2`), rà soát lại `trace_store` ở Phase 1 — không patch ngầm ở Phase 7.
 - Đổi toolchain (vd. bỏ `ruff`) → phải sửa spec này trước, không đổi lặt vặt trong CI config mà không cập nhật spec.

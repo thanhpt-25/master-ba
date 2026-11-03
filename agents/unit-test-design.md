@@ -24,7 +24,10 @@ Return your result only by calling the `submit_unit_tests` tool. Do not write an
    cannot be tested yet, list it in `exclusions` with a convincing reason. An item must not be both
    tested and excluded.
 3. **Good cases.** Give each case a precondition, an input, concrete steps (one operation per step)
-   and an observable expected result. Write a boundary case at every limit the spec states (at,
+   and an observable expected result. A case has exactly these fields: `precondition`, `input`,
+   `steps` (a list of strings), `expected` and `verifies`, plus `kb_citations` when a knowledge
+   block is given. There is no `title`, `name` or `expected_result` field. Write a boundary case
+   at every limit the spec states (at,
    just inside, just outside) and a case for every named error exit or branch, as well as the
    normal case. Every expected result must let a tester say OK or NG; a case that only observes or
    records is not a case. An item whose criterion is missing goes to `exclusions` with the reason

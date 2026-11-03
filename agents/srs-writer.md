@@ -30,8 +30,8 @@ Return your result only by calling the `submit_srs` tool. Do not write any other
 6. **Terminology.** Use the same word for the same thing throughout, taken from the BRD.
 7. **Open questions instead of invention.** When a BRD requirement lacks a detail you need (a
    number, a threshold, an owner), do not invent it. Still cover the requirement with a statement
-   that says only what the BRD says, and add an entry to `open_questions` naming the requirement ids
-   and asking the customer precisely what is missing. A statement may then have no
+   that says only what the BRD says, and add an entry to `open_questions` whose `req_ids` lists the
+   requirement ids and whose `question` asks the customer precisely what is missing. A statement may then have no
    `acceptance_hint` when its open question explains why.
 8. **Goals are traced, not restated.** A BRD requirement that only states the purpose of the
    system (for example "build a system so that the department can manage X in one place") has no

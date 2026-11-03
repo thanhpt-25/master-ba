@@ -1,0 +1,202 @@
+# Retrieval evaluation set (spec 12, Requirement 8). Sources get ids in file-name order:
+# en-standards.md is KB-0001, ja-glossary.md is KB-0002; each paragraph is one chunk.
+
+[[questions]]
+lang = "en"
+text = "When is an order accepted?"
+expected = "KB-0001#chunk.1"
+
+[[questions]]
+lang = "en"
+text = "What happens to orders received late in the afternoon?"
+expected = "KB-0001#chunk.2"
+
+[[questions]]
+lang = "en"
+text = "How long does standard delivery to Okinawa take?"
+expected = "KB-0001#chunk.3"
+
+[[questions]]
+lang = "en"
+text = "What does express delivery cost?"
+expected = "KB-0001#chunk.4"
+
+[[questions]]
+lang = "en"
+text = "How many days does a customer have to send back unopened goods?"
+expected = "KB-0001#chunk.5"
+
+[[questions]]
+lang = "en"
+text = "Can opened items be returned?"
+expected = "KB-0001#chunk.6"
+
+[[questions]]
+lang = "en"
+text = "When are invoices issued?"
+expected = "KB-0001#chunk.7"
+
+[[questions]]
+lang = "en"
+text = "What interest applies to overdue payments?"
+expected = "KB-0001#chunk.8"
+
+[[questions]]
+lang = "en"
+text = "When is an account locked?"
+expected = "KB-0001#chunk.9"
+
+[[questions]]
+lang = "en"
+text = "What is the minimum password length?"
+expected = "KB-0001#chunk.10"
+
+[[questions]]
+lang = "en"
+text = "When is the weekly sales report produced?"
+expected = "KB-0001#chunk.11"
+
+[[questions]]
+lang = "en"
+text = "Which locations appear in the inventory report?"
+expected = "KB-0001#chunk.12"
+
+[[questions]]
+lang = "en"
+text = "How long are order records retained?"
+expected = "KB-0001#chunk.13"
+
+[[questions]]
+lang = "en"
+text = "How long are access logs kept?"
+expected = "KB-0001#chunk.14"
+
+[[questions]]
+lang = "en"
+text = "What is the response time target for searching orders?"
+expected = "KB-0001#chunk.15"
+
+[[questions]]
+lang = "en"
+text = "How many simultaneous users must the system handle?"
+expected = "KB-0001#chunk.16"
+
+[[questions]]
+lang = "en"
+text = "When is planned maintenance scheduled?"
+expected = "KB-0001#chunk.17"
+
+[[questions]]
+lang = "en"
+text = "What is the monthly availability target?"
+expected = "KB-0001#chunk.18"
+
+[[questions]]
+lang = "en"
+text = "How are stock levels sent to the warehouse system?"
+expected = "KB-0001#chunk.19"
+
+[[questions]]
+lang = "en"
+text = "How does the system receive card payment results?"
+expected = "KB-0001#chunk.20"
+
+[[questions]]
+lang = "ja"
+text = "受注業務はどこまでを指すか"
+expected = "KB-0002#chunk.1"
+
+[[questions]]
+lang = "ja"
+text = "与信限度額を超えた注文はどう扱うか"
+expected = "KB-0002#chunk.2"
+
+[[questions]]
+lang = "ja"
+text = "出荷指示の締め時刻はいつか"
+expected = "KB-0002#chunk.3"
+
+[[questions]]
+lang = "ja"
+text = "離島への配送は何日余分にかかるか"
+expected = "KB-0002#chunk.4"
+
+[[questions]]
+lang = "ja"
+text = "未開封品は何日以内なら返品できるか"
+expected = "KB-0002#chunk.5"
+
+[[questions]]
+lang = "ja"
+text = "不良品返品の送料は誰が負担するか"
+expected = "KB-0002#chunk.6"
+
+[[questions]]
+lang = "ja"
+text = "請求書はいつ発行するか"
+expected = "KB-0002#chunk.7"
+
+[[questions]]
+lang = "ja"
+text = "支払遅延の損害金の利率は"
+expected = "KB-0002#chunk.8"
+
+[[questions]]
+lang = "ja"
+text = "顧客コードの桁数は"
+expected = "KB-0002#chunk.9"
+
+[[questions]]
+lang = "ja"
+text = "取引停止の顧客から注文を受けられるか"
+expected = "KB-0002#chunk.10"
+
+[[questions]]
+lang = "ja"
+text = "棚卸はどのくらいの頻度で行うか"
+expected = "KB-0002#chunk.11"
+
+[[questions]]
+lang = "ja"
+text = "発注点を下回った商品はどうなるか"
+expected = "KB-0002#chunk.12"
+
+[[questions]]
+lang = "ja"
+text = "管理者は各部署に何名まで置けるか"
+expected = "KB-0002#chunk.13"
+
+[[questions]]
+lang = "ja"
+text = "退職者のアカウントはいつ無効にするか"
+expected = "KB-0002#chunk.14"
+
+[[questions]]
+lang = "ja"
+text = "受注一覧は一ページに何件表示するか"
+expected = "KB-0002#chunk.15"
+
+[[questions]]
+lang = "ja"
+text = "必須項目が空のとき登録できるか"
+expected = "KB-0002#chunk.16"
+
+[[questions]]
+lang = "ja"
+text = "納品書に印字する項目は何か"
+expected = "KB-0002#chunk.17"
+
+[[questions]]
+lang = "ja"
+text = "月次売上の帳票はいつ配信するか"
+expected = "KB-0002#chunk.18"
+
+[[questions]]
+lang = "ja"
+text = "バックアップの保管期間は"
+expected = "KB-0002#chunk.19"
+
+[[questions]]
+lang = "ja"
+text = "障害時は何分以内に連絡するか"
+expected = "KB-0002#chunk.20"

@@ -14,6 +14,7 @@ from pydantic import Field, model_validator
 from masterba.llm import LLM, LLMResult
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DocLanguage, ReqCategory, Scope
+from masterba.models.knowledge import KbCitation
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PROMPT_PATH = REPO_ROOT / "agents" / "requirements-analyst.md"
@@ -35,6 +36,7 @@ class DraftRequirement(FrozenModel):
     start_line: int = Field(ge=1)
     end_line: int = Field(ge=1)
     evidence_quote: str = Field(min_length=1)
+    kb_citations: list[KbCitation] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _ordered_lines(self) -> Self:
@@ -171,9 +173,13 @@ def write_brd(
     feedback: Sequence[str],
     doc_id: str,
     system_prompt: str | None = None,
+    *,
+    references: str = "",
 ) -> LLMResult[BrdDraft]:
     """One writer call: a first draft, or a revision when `previous` and `feedback` are given."""
     user = f"<intake>\n{number_lines(intake_text)}\n</intake>"
+    if references:  # the Reference_Block (spec 12); empty keeps the prompt unchanged
+        user += f"\n\n{references}"
     if previous is not None:
         listing = "\n".join(f"- {f}" for f in feedback)
         user += (

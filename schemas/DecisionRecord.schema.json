@@ -15,7 +15,8 @@
         "requirement_change",
         "design_change",
         "defect",
-        "clarification"
+        "clarification",
+        "knowledge_change"
       ],
       "title": "DrTrigger",
       "type": "string"

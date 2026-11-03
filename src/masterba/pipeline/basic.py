@@ -18,6 +18,7 @@ from masterba.agents.test_writer import (
     validate_test_draft,
     write_tests,
 )
+from masterba.knowledge import open_session
 from masterba.llm import LLM
 from masterba.models import (
     BasicDesignContent,
@@ -32,15 +33,23 @@ from masterba.models import (
 from masterba.models.enums import DocType, Level, LinkType, TeamRunStatus
 from masterba.pipeline.srs import SRS_DOC_ID
 from masterba.pipeline.stage import (
+    KnowledgeOpener,
     Resume,
     StageResult,
+    attach_knowledge,
     checkpoint_draft,
     checkpoint_feedback,
     document_exists,
+    kb_block,
+    kb_citations,
+    kb_gate,
+    kb_refs,
+    kb_text,
     latest_version,
     make_document,
     open_team,
     stage_result,
+    store_document,
     unique_links,
 )
 from masterba.rendering import render_to_project
@@ -58,7 +67,6 @@ from masterba.trace_store import (
     InvalidDocumentError,
     NotFoundError,
     ProjectStore,
-    add_document,
     add_trace_link,
     get_config,
     get_document,
@@ -91,6 +99,7 @@ def assign_basic_ids(
                 name=item.name,
                 description=item.description,
                 realizes=list(dict.fromkeys(item.realizes)),
+                kb_citations=item.kb_citations,
             )
         )
         links.extend(
@@ -117,6 +126,7 @@ def assign_basic_ids(
                     steps=case.steps,
                     expected=case.expected,
                     verifies=targets,
+                    kb_citations=case.kb_citations,
                 )
             )
             links.extend(
@@ -149,6 +159,7 @@ def run_basic_design(
     tester_llm: LLM | None = None,
     qa_llm: LLM | None = None,
     resume: Resume | None = None,
+    knowledge: KnowledgeOpener = open_session,
 ) -> StageResult:
     """Run the Basic Design stage as a three-member team; artifacts are written only when done."""
     for doc_id in (DESIGN_DOC_ID, IT_DOC_ID, ST_DOC_ID):
@@ -167,9 +178,11 @@ def run_basic_design(
     language = get_config(store).document_language
     design_checklist = load_checklist(checklist_path(DocType.BASIC_DESIGN))
     tests_checklist = load_checklist(checklist_path("tests"))
+    session = knowledge(store)  # before the team opens (Requirement 9.8)
     team, checkpoint = open_team(
         store, DocType.BASIC_DESIGN, {SRS_DOC_ID: latest_version(store, SRS_DOC_ID)}, resume
     )
+    attach_knowledge(team, session)
     designer = RecordingLLM(designer_llm, team)
     tester = RecordingLLM(tester_llm or designer_llm, team)
     reviewer = RecordingLLM(qa_llm or designer_llm, team)
@@ -177,7 +190,13 @@ def run_basic_design(
 
     hooks: DesignTestHooks[BasicDesignDraft, TestDraft] = DesignTestHooks(
         write_design=lambda previous, feedback: write_design(
-            designer, srs_items, language, previous, feedback, DESIGN_DOC_ID
+            designer,
+            srs_items,
+            language,
+            previous,
+            feedback,
+            DESIGN_DOC_ID,
+            references=kb_block(session, "designer", srs_text),
         ),
         write_tests=lambda design, previous, feedback: write_tests(
             tester,
@@ -189,9 +208,22 @@ def run_basic_design(
             DESIGN_DOC_ID,
             IT_DOC_ID,
             ST_DOC_ID,
+            references=kb_block(
+                session, "tester", f"{srs_text}\n{design_view(design, DESIGN_DOC_ID)}"
+            ),
         ),
-        gate_design=lambda d: validate_design_draft(d, srs_items, DESIGN_DOC_ID, language),
-        gate_tests=lambda d, t: validate_test_draft(t, d, srs_items, DESIGN_DOC_ID, language),
+        gate_design=lambda d: [
+            *validate_design_draft(d, srs_items, DESIGN_DOC_ID, language),
+            *kb_gate(session, "designer", kb_citations(DESIGN_DOC_ID, d.items)),
+        ],
+        gate_tests=lambda d, t: [
+            *validate_test_draft(t, d, srs_items, DESIGN_DOC_ID, language),
+            *kb_gate(
+                session,
+                "tester",
+                [*kb_citations(IT_DOC_ID, t.it_cases), *kb_citations(ST_DOC_ID, t.st_cases)],
+            ),
+        ],
         questions=lambda t: [Question(q.ref, q.question) for q in t.questions],
         answers=lambda d: [Answer(a.ref, a.text) for a in d.answers],
         review_design=lambda d: review(
@@ -201,6 +233,8 @@ def run_basic_design(
             upstream=srs_text,
             draft_view=design_view(d, DESIGN_DOC_ID),
             language=language,
+            references=kb_text(session, "designer"),
+            reference_refs=kb_refs(session, "designer"),
         ),
         review_tests=lambda d, t: review(
             reviewer,
@@ -209,6 +243,8 @@ def run_basic_design(
             upstream=f"{srs_text}\n\nBasic Design:\n{design_view(d, DESIGN_DOC_ID)}",
             draft_view=cases_view(t, IT_DOC_ID, ST_DOC_ID),
             language=language,
+            references=kb_text(session, "tester"),
+            reference_refs=kb_refs(session, "tester"),
         ),
     )
     start = (
@@ -228,7 +264,7 @@ def run_basic_design(
 
     artifacts = assign_basic_ids(outcome, project_id=store.project_id)
     for document, doc_content in artifacts.documents:
-        add_document(store, document, doc_content)
+        store_document(store, document, doc_content)
     for link in artifacts.links:
         add_trace_link(store, link)
     paths = [

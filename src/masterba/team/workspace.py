@@ -87,6 +87,8 @@ class Team:
     question_sources: dict[str, list[QuestionDraft]] = field(default_factory=dict)
     facts: Callable[[], str] = lambda: ""  # the confirmed block for model calls (spec 13 section 5)
     objections: dict[str, list[QaIssue]] = field(default_factory=dict)
+    # Chunk_Refs shown to each writer role in this run; shared with the KnowledgeSession
+    kb_seen_refs: dict[str, set[str]] = field(default_factory=dict)
 
     @classmethod
     def open(
@@ -148,6 +150,7 @@ class Team:
             resumed=summary.resumed + 1,
             carried_tasks=len(tasks),
             blocking_seen={a: set(pairs) for a, pairs in checkpoint.blocking_seen.items()},
+            kb_seen_refs={r: set(refs) for r, refs in checkpoint.kb_seen_refs.items()},
         )
         team.transcripts_dir.mkdir(parents=True, exist_ok=True)
         team.log_count = len(list(team.transcripts_dir.iterdir()))
@@ -236,6 +239,7 @@ class Team:
                 artifact: sorted(pairs, key=lambda p: (p[0], p[1] or ""))
                 for artifact, pairs in self.blocking_seen.items()
             },
+            kb_seen_refs={role: sorted(refs) for role, refs in self.kb_seen_refs.items()},
         )
         _dump(self.run_dir / CHECKPOINT, checkpoint.model_dump(mode="json"))
 

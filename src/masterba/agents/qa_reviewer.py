@@ -17,7 +17,7 @@ from masterba.llm import LLM, LLMOutputError
 from masterba.models import QuestionDraft
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DocLanguage, DocType
-from masterba.models.ids import ItemRef
+from masterba.models.ids import ChunkRef, ItemRef
 
 PROMPT_PATH = REPO_ROOT / "agents" / "qa-reviewer.md"
 CHECKLIST_DIR = REPO_ROOT / "skills" / "qa-review" / "checklists"
@@ -35,6 +35,7 @@ class Check(FrozenModel):
     id: str = Field(min_length=1)
     severity: Severity
     text: str = Field(min_length=1)
+    requires_reference: bool = False
 
 
 class Checklist(FrozenModel):
@@ -56,6 +57,7 @@ class QaIssue(FrozenModel):
     message: str = Field(min_length=1)
     action_required: str | None = None
     customer_question: bool = False
+    chunk_refs: list[ChunkRef] = Field(default_factory=list)
 
 
 class QaReport(FrozenModel):
@@ -154,17 +156,55 @@ def normalise_report(report: QaReport) -> tuple[QaReport, list[str], list[str]]:
     return QaReport(issues=issues), notes, questions
 
 
-def system_prompt_for(checklist: Checklist, language: DocLanguage, base: str | None = None) -> str:
+def active_checks(checklist: Checklist, with_reference: bool) -> Checklist:
+    """Without a knowledge block the `requires_reference` checks do not exist (Req. 11.3)."""
+    if with_reference:
+        return checklist
+    return checklist.model_copy(
+        update={"checks": [c for c in checklist.checks if not c.requires_reference]}
+    )
+
+
+def system_prompt_for(
+    checklist: Checklist,
+    language: DocLanguage,
+    base: str | None = None,
+    *,
+    with_reference: bool = False,
+) -> str:
     text = base if base is not None else load_system_prompt(PROMPT_PATH)
-    checks = "\n".join(f"- {c.id} ({c.severity}): {c.text}" for c in checklist.checks)
+    shown = active_checks(checklist, with_reference)
+    checks = "\n".join(f"- {c.id} ({c.severity}): {c.text}" for c in shown.checks)
     return (
         f"{text}\n\n## Checklist for the {checklist.stage} stage\n\n{checks}\n\n"
         f"## Output language\n\n{_LANGUAGE_INSTRUCTION[language]}"
     )
 
 
-def _user_message(upstream: str, draft_view: str, errors: list[str]) -> str:
+def normalise_contradictions(
+    report: QaReport, check_ids: frozenset[str], reference_refs: frozenset[str]
+) -> tuple[QaReport, list[str]]:
+    """A blocking contradiction must cite a passage of the block, else it becomes advisory."""
+    issues: list[QaIssue] = []
+    notes: list[str] = []
+    for issue in report.issues:
+        cited = set(issue.chunk_refs) & reference_refs
+        if issue.severity != "blocking" or issue.checklist_id not in check_ids or cited:
+            issues.append(issue)
+            continue
+        issues.append(issue.model_copy(update={"severity": "advisory"}))
+        refs = ", ".join(issue.chunk_refs) or "none"
+        notes.append(
+            f"[{issue.checklist_id}] {issue.ref or 'document'}: downgraded "
+            f"(no cited passage in the block: {refs})"
+        )
+    return QaReport(issues=issues), notes
+
+
+def _user_message(upstream: str, draft_view: str, errors: list[str], references: str = "") -> str:
     message = f"<upstream>\n{upstream}\n</upstream>\n\n<draft>\n{draft_view}\n</draft>"
+    if references:
+        message += f"\n\n{references}"
     if errors:
         listing = "\n".join(f"- {e}" for e in errors)
         message += f"\n\nYour previous report was unusable:\n{listing}\nReturn a corrected report."
@@ -180,16 +220,24 @@ def review(
     draft_view: str,
     language: DocLanguage,
     system_prompt: str | None = None,
+    references: str = "",
+    reference_refs: frozenset[str] = frozenset(),
 ) -> QaReview:
-    """Review a draft against a checklist; one retry on an unusable report."""
-    system = system_prompt_for(checklist, language, system_prompt)
+    """Review a draft against a checklist; one retry on an unusable report.
+
+    `references` is the writer's Reference_Block; empty means no knowledge base check.
+    """
+    with_reference = bool(references)
+    checklist = active_checks(checklist, with_reference)
+    system = system_prompt_for(checklist, language, system_prompt, with_reference=with_reference)
+    kb_checks = frozenset(c.id for c in checklist.checks if c.requires_reference)
     errors: list[str] = []
     tokens_in = tokens_out = 0
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
             result = llm.generate(
                 system=system,
-                user=_user_message(upstream, draft_view, errors),
+                user=_user_message(upstream, draft_view, errors, references),
                 output=QaReport,
                 tool_name=TOOL_NAME,
             )
@@ -201,6 +249,8 @@ def review(
         errors = validate_report(result.value, checklist, item_counts)
         if not errors:
             report, notes, questions = normalise_report(cap_severity(result.value, checklist))
+            report, kb_notes = normalise_contradictions(report, kb_checks, reference_refs)
+            notes = [*notes, *kb_notes]
             drafts = tuple(
                 QuestionDraft(refs=[i.ref] if i.ref else [], text=i.message)
                 for i in report.issues

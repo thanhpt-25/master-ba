@@ -15,6 +15,7 @@ from masterba.agents import (
     validate_draft,
     write_brd,
 )
+from masterba.knowledge import open_session
 from masterba.llm import LLM
 from masterba.models import (
     BrdContent,
@@ -27,12 +28,20 @@ from masterba.models import (
 from masterba.models.enums import DocStatus, DocType, LinkType, TeamRunStatus
 from masterba.pipeline.stage import (
     TEMPLATE_ID,
+    KnowledgeOpener,
     Resume,
     StageResult,
+    attach_knowledge,
     checkpoint_draft,
     checkpoint_feedback,
+    kb_block,
+    kb_citations,
+    kb_gate,
+    kb_refs,
+    kb_text,
     open_team,
     stage_result,
+    store_document,
 )
 from masterba.rendering import render_to_project
 from masterba.team import RecordingLLM, run_writer_review
@@ -41,7 +50,6 @@ from masterba.trace_store import (
     InvalidDocumentError,
     NotFoundError,
     ProjectStore,
-    add_document,
     add_intake,
     add_requirement,
     add_trace_link,
@@ -97,6 +105,7 @@ def assign_ids(
                 description=req.description,
                 scope=req.scope,
                 source_ref=source,
+                kb_citations=req.kb_citations,
             )
         )
         links.append(TraceLink(from_id=req_id, to_id=item_ref, link_type=LinkType.REALIZES))
@@ -143,6 +152,7 @@ def run_brd(
     qa_llm: LLM | None = None,
     reuse_intake: bool = False,
     resume: Resume | None = None,
+    knowledge: KnowledgeOpener = open_session,
 ) -> StageResult:
     """Run the BRD stage as a writer + QA team; business artifacts are written only when done."""
     if _brd_exists(store):
@@ -156,16 +166,29 @@ def run_brd(
     stored = _store_intake(store, intake_file.name, text, reuse_intake or resume is not None)
     language = get_config(store).document_language
     checklist = load_checklist(checklist_path(DocType.BRD))
+    # Before the team opens: a broken index stops the stage with nothing written (Req. 9.8).
+    session = knowledge(store)
     team, checkpoint = open_team(store, DocType.BRD, {f"intake/{intake_file.name}": 1}, resume)
+    attach_knowledge(team, session)
     writer = RecordingLLM(llm, team)
     reviewer = RecordingLLM(qa_llm or llm, team)
 
     draft = run_writer_review(
         team,
         write=lambda previous, feedback: write_brd(
-            writer, stored, language, previous, feedback, BRD_DOC_ID
+            writer,
+            stored,
+            language,
+            previous,
+            feedback,
+            BRD_DOC_ID,
+            references=kb_block(session, "writer", stored),
         ),
-        gate=lambda d: validate_draft(d, stored, language),
+        # The intake-citation rule stays; Chunk_Refs only add to it (Requirement 10.8).
+        gate=lambda d: [
+            *validate_draft(d, stored, language),
+            *kb_gate(session, "writer", kb_citations(BRD_DOC_ID, d.requirements)),
+        ],
         review=lambda d: review(
             reviewer,
             checklist=checklist,
@@ -173,6 +196,8 @@ def run_brd(
             upstream=number_lines(stored),
             draft_view=brd_draft_view(d, BRD_DOC_ID),
             language=language,
+            references=kb_text(session, "writer"),
+            reference_refs=kb_refs(session, "writer"),
         ),
         start=checkpoint_draft(checkpoint, "draft", BrdDraft),
         start_feedback=checkpoint_feedback(checkpoint, "writer"),
@@ -195,7 +220,7 @@ def run_brd(
     )
     for requirement in artifacts.requirements:
         add_requirement(store, requirement)
-    add_document(store, artifacts.document, artifacts.content)
+    store_document(store, artifacts.document, artifacts.content)
     for link in artifacts.links:
         add_trace_link(store, link)
     xlsx_path = render_to_project(store, BRD_DOC_ID, templates_root)

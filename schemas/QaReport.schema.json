@@ -20,6 +20,14 @@
           "title": "Checklist Id",
           "type": "string"
         },
+        "chunk_refs": {
+          "items": {
+            "pattern": "^KB-\\d{4}#chunk\\.[1-9]\\d*$",
+            "type": "string"
+          },
+          "title": "Chunk Refs",
+          "type": "array"
+        },
         "customer_question": {
           "default": false,
           "title": "Customer Question",

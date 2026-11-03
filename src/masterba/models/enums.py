@@ -52,6 +52,7 @@ class DrTrigger(StrEnum):
     DESIGN_CHANGE = "design_change"
     DEFECT = "defect"
     CLARIFICATION = "clarification"
+    KNOWLEDGE_CHANGE = "knowledge_change"
 
 
 class DrStatus(StrEnum):
