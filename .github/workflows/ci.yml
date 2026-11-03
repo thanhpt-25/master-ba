@@ -72,4 +72,5 @@ jobs:
             test -z "$found" || { echo "$image: $found"; exit 1; }
           done
       - name: Compose mounts the model cache at HF_HOME
-        run: docker compose config | grep -E 'source: model-cache|target: /models'
+        run: |
+          docker compose config | grep -E 'source: model-cache|target: /models'
