@@ -137,6 +137,7 @@ class _Loop(Generic[D, T]):
         try:
             written = self.hooks.write_design(self.design, list(self.to_designer))
         except LLMOutputError as exc:
+            team.charge(exc.input_tokens + exc.output_tokens)
             self._done(task)
             message = unusable_answer(exc)
             self._gate_failed([message], "designer")
@@ -175,6 +176,7 @@ class _Loop(Generic[D, T]):
         try:
             written = self.hooks.write_tests(self.design, self.tests, list(self.to_tester))
         except LLMOutputError as exc:
+            team.charge(exc.input_tokens + exc.output_tokens)
             self._done(task)
             message = unusable_answer(exc)
             self._gate_failed([message], "tester")

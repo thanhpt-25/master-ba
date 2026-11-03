@@ -206,7 +206,7 @@ class Failing(Script):
     def write(self, previous: Draft | None, feedback: Sequence[str]) -> LLMResult[Draft]:
         self.calls += 1
         if self.calls <= self.failures:
-            raise LLMOutputError("items.0.realizes Field required")
+            raise LLMOutputError("items.0.realizes Field required", 7, 5)
         return super().write(previous, feedback)
 
 
@@ -218,7 +218,7 @@ def test_a_schema_error_from_the_writer_goes_back_as_feedback(team: Team) -> Non
     assert run(team, script) == Draft(text="draft 1")
     assert script.writes == [(None, [UNUSABLE])]
     assert team.rounds == 2
-    assert team.tokens_used == 30 + 10  # the failed call is not charged
+    assert team.tokens_used == 7 + 5 + 30 + 10  # the failed call still used tokens
     assert [(m.sender, m.to, m.body) for m in team.messages] == [("gate", "writer", UNUSABLE)]
     team.finish(TeamRunStatus.DONE)  # the failed round's task is not left open
 

@@ -50,10 +50,12 @@ class AnthropicLLM:
         block = next(
             (b for b in response.content if b.type == "tool_use" and b.name == tool_name), None
         )
+        used = (response.usage.input_tokens, response.usage.output_tokens)
         if block is None:
-            raise LLMOutputError(f"model did not call {tool_name}")
+            raise LLMOutputError(f"model did not call {tool_name}", *used)
         try:
             value = output.model_validate(block.input)
         except ValidationError as exc:
-            raise LLMOutputError(f"model output does not fit {output.__name__}: {exc}") from exc
-        return LLMResult(value, response.usage.input_tokens, response.usage.output_tokens)
+            message = f"model output does not fit {output.__name__}: {exc}"
+            raise LLMOutputError(message, *used) from exc
+        return LLMResult(value, *used)
