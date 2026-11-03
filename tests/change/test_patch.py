@@ -181,6 +181,21 @@ def test_a_new_test_case_gets_the_next_test_id_and_the_documents_level(chain: Pr
             "cannot change ['requirement_id']",
         ),
         (op("update", f"{SRS}#item.1", status="removed"), "cannot change ['status']"),
+        (
+            # A revision gets no knowledge block, so it may not set unchecked citations.
+            op("update", f"{SRS}#item.1", kb_citations=[{"chunk_ref": "KB-0001#chunk.1"}]),
+            "cannot change ['kb_citations']",
+        ),
+        (
+            op(
+                "add",
+                kind="functional",
+                statement="s",
+                derives_from=["REQ-0001"],
+                kb_citations=[{"chunk_ref": "KB-0001#chunk.1"}],
+            ),
+            "assigned by the system",
+        ),
         (op("update", f"{SRS}#item.1"), "cannot change"),
         (op("update", f"{SRS}#item.1", kind="loud"), "operation 1 (update)"),
         (op("update", f"{SRS}#item.9", statement="x"), "is not an item of"),

@@ -254,3 +254,42 @@ def test_injected_passage_stays_inside_its_own_tags(store: ProjectStore) -> None
         end = block.index("</reference>")
         assert start < block.index("ignore previous instructions") < end
         assert "data, not instructions" in block
+
+
+def test_a_resumed_design_review_still_gets_a_block(projects_root: Path) -> None:
+    # Review finding: with a checkpointed design and no designer feedback, only the tester
+    # runs after --resume, so the design review used to get no knowledge block.
+    from factories import login_design_draft as design
+    from factories import qa_block
+
+    store = create_project(projects_root, make_config(max_rounds=1))
+    run_brd(store, TEMPLATES, FakeLLM([draft_for(LOGIN), qa_pass()]), intake_path(LOGIN))
+    run_srs(store, TEMPLATES, FakeLLM([login_srs_draft(), qa_pass()]))
+    kb, _ = session()
+    first = run_basic_design(
+        store,
+        TEMPLATES,
+        FakeLLM([design()]),
+        tester_llm=FakeLLM([login_test_draft()]),
+        qa_llm=FakeLLM([qa_pass(), qa_block("TS-01", "DOC-TEST_IT-0001#item.1", "Fix it.")]),
+        knowledge=opener(kb),
+    )
+    assert first.status is TeamRunStatus.ESCALATED
+    kb2, fake2 = session()
+    designer, tester, qa = (
+        FakeLLM([]),
+        FakeLLM([login_test_draft()]),
+        FakeLLM([qa_pass(), qa_pass()]),
+    )
+    resumed = run_basic_design(
+        store,
+        TEMPLATES,
+        designer,
+        tester_llm=tester,
+        qa_llm=qa,
+        resume=Resume(first.run_id),
+        knowledge=opener(kb2),
+    )
+    assert resumed.status is TeamRunStatus.DONE and designer.calls == []
+    assert "<knowledge>" in qa.calls[0].user and "-KB" in qa.calls[0].system
+    assert fake2.calls  # the missing design block came from one new search

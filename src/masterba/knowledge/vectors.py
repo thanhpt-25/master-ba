@@ -4,6 +4,7 @@
 Search is exhaustive (no ANN index), ordered by cosine distance then `chunk_key`.
 """
 
+import datetime as dt
 import math
 from collections.abc import Sequence
 from pathlib import Path
@@ -95,17 +96,24 @@ class LanceVectorStore:
             self._table.delete(f"source_id = '{source_id}'")
 
     def search(self, vector: list[float], limit: int, sources: frozenset[str] | None) -> list[str]:
-        if self._table is None or limit < 1:
+        if self._table is None or limit < 1 or (sources is not None and not sources):
             return []
-        rows = self._table.search(vector).metric("cosine").limit(self._table.count_rows()).to_list()
-        kept = [
-            (float(row["_distance"]), chunk_key(row["ref"]), row["ref"])
-            for row in rows
-            if sources is None or row["source_id"] in sources
-        ]
-        return [ref for _, _, ref in sorted(kept)[:limit]]
+        query = self._table.search(vector).metric("cosine").select(["ref", "source_id"])
+        if sources is not None:
+            # Ids are validated KB-#### values, so the filter cannot be injected.
+            listed = ", ".join(f"'{s}'" for s in sorted(sources))
+            query = query.where(f"source_id IN ({listed})", prefilter=True)
+        # Twice the limit leaves room for distance ties before the chunk_key cut.
+        rows = query.limit(limit * 2).to_list()
+        kept = sorted((float(row["_distance"]), chunk_key(row["ref"]), row["ref"]) for row in rows)
+        return [ref for _, _, ref in kept[:limit]]
 
     def refs(self) -> frozenset[str]:
         if self._table is None:
             return frozenset()
         return frozenset(self._table.to_arrow().column("ref").to_pylist())
+
+    def compact(self) -> None:
+        """Merge fragments and drop old versions; the generation is a private copy."""
+        if self._table is not None:
+            self._table.optimize(cleanup_older_than=dt.timedelta(0), delete_unverified=True)

@@ -225,3 +225,38 @@ def test_info_exclude_fallback(store: ProjectStore) -> None:
     assert last_commit(store.root)[1] == [MANIFEST]
     add_sources(store, [md("b.md", "b")], "u", backend=keyword_backend())
     assert exclude.read_text().count("/projects/PRJ-001/knowledge/sources/") == 1
+
+
+def test_an_add_killed_before_its_commit_does_not_block_the_next_add(store: ProjectStore) -> None:
+    # Review finding: a source copied by an interrupted add kept its id taken forever.
+    paths = kb.kb_paths(store)
+    paths.sources.mkdir(parents=True)
+    paths.source_file("KB-0001", ".md").write_text("orphan from a killed add")
+    report = add_sources(store, [md("a.md", "受注")], "u", backend=keyword_backend())
+    assert [s.id for s in report.added] == ["KB-0001"]
+    assert paths.source_file("KB-0001", ".md").read_text() == "受注"
+
+
+def test_a_replace_killed_before_its_commit_gets_its_old_file_back(store: ProjectStore) -> None:
+    # Review finding: the only copy of the old bytes was deleted by the next mutation.
+    add_sources(store, [md("a.md", "old"), md("b.md", "other")], "u", backend=keyword_backend())
+    paths = kb.kb_paths(store)
+    old = paths.source_file("KB-0001", ".md")
+    backup = paths.sources / ".staging-KB-0001.md.old"
+    old.rename(backup)  # state of a replace killed after moving the old file aside
+    paths.source_file("KB-0001", ".txt").write_text("new, never committed")
+    add_sources(store, [md("c.md", "third")], "u", backend=keyword_backend())
+    assert old.read_text() == "old" and not backup.exists()
+    assert not paths.source_file("KB-0001", ".txt").exists()
+    assert [v.status for v in list_sources(store, backend=keyword_backend())][0] != "missing"
+
+
+def test_a_committed_replace_drops_its_backup(store: ProjectStore) -> None:
+    add_sources(store, [md("a.md", "old")], "u", backend=keyword_backend())
+    kb.replace_source(store, "KB-0001", md("a.md", "new"), "u", backend=keyword_backend())
+    paths = kb.kb_paths(store)
+    stale = paths.sources / ".staging-KB-0001.md.old"
+    stale.write_text("old")  # left behind by a crash after the commit
+    add_sources(store, [md("b.md", "b")], "u", backend=keyword_backend())
+    assert not stale.exists()
+    assert paths.source_file("KB-0001", ".md").read_text() == "new"

@@ -1,8 +1,11 @@
 """Knowledge base layout, the mutation lock and the ignore rules (spec 12, Requirement 1.6)."""
 
 import fcntl
+import hashlib
+import os
+import re
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -85,7 +88,36 @@ def staging_file(paths: KbPaths, source_id: str, suffix: str) -> Path:
     return paths.sources / f".staging-{source_id}{suffix}"
 
 
-def clean_staging(paths: KbPaths) -> None:
-    if paths.sources.is_dir():
-        for leftover in paths.sources.glob(".staging-*"):
+_SOURCE_FILE = re.compile(r"^(KB-\d{4})(\.[a-z]+)$")
+_BACKUP_FILE = re.compile(r"^\.staging-(KB-\d{4})(\.[a-z]+)\.old$")
+
+
+def recover_interrupted(paths: KbPaths, active: Mapping[str, tuple[str, str]]) -> None:
+    """Repair what an action killed before its commit left behind.
+
+    `active` maps each active Source_Id to its (suffix, sha256) in the Manifest.
+
+    - A replace keeps the old bytes as `.staging-KB-####<ext>.old` until its commit. When
+      the backup still matches the Manifest's sha256 the commit never happened: the backup
+      goes back in place (the new file may already sit there). Otherwise it is dropped.
+    - A source file whose id is not active (an add that never committed) is deleted, so its
+      id can be assigned again without `FileExistsError`.
+    """
+    if not paths.sources.is_dir():
+        return
+    for leftover in sorted(paths.sources.iterdir()):
+        backup = _BACKUP_FILE.match(leftover.name)
+        if backup is not None:
+            source_id, suffix = backup.groups()
+            sha = hashlib.sha256(leftover.read_bytes()).hexdigest()
+            if active.get(source_id) == (suffix, sha):
+                os.replace(leftover, paths.source_file(source_id, suffix))
+            else:
+                leftover.unlink(missing_ok=True)
+        elif leftover.name.startswith(".staging-"):
+            leftover.unlink(missing_ok=True)
+    for leftover in paths.sources.iterdir():
+        source = _SOURCE_FILE.match(leftover.name)
+        entry = active.get(source.group(1)) if source is not None else None
+        if source is not None and (entry is None or entry[0] != source.group(2)):
             leftover.unlink(missing_ok=True)

@@ -8,6 +8,7 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from masterba.knowledge import KnowledgeSession
+from masterba.knowledge.reference import RenderedBlock
 from masterba.knowledge.trace import knowledge_links
 from masterba.models import Document, KbCitation, Payload, TeamRun, TraceLink
 from masterba.models.enums import DocStatus, DocType, TeamRunStatus
@@ -38,13 +39,23 @@ def kb_block(session: KnowledgeSession | None, role: str, writer_input: str) -> 
     return session.references_for(role, writer_input) if session else ""
 
 
-def kb_text(session: KnowledgeSession | None, role: str) -> str:
+def _review_block(session: KnowledgeSession, role: str, writer_input: str | None) -> RenderedBlock:
+    # After --resume the role's writer may not run again (a design QA already accepted),
+    # so no block exists yet; search once with the same input the writer would get.
+    if role not in session.blocks and writer_input is not None:
+        session.references_for(role, writer_input)
+    return session.block_for_review(role)
+
+
+def kb_text(session: KnowledgeSession | None, role: str, writer_input: str | None = None) -> str:
     """The exact block the writer `role` last received, for QA (no new search, Req. 9.6)."""
-    return session.block_for_review(role).text if session else ""
+    return _review_block(session, role, writer_input).text if session else ""
 
 
-def kb_refs(session: KnowledgeSession | None, role: str) -> frozenset[str]:
-    return session.block_for_review(role).refs if session else frozenset()
+def kb_refs(
+    session: KnowledgeSession | None, role: str, writer_input: str | None = None
+) -> frozenset[str]:
+    return _review_block(session, role, writer_input).refs if session else frozenset()
 
 
 def kb_gate(
