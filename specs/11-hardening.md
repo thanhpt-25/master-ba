@@ -1,6 +1,6 @@
 # Spec 11 — Hardening: QA signal, convergence, resume, CI, containers
 
-Status: v0.4 (2026-10-31), implemented except the live runs (2.3); see sections 9 and 10. v0.3: CI run on GitHub, dry-run 1 recorded, QA rule for open upstream facts. v0.4: dry-run 4 on a Japanese HRM intake with the sample company, SRS prompt and checklist changes. Sources: [next-steps.md](../docs/next-steps.md) Phase 11 (owner decisions in 12.5, item 6 for containers), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md), [05-basic-design-and-tests.md](05-basic-design-and-tests.md) section 9 (live findings 3 and 5), [08-dashboard.md](08-dashboard.md), [00-constitution.md](00-constitution.md).
+Status: v0.5 (2026-11-03), v0.5: a failed model request escalates the run (1.6); implemented except the live runs (2.3); see sections 9 and 10. v0.3: CI run on GitHub, dry-run 1 recorded, QA rule for open upstream facts. v0.4: dry-run 4 on a Japanese HRM intake with the sample company, SRS prompt and checklist changes. Sources: [next-steps.md](../docs/next-steps.md) Phase 11 (owner decisions in 12.5, item 6 for containers), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md), [05-basic-design-and-tests.md](05-basic-design-and-tests.md) section 9 (live findings 3 and 5), [08-dashboard.md](08-dashboard.md), [00-constitution.md](00-constitution.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -55,7 +55,11 @@ The cost is accepted: a problem that a revision introduces and QA notices only l
 
 ### 1.6 A model answer that does not fit its schema
 
-An `LLMOutputError` from a writer, designer or tester call (dry-run 4: a design item without `realizes`) is a gate error. It is posted as feedback (`the last answer could not be used: ...`), the round ends, and the same role is called again in the next round with its previous draft, so the round limit and the token budget still apply. The tokens of the failed call are not known and are not charged. Other model errors (network, configuration) still end the run with an error; an unusable QA report keeps its own retry.
+An `LLMOutputError` from a writer, designer or tester call (dry-run 4: a design item without `realizes`) is a gate error. It is posted as feedback (`the last answer could not be used: ...`), the round ends, and the same role is called again in the next round with its previous draft, so the round limit and the token budget still apply. The tokens of the failed call are charged when the model reports them (they are carried on the error). An unusable QA report keeps its own retry.
+
+A model request that fails (timeout, connection, gateway error, `LLMError` other than `LLMOutputError`) ends the run as `escalated` with the reason `model request failed in <role>: <error>`, instead of raising out of the loop. The summary, tasks and mailbox are committed as for any escalation and the last validated drafts stay in the checkpoint, so `--resume` continues the run. Before this change such a run left a run folder with no summary and could not be resumed (2026-11-03: the tester call of a 67-item Basic Design timed out). A configuration error (`LLMConfigError`, for example a missing key) still raises before any call.
+
+Request limits are set in the environment of the server or the CLI: `MASTERBA_REQUEST_TIMEOUT` (seconds per request, default 180) and `MASTERBA_MAX_TOKENS` (output tokens per call, default 16000). A large intake needs higher values for the Basic and Detail Design tester calls.
 
 ## 2. Convergence on ordinary models
 
