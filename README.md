@@ -227,6 +227,17 @@ masterba --root work init-project --project PRJ-001 --company sample-sier --lang
 masterba --root work run brd --project PRJ-001 --input tests/fixtures/intake/hrm_employee_ja.txt
 ```
 
+A larger example for a full run, `tests/fixtures/intake/timesheet_ja.md` (a timesheet system for a 200-person offshore developer: entry, PM approval, PMO reports), goes from BRD to Detail Design:
+
+```bash
+masterba --root work init-project --project PRJ-002 --language ja
+masterba --root work run brd    --project PRJ-002 --input tests/fixtures/intake/timesheet_ja.md
+masterba --root work run srs    --project PRJ-002
+masterba --root work run basic  --project PRJ-002
+masterba --root work run detail --project PRJ-002
+masterba --root work question list --project PRJ-002   # what the stages asked the customer
+```
+
 ### Dashboard
 
 ```bash

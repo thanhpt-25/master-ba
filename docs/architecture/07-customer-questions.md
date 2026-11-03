@@ -74,6 +74,16 @@ DR-0004 [DOC-SRS-0001#item.5]: Q-0007: What does the three business days count f
 
 The block says that its lines are part of the source, that agents ask nothing about them and treat none as an invention, and that the later line wins. An answer is at most 2,000 characters, has no control characters and may not contain the closing tag; when the block is rendered, angle brackets are replaced so text from a person or a model cannot close it. A resumed run builds the block again, so it sees answers given after it escalated. The BRD gate still requires every requirement to cite intake lines, so a fact can clarify a BRD requirement but cannot be the source of a new one.
 
+### Open questions
+
+Every model call also gets the questions still open in the ledger, after the confirmed facts, in an
+`<open_questions>` block (newest first, at most 100). A writer may not state an answer to one of them
+as a requirement, design decision or expected result, even when the intake, the upstream document or
+a knowledge passage contains it, and QA reports such a statement as an invention. In the dry run of
+2026-11-03 the SRS had stated two glossary values the BRD was still asking the customer about. When a
+question is answered it moves to `<confirmed>`; when it is withdrawn it leaves the block. With no
+open question the block is empty and the prompts are as before.
+
 ## 7.6 Surfaces
 
 | Surface | What it offers |
