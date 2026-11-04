@@ -1,4 +1,4 @@
-import { badge, clear, empty, fmtTime, h } from "../dom.js";
+import { append, badge, clear, empty, fmtTime, h } from "../dom.js";
 
 const LEFT = [
   { key: "brd", title: "BRD", sub: "業務要件定義書", needs: "Intake text" },
@@ -142,6 +142,8 @@ function leftCard(stage, info, index, ctx) {
   } else if (canRun && info.waiting_for && info.status !== "running" && info.status !== "done") {
     // The gate (spec 15 section 3.2): the server refuses too; this only explains why.
     action = h("button", { class: "primary", disabled: true, title: `Approve ${info.waiting_for} first` }, `Waiting for the ${info.waiting_for} review`);
+  } else if (canRun && ctx.locked.has(stage.key)) {
+    action = h("button", { class: "primary", disabled: true }, `Waiting for ${stage.needs}`);
   } else if (canRun && info.status === "done") {
     // A stage refuses to run over its own documents; changes go through a Decision Record.
     action = h("p", { class: "hint" }, "To change these documents, raise a ", h("a", { href: `#/p/${ctx.pid}/drs` }, "Decision Record"), ".");
@@ -224,8 +226,11 @@ export async function render(context) {
 
   const draw = (overview, job) => {
     const stages = overview.stages;
-    const ctx = { ...context, pid, start, approve, reject, openQuestions: overview.open_questions };
-    clear(main).append(
+    const flow = workflowSteps(stages, overview.project.review_gates);
+    const locked = new Set(flow.steps.filter((s) => s.state === "locked").map((s) => s.key));
+    const ctx = { ...context, pid, start, approve, reject, locked, openQuestions: overview.open_questions };
+    // dom.js append skips empty sections; the native one would print "null".
+    append(clear(main), [
       h("h1", {}, pid),
       h(
         "p",
@@ -244,7 +249,7 @@ export async function render(context) {
       overview.open_questions.length
         ? h("section", { class: "panel" }, h("h2", {}, "Open questions for the customer"), h("ul", {}, overview.open_questions.map((q) => h("li", {}, q))), h("p", {}, h("a", { href: `#/p/${pid}/questions` }, "Answer them in the Questions tab")))
         : null,
-    );
+    ]);
   };
 
   async function start(stage, body) {

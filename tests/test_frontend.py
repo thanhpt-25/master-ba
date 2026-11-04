@@ -100,6 +100,8 @@ def test_the_overview_opens_with_a_workflow_strip() -> None:
         assert f"#/p/${{pid}}{link}" in view
     dom = (FRONTEND / "dom.js").read_text("utf-8")
     assert "ready:" in dom and "locked:" in dom
+    # Run is offered only for the phase whose turn it is; the page prints no stray "null".
+    assert "ctx.locked.has(stage.key)" in view and "append(clear(main), [" in view
 
 
 WORKFLOW_SCRIPT = """
