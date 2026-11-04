@@ -171,6 +171,8 @@ export ANTHROPIC_API_KEY=...            # required for real runs
 export ANTHROPIC_BASE_URL=...           # optional: an Anthropic-compatible gateway
 export MASTERBA_MODEL=...               # optional: default writer model
 export MASTERBA_QA_MODEL=...            # optional: separate, ideally stronger, QA model
+export MASTERBA_REQUEST_TIMEOUT=900     # optional: seconds per request (default 180)
+export MASTERBA_MAX_TOKENS=32000        # optional: output tokens per call (default 16000)
 ```
 
 ### Running the stages
@@ -237,6 +239,8 @@ masterba --root work run basic  --project PRJ-002
 masterba --root work run detail --project PRJ-002
 masterba --root work question list --project PRJ-002   # what the stages asked the customer
 ```
+
+An intake of this size (60 requirements, 67 SRS items) needs higher request limits for the design tester calls; the recorded run (spec 11 section 10.3) used `MASTERBA_REQUEST_TIMEOUT=1800` and `MASTERBA_MAX_TOKENS=32000`.
 
 ### Dashboard
 
