@@ -13,6 +13,78 @@ const RIGHT = [
   { title: "Unit tests (UT)", sub: "単体テスト", doc: "DOC-TEST_UT-0001", stage: "detail", link: "Detail ↔ UT" },
 ];
 
+// The workflow strip (spec 15 section 7): where each phase stands and what to do next.
+export function workflowSteps(stages, gates) {
+  const steps = LEFT.map((phase) => {
+    const info = stages.find((s) => s.stage === phase.key) || { status: "not_started", review: "not_started" };
+    let state;
+    if (info.status === "running") state = "running";
+    else if (info.review === "in_review") state = "in_review";
+    else if (info.review === "approved") state = "approved";
+    else if (info.status === "escalated") state = "escalated";
+    else if (info.status === "done") state = "done";
+    else state = "ready";
+    return { key: phase.key, title: phase.title, sub: phase.sub, state, waiting: info.waiting_for || null };
+  });
+  // Finished means the next phase may start. With gates, a fresh run is in_review until approved;
+  // a `done` phase (documents in draft) only exists without gates or after a Decision Record.
+  const finished = (s) => s.state === "approved" || s.state === "done";
+  steps.forEach((step, i) => {
+    if (step.state === "ready" && i > 0 && (!finished(steps[i - 1]) || step.waiting)) step.state = "locked";
+  });
+  const gatesBetween = gates
+    ? steps.slice(0, -1).map((s) => (finished(s) ? "open" : s.state === "in_review" ? "waiting" : "closed"))
+    : [];
+  const current = steps.find((s) => !finished(s)) || null;
+  return { steps, gates: gatesBetween, current: current ? current.key : null, next: nextAction(current) };
+}
+
+function nextAction(step) {
+  if (!step) return "Every phase is finished. Changes from here go through a Decision Record.";
+  if (step.state === "in_review") return `Review the ${step.title} phase: approve it, or reject it with comments.`;
+  if (step.state === "running") return `${step.title} is running.`;
+  if (step.state === "escalated") return `${step.title} escalated: resume it, or raise a Decision Record from the run.`;
+  if (step.state === "locked") return `${step.title} waits for the phase before it.`;
+  return step.key === "brd" ? "Upload the customer's intake and run the BRD stage." : `Run the ${step.title} stage.`;
+}
+
+function workflowStrip(overview, pid) {
+  const flow = workflowSteps(overview.stages, overview.project.review_gates);
+  const items = [];
+  flow.steps.forEach((step, i) => {
+    items.push(
+      h(
+        "li",
+        { class: `wf-step ${step.state}`, "aria-current": flow.current === step.key ? "step" : null },
+        h("span", { class: "wf-title" }, step.title),
+        h("span", { class: "sub" }, step.sub),
+        badge(step.state),
+      ),
+    );
+    if (i < flow.gates.length) {
+      const gate = flow.gates[i];
+      const label = { open: "Approved", waiting: "Waiting for review", closed: "Review gate" }[gate];
+      items.push(h("li", { class: `wf-gate ${gate}`, "aria-label": `Review gate: ${label}` }, h("span", { "aria-hidden": "true" }, gate === "open" ? "✓" : "◆"), h("span", { class: "sub" }, label)));
+    }
+  });
+  const c = overview.counts;
+  return h(
+    "section",
+    { class: "panel workflow", "aria-labelledby": "wf-title" },
+    h("h2", { id: "wf-title" }, "Workflow"),
+    h("ol", { class: "wf-track", "aria-label": "Phases in order" }, items),
+    h("p", { class: "wf-next" }, h("strong", {}, "Next: "), flow.next),
+    h(
+      "ul",
+      { class: "wf-loops", "aria-label": "What feeds the phases" },
+      h("li", {}, h("a", { href: `#/p/${pid}/questions` }, `${c.open_questions} open customer question(s)`), h("span", { class: "sub" }, " · later phases may not decide them")),
+      h("li", {}, h("a", { href: `#/p/${pid}/drs` }, `${c.open_drs} open Decision Record(s)`), h("span", { class: "sub" }, " · changes and review revisions")),
+      h("li", {}, h("a", { href: `#/p/${pid}/knowledge` }, "Knowledge base"), h("span", { class: "sub" }, " · passages the writers cite")),
+      overview.project.review_gates ? null : h("li", { class: "sub" }, "Review gates are off for this project: stages run back to back."),
+    ),
+  );
+}
+
 function docLine(doc) {
   return h("li", {}, h("code", {}, doc.id), h("span", { class: "ver" }, `v${doc.version}`));
 }
@@ -160,6 +232,7 @@ export async function render(context) {
         { class: "muted" },
         `${overview.counts.requirements} requirements · ${overview.counts.links} trace links · ${overview.counts.open_drs} open decision record(s) · ${overview.counts.open_questions} open question(s) · documents in ${overview.project.document_language === "ja" ? "Japanese" : "English"}`,
       ),
+      workflowStrip(overview, pid),
       h(
         "div",
         { class: "vmodel", role: "group", "aria-label": "V-model stages" },

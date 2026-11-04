@@ -68,6 +68,8 @@ const STATUS = {
   open: { icon: "○", label: "Open", cls: "warn" },
   answered: { icon: "✓", label: "Answered", cls: "ok" },
   in_review: { icon: "◔", label: "In review", cls: "warn" },
+  ready: { icon: "▶", label: "Ready", cls: "run" },
+  locked: { icon: "■", label: "Locked", cls: "idle" },
   withdrawn: { icon: "■", label: "Withdrawn", cls: "idle" },
   indexed: { icon: "✓", label: "Indexed", cls: "ok" },
   stale: { icon: "▲", label: "Stale", cls: "warn" },
