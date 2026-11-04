@@ -163,3 +163,23 @@ Tất cả hàm nhận `ProjectStore` (gốc `projects/` + `project_id`), **khô
     | `remove_with_proposal(store, source_id) -> tuple[KbSource, DecisionRecord \| None]` (`proposal.py`) | Như `remove_source`, cùng quy tắc DR; Knowledge_Node và link của nguồn vẫn giữ lại | `dr(P): create DR-####` (khi có trích dẫn), rồi `kb(P): remove KB-0003` |
 
     Id không có trong manifest hoặc đã `removed` → `UnknownSourceError` (lớp con của `KbError`) trước mọi thay đổi. `proposal.py` chỉ được `cli.py` và API import, không được `pipeline/` import (giống `questions/answer.py`). Chi tiết hành vi ở spec 12.
+
+## Bổ sung 2026-11-04 (spec 15: cổng review giữa các phase)
+
+22. **Kiểu id mới** (`models/ids.py`): `ReviewId` (`^REV-\d{4}$`, ví dụ `REV-0002`), do code gán, không tái sử dụng (spec 00 mục "Sửa đổi" 2026-11-04).
+23. **Entity mới** (module `models/`, đóng băng, thêm vào `schema_export.SCHEMA_MODELS`):
+    - `ReviewComment`: `ref: ItemRef | None` (item của một tài liệu trong phase, hoặc không có nghĩa là cả phase), `text: str` (1 đến 2.000 ký tự, không có ký tự điều khiển).
+    - `ReviewedDocument`: `doc_id: DocId`, `version: int ≥ 1`.
+    - `Review`: `id: ReviewId`, `stage: brd|srs|basic|detail`, `documents: list[ReviewedDocument]` (không rỗng), `decision: approved|rejected`, `by: str` (không rỗng), `at: datetime` (UTC, đến giây, ghi `...Z`), `comments: list[ReviewComment]`, `open_questions: list[QuestionId]`, `dr_id: DrId | None`, `revision_run: RunId | None`. Ràng buộc: `rejected` ⇔ `comments` không rỗng; `approved` ⇒ `dr_id` và `revision_run` là `null`.
+24. **Field thêm vào model có sẵn**: `ProjectConfig.review_gates: bool = False` (mặc định của model là `false` để `project.json` cũ vẫn nạp được và chạy như trước; `init-project` và API tạo project ghi `true` trừ khi có `--no-review-gates`), giá trị mới `DrTrigger.REVIEW_FEEDBACK = "review_feedback"`.
+25. **Layout**: `reviews/REV-0002.json` (một `Review`), bên cạnh `decision-records/` và `questions/`.
+26. **Hàm store** (`trace_store`):
+
+    | Hàm | Hành vi | Commit message |
+    |---|---|---|
+    | `add_review(store, review, status: DocStatus \| None)` | Ghi `reviews/REV-####.json`; khi `status` có giá trị, đặt `document.status = status` cho mỗi `(doc_id, version)` của `review.documents`; tất cả trong 1 commit | `review(P): approve srs (DOC-SRS-0001 v1)` |
+    | `get_review(store, review_id)`, `list_reviews(store)` | Đọc; `list_reviews` sắp tăng theo id | — |
+    | `save_review(store, review, action)` | Ghi lại review đã có (ví dụ đặt `revision_run`) | `review(P): <action> REV-####` |
+    | `set_document_status(store, doc_id, version, status, message)` | Chỉ đổi `document.status` của một version; phần `content` giữ nguyên từng byte | `message` do caller đưa |
+
+    Một phase bị `rejected` giữ version đang review ở `in_review` cho đến khi version mới của nó được lưu; lúc đó version cũ thành `superseded` và version mới vào `in_review`. Quy tắc nghiệp vụ (cổng, approve, reject) nằm trong gói `review/`, không thuộc `trace_store` (chi tiết ở spec 15).

@@ -184,10 +184,28 @@ masterba --root ~/masterba-work doctor --init    # once: an empty folder becomes
 cd ~/masterba-work && masterba doctor            # prints each check and how to fix a failing one
 masterba init-project --project PRJ-001 --language ja
 masterba run brd    --project PRJ-001 --input intake.txt
+masterba review approve --project PRJ-001 --stage brd --by alice     # review gate (spec 15)
 masterba run srs    --project PRJ-001
+masterba review approve --project PRJ-001 --stage srs --by alice
 masterba run basic  --project PRJ-001            # basic design + IT/ST specs
+masterba review approve --project PRJ-001 --stage basic --by alice
 masterba run detail --project PRJ-001            # detail design + UT specs
+masterba review approve --project PRJ-001 --stage detail --by alice
 ```
+
+A new project has review gates: each stage stores its documents `in_review`, and the next stage
+refuses to start until a person approves the phase. `masterba review status --project PRJ-001` shows
+where each phase stands. To send a phase back instead, reject it with comments; a writer and QA team
+writes the next version for another review:
+
+```bash
+masterba review reject --project PRJ-001 --stage srs --by alice \
+  --comment "DOC-SRS-0001#item.12: Split this into two obligations." \
+  --comment "Use the glossary term 受注 throughout."
+```
+
+`init-project --no-review-gates` runs the stages back to back, as scripted runs need. On the dashboard,
+a phase in review shows Approve and Reject on its card.
 
 Use `--model`, `--qa-model` and, for the design stages, `--test-model` to pick a model for each role. `init-project --rounds basic=6` gives one stage more rounds than the default.
 
@@ -232,7 +250,7 @@ masterba --root work run brd --project PRJ-001 --input tests/fixtures/intake/hrm
 A larger example for a full run, `tests/fixtures/intake/timesheet_ja.md` (a timesheet system for a 200-person offshore developer: entry, PM approval, PMO reports), goes from BRD to Detail Design:
 
 ```bash
-masterba --root work init-project --project PRJ-002 --language ja
+masterba --root work init-project --project PRJ-002 --language ja --no-review-gates
 masterba --root work run brd    --project PRJ-002 --input tests/fixtures/intake/timesheet_ja.md
 masterba --root work run srs    --project PRJ-002
 masterba --root work run basic  --project PRJ-002

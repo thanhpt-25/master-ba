@@ -77,3 +77,13 @@ def test_the_knowledge_tab_is_registered_and_safe() -> None:
     assert not re.search(r"\son[a-z]+=", view)  # no inline handlers in markup strings
     api = (FRONTEND / "api.js").read_text("utf-8")
     assert 'del: (path) => request("DELETE", path)' in api
+
+
+def test_the_overview_offers_review_controls_and_explains_the_gate() -> None:
+    # Spec 15 section 7: approve or reject a phase in review; the next Run waits with a reason.
+    view = (FRONTEND / "views" / "overview.js").read_text("utf-8")
+    assert "/stages/${stage}/approve" in view and "/stages/${stage}/reject" in view
+    assert 'info.review === "in_review"' in view and "info.waiting_for" in view
+    assert "export function parseComments" in view
+    assert "customer question(s) are still open" in view  # approval warns about open questions
+    assert "in_review:" in (FRONTEND / "dom.js").read_text("utf-8")

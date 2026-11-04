@@ -24,7 +24,7 @@ from masterba.models import (
     SrsItem,
     TraceLink,
 )
-from masterba.models.enums import DocStatus, DocType, LinkType, TeamRunStatus
+from masterba.models.enums import DocStatus, DocType, LinkType, ReviewStage, TeamRunStatus
 from masterba.pipeline.brd import BRD_DOC_ID
 from masterba.pipeline.stage import (
     TEMPLATE_ID,
@@ -45,6 +45,7 @@ from masterba.pipeline.stage import (
     store_document,
 )
 from masterba.rendering import render_to_project
+from masterba.review import require_reviewed
 from masterba.team import RecordingLLM, run_writer_review
 from masterba.trace_store import (
     DuplicateIdError,
@@ -135,6 +136,7 @@ def run_srs(
             f"{SRS_DOC_ID} already exists; changing an SRS goes through a Decision Record"
         )
     brd = _load_brd(store)
+    require_reviewed(store, ReviewStage.SRS)  # before the team opens (spec 15 3.2)
     language = get_config(store).document_language
     checklist = load_checklist(checklist_path(DocType.SRS))
     session = knowledge(store)  # before the team opens (Requirement 9.8)

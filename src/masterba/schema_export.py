@@ -35,6 +35,7 @@ from masterba.models import (
     Question,
     ReindexRecord,
     RequirementItem,
+    Review,
     SourceIndexState,
     SrsContent,
     TeamRun,
@@ -78,6 +79,7 @@ SCHEMA_MODELS: tuple[type[BaseModel], ...] = (
     Passage,
     SourceIndexState,
     ReindexRecord,
+    Review,
 )
 
 

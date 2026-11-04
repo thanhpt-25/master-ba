@@ -16,6 +16,7 @@ from masterba.api import (
     routes_knowledge,
     routes_projects,
     routes_questions,
+    routes_reviews,
     routes_templates,
     routes_trace,
 )
@@ -35,6 +36,7 @@ from masterba.knowledge import (
 from masterba.knowledge.embedder import RagUnavailableError
 from masterba.llm import LLMError
 from masterba.rendering import RenderError
+from masterba.review import ReviewError
 from masterba.trace_store import NotFoundError, TraceStoreError
 
 logger = logging.getLogger(__name__)
@@ -87,6 +89,10 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
     async def unknown_source(_: Request, exc: UnknownSourceError) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=404)
 
+    @app.exception_handler(ReviewError)
+    async def review_refused(_: Request, exc: ReviewError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=409)
+
     @app.exception_handler(KnowledgeUnavailableError)
     async def kb_unavailable(_: Request, exc: KnowledgeUnavailableError) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=409)
@@ -124,6 +130,7 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
         routes_trace,
         routes_drs,
         routes_questions,
+        routes_reviews,
         routes_knowledge,
         routes_templates,
     ):

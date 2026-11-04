@@ -17,11 +17,60 @@ function docLine(doc) {
   return h("li", {}, h("code", {}, doc.id), h("span", { class: "ver" }, `v${doc.version}`));
 }
 
+const ITEM_PREFIX = /^\s*(DOC-[A-Z_]+-\d{4}#item\.\d+)\s*:\s*(.*)$/;
+
+// One comment per line; a line may start with an item ref (spec 15 section 7).
+export function parseComments(text) {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(ITEM_PREFIX);
+      return match ? { ref: match[1], text: match[2].trim() } : { ref: null, text: line };
+    });
+}
+
+function reviewBox(stage, ctx) {
+  const comments = h("textarea", {
+    id: `reject-${stage.key}`,
+    rows: "3",
+    maxlength: "20000",
+    spellcheck: "false",
+    "aria-label": `Comments for rejecting ${stage.title}, one per line`,
+    placeholder: "DOC-SRS-0001#item.3: Split this obligation…",
+  });
+  const approve = () => {
+    const open = ctx.openQuestions.length;
+    const warning = open ? `\n\n${open} customer question(s) are still open; they stay open and later stages may not decide them.` : "";
+    if (!confirm(`Approve the ${stage.title} phase? The next stage can then start.${warning}`)) return;
+    ctx.approve(stage.key).catch((e) => ctx.toast(e.message, "error"));
+  };
+  const reject = () => {
+    const parsed = parseComments(comments.value);
+    if (!parsed.length) return ctx.toast("Write at least one comment.", "error");
+    ctx.reject(stage.key, parsed).catch((e) => ctx.toast(e.message, "error"));
+  };
+  return h(
+    "div",
+    { class: "review-box" },
+    h("p", { class: "hint" }, "Waiting for your review."),
+    h("button", { class: "primary", type: "button", onClick: approve }, "Approve"),
+    comments,
+    h("button", { type: "button", onClick: reject }, "Reject with comments"),
+  );
+}
+
 function leftCard(stage, info, index, ctx) {
   const canRun = ["approver", "admin"].includes(ctx.me.role);
   const run = (body = {}) => ctx.start(stage.key, body);
   let action = null;
-  if (canRun && info.status === "done") {
+  if (info.review === "in_review" && info.status !== "running") {
+    action = canRun ? reviewBox(stage, ctx) : h("p", { class: "hint" }, "Waiting for an approver's review.");
+  } else if (canRun && info.waiting_for && info.status !== "running" && info.status !== "done") {
+    // The gate (spec 15 section 3.2): the server refuses too; this only explains why.
+    action = h("button", { class: "primary", disabled: true, title: `Approve ${info.waiting_for} first` }, `Waiting for the ${info.waiting_for} review`);
+  } else if (canRun && info.status === "done") {
     // A stage refuses to run over its own documents; changes go through a Decision Record.
     action = h("p", { class: "hint" }, "To change these documents, raise a ", h("a", { href: `#/p/${ctx.pid}/drs` }, "Decision Record"), ".");
   } else if (canRun && info.status !== "running") {
@@ -56,7 +105,7 @@ function leftCard(stage, info, index, ctx) {
   return h(
     "section",
     { class: `vcard left ${info.status}`, style: `--i:${index}`, "aria-labelledby": `st-${stage.key}` },
-    h("div", { class: "vcard-head" }, h("h3", { id: `st-${stage.key}` }, stage.title), badge(info.status)),
+    h("div", { class: "vcard-head" }, h("h3", { id: `st-${stage.key}` }, stage.title), badge(info.status), info.review === "in_review" || info.review === "approved" ? badge(info.review) : null),
     h("p", { class: "sub" }, stage.sub),
     info.documents.length ? h("ul", { class: "docs" }, info.documents.map(docLine)) : h("p", { class: "muted" }, `Needs: ${stage.needs}`),
     last
@@ -103,7 +152,7 @@ export async function render(context) {
 
   const draw = (overview, job) => {
     const stages = overview.stages;
-    const ctx = { ...context, pid, start };
+    const ctx = { ...context, pid, start, approve, reject, openQuestions: overview.open_questions };
     clear(main).append(
       h("h1", {}, pid),
       h(
@@ -128,6 +177,19 @@ export async function render(context) {
   async function start(stage, body) {
     const started = await api.post(`/projects/${pid}/stages/${stage}/run`, body);
     toast(`Started ${stage}`);
+    shown = started.id;
+    await refresh();
+  }
+
+  async function approve(stage) {
+    const done = await api.post(`/projects/${pid}/stages/${stage}/approve`);
+    toast(`Approved ${stage} (${done.review.id})`);
+    await refresh();
+  }
+
+  async function reject(stage, comments) {
+    const started = await api.post(`/projects/${pid}/stages/${stage}/reject`, { comments });
+    toast(`Rejected ${stage}; revising`);
     shown = started.id;
     await refresh();
   }

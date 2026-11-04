@@ -24,7 +24,7 @@ from masterba.api.schemas import (
 )
 from masterba.api.settings import MAX_UPLOAD_CHARS, Settings
 from masterba.models import ProjectConfig
-from masterba.models.enums import DrStatus, QuestionStatus
+from masterba.models.enums import DrStatus, QuestionStatus, ReviewStage
 from masterba.pipeline import (
     Resume,
     run_basic_design,
@@ -33,6 +33,7 @@ from masterba.pipeline import (
     run_srs,
     stage_summary,
 )
+from masterba.review import blocking_phase, phase_state
 from masterba.trace_store import (
     DuplicateIdError,
     ProjectStore,
@@ -145,7 +146,16 @@ def _stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, A
         status = "escalated"
     else:
         status = "not_started"
-    return {"stage": stage, "status": status, "documents": docs, "last_run": last}
+    review = phase_state(store, ReviewStage(stage))
+    blocked = blocking_phase(store, ReviewStage(stage))
+    return {
+        "stage": stage,
+        "status": status,
+        "documents": docs,
+        "last_run": last,
+        "review": review,
+        "waiting_for": blocked.value if blocked else None,
+    }
 
 
 @router.get("/projects/{pid}", dependencies=[Viewer])

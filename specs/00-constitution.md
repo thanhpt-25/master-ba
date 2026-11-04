@@ -122,6 +122,12 @@ Thư mục mới ngoài danh sách trên phải được thêm vào spec này (h
     ```
   - Thêm scope commit `kb` (mục 5), mỗi commit chỉ chứa `knowledge/manifest.json`: `kb(PRJ-001): add KB-0003, KB-0004`, `kb(PRJ-001): replace KB-0003`, `kb(PRJ-001): remove KB-0003`.
 
+- **2026-11-04 (spec 15, cổng review giữa các phase):**
+  - Thêm ID `REV-####` (một lần review của một phase), duy nhất trong 1 project, ví dụ `REV-0002`. Code gán số: số lớn nhất đã có cộng 1, không bao giờ tái sử dụng.
+  - Thêm thư mục `reviews/` vào `projects/<project_id>/` (mục 2), mỗi review một file `REV-####.json`.
+  - Thêm scope commit `review` (mục 5): `review(PRJ-001): approve srs (DOC-SRS-0001 v1)`, `review(PRJ-001): reject basic (DOC-BASIC_DESIGN-0001 v1, DOC-TEST_IT-0001 v1, DOC-TEST_ST-0001 v1)`, `review(PRJ-001): update REV-0002`.
+  - Bổ sung mục 4: field `document.status` của một version đã lưu được phép đổi (`in_review` → `approved` hoặc `superseded`) mà không tăng version, vì status là metadata về version chứ không phải nội dung. Phần `content` của version không bao giờ đổi; mọi thay đổi nội dung vẫn tạo version mới.
+
 ## Rủi ro & rollback
 - ID scheme (mục 3) thiếu trường hợp (vd. cần ID cho "field" chứ không chỉ "item") → sửa spec này trước, bump version (`v0.1`→`v0.2`), rà soát lại `trace_store` ở Phase 1 — không patch ngầm ở Phase 7.
 - Đổi toolchain (vd. bỏ `ruff`) → phải sửa spec này trước, không đổi lặt vặt trong CI config mà không cập nhật spec.

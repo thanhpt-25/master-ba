@@ -67,6 +67,7 @@ const STATUS = {
   planned: { icon: "·", label: "Planned", cls: "idle" },
   open: { icon: "○", label: "Open", cls: "warn" },
   answered: { icon: "✓", label: "Answered", cls: "ok" },
+  in_review: { icon: "◔", label: "In review", cls: "warn" },
   withdrawn: { icon: "■", label: "Withdrawn", cls: "idle" },
   indexed: { icon: "✓", label: "Indexed", cls: "ok" },
   stale: { icon: "▲", label: "Stale", cls: "warn" },

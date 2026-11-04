@@ -22,7 +22,10 @@ def root(git_repo: Path) -> Path:
         REPO / "templates", git_repo / "templates", ignore=shutil.ignore_patterns("companies")
     )
     assert (
-        main(["--root", str(git_repo), "init-project", "--project", "PRJ-001", "--language", "en"])
+        main(
+            ["--root", str(git_repo), "init-project", "--project", "PRJ-001", "--language", "en"]
+            + ["--no-review-gates"]  # the chain runs stages back to back
+        )
         == 0
     )
     store = open_project(git_repo / "projects", "PRJ-001")

@@ -4,6 +4,7 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from masterba.models import ReviewComment
 from masterba.models.enums import DocLanguage, DrTrigger
 from masterba.models.ids import (
     DOC_ID_PATTERN,
@@ -39,6 +40,11 @@ class CreateProjectBody(Body):
     document_language: DocLanguage = DocLanguage.JA
     team_max_rounds: int = Field(default=3, ge=1, le=20)
     team_token_budget: int | None = Field(default=None, ge=1)
+    review_gates: bool = True  # spec 15: on for new projects
+
+
+class RejectBody(Body):
+    comments: list[ReviewComment] = Field(min_length=1, max_length=50)
 
 
 class RunStageBody(Body):

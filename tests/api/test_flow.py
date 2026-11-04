@@ -65,11 +65,24 @@ def test_the_whole_pipeline_runs_through_the_api_alone(
     assert any("round 1 started" in line for line in brd["log"])
     assert brd["log"][-1].endswith("done after 1 round(s)")
 
+    # Review gates are on for a new project (spec 15): the next stage waits for approval.
+    blocked = run_stage(empty_app, approver, script, "srs")
+    assert blocked["status"] == "failed" and "approve the brd phase first" in blocked["error"]
+    assert viewer.get(P).json()["stages"][1]["waiting_for"] == "brd"
+    assert viewer.post(f"{P}/stages/brd/approve").status_code == 403
+    approved = approver.post(f"{P}/stages/brd/approve")
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["review"]["by"] == "alice"  # the signed-in user
+    assert approved.json()["open_questions"][0]["id"] == "Q-0001"
+    assert approver.post(f"{P}/stages/brd/approve").status_code == 409  # no longer in review
+
     srs = run_stage(empty_app, approver, script, "srs", login_srs_draft(), qa_pass())
+    assert approver.post(f"{P}/stages/srs/approve").status_code == 200
     basic = run_stage(
         empty_app, approver, script, "basic",
         login_design_draft(), login_test_draft(), qa_pass(), qa_pass(),
     )  # fmt: skip
+    assert approver.post(f"{P}/stages/basic/approve").status_code == 200
     detail = run_stage(
         empty_app, approver, script, "detail",
         login_detail_draft(), login_unit_draft(), qa_pass(), qa_pass(),

@@ -53,7 +53,9 @@ def run_cli(
 
 
 def init(root: Path, language: str = "en", *extra: str) -> None:
-    done = run_cli(root, "init-project", "--project", "PRJ-001", "--language", language, *extra)
+    # Stage-flow tests chain stages; the gate itself is tested in test_cli_review.py.
+    args = ("--project", "PRJ-001", "--language", language, "--no-review-gates", *extra)
+    done = run_cli(root, "init-project", *args)
     assert done == 0
 
 

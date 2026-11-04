@@ -20,7 +20,7 @@ from masterba.change.patch import (
 from masterba.change.reviser import CHECKLIST_STEM, dr_text, patch_view, write_patch
 from masterba.llm import LLM
 from masterba.models import DecisionRecord, RequirementItem, payload_items
-from masterba.models.enums import DocStatus, DrStatus, ItemStatus, TeamRunStatus
+from masterba.models.enums import DocStatus, DrStatus, DrTrigger, ItemStatus, TeamRunStatus
 from masterba.pipeline.brd import next_requirement_number
 from masterba.questions.facts import attach_facts
 from masterba.rendering import render_to_project
@@ -37,6 +37,8 @@ from masterba.trace_store import (
     get_trace_links,
     latest_documents,
     list_requirements,
+    list_reviews,
+    set_document_status,
     update_requirement,
     write_dr_extra,
 )
@@ -173,10 +175,13 @@ def _revise(
     for requirement in result.updated_requirements:
         update_requirement(store, requirement)
     version = document.version + 1
+    # A review revision goes straight back to review (spec 15 section 5): it never writes a
+    # draft that would pass the gate.
+    for_review = dr.trigger is DrTrigger.REVIEW_FEEDBACK
     revised = document.model_copy(
         update={
             "version": version,
-            "status": DocStatus.DRAFT,
+            "status": DocStatus.IN_REVIEW if for_review else DocStatus.DRAFT,
             "content_ref": f"json/{document.type.value.lower()}/{doc_id}.v{version}.json",
             "render_ref": None,
         }
@@ -185,8 +190,25 @@ def _revise(
     for link in missing_links(get_trace_links(store), links_for_document(result.content)):
         add_trace_link(store, link)
     render_to_project(store, doc_id, templates_root, version=version)
+    if for_review:
+        _supersede(store, templates_root, dr, doc_id, document.version)
     run = team.finish(TeamRunStatus.DONE)
     return DocOutcome(doc_id, "revised", version, run.run_id)
+
+
+def _supersede(
+    store: ProjectStore, templates_root: Path, dr: DecisionRecord, doc_id: str, version: int
+) -> None:
+    """Mark the rejected version superseded once its replacement is stored (spec 15 section 5)."""
+    review = next((r.id for r in list_reviews(store) if r.dr_id == dr.id), dr.id)
+    set_document_status(
+        store,
+        doc_id,
+        version,
+        DocStatus.SUPERSEDED,
+        f"review({store.project_id}): supersede {doc_id} v{version} ({review})",
+    )
+    render_to_project(store, doc_id, templates_root, version=version)
 
 
 def _summaries(store: ProjectStore, doc_id: str, version: int) -> list[str]:

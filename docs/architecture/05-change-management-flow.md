@@ -195,6 +195,12 @@ The dashboard shows the same comparison.
 
 A question in the ledger is answered with `question answer`: it creates a `clarification` DR, approves it with the answer as the decision and the person who recorded it as the approver, and saves the question as answered with the DR's id ([document 7](07-customer-questions.md)). Propagation stays a separate step. If an earlier attempt left the DR half done, running the answer again reuses it.
 
+## 5.7a Review feedback
+
+Rejecting a phase in review creates and approves a DR with trigger `review_feedback`. Its
+propagation stores each revised version `in_review` instead of `draft` and sets the rejected version
+`superseded`; see [9. Phase review gates](09-phase-review-gates.md).
+
 ## 5.8 When a stage run escalated
 
 ```mermaid

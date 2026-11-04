@@ -22,11 +22,12 @@ from masterba.models import (
     ProjectConfig,
     Question,
     RequirementItem,
+    Review,
     TestSpecContent,
     TraceLink,
     payload_items,
 )
-from masterba.models.enums import DocType, ItemStatus
+from masterba.models.enums import DocStatus, DocType, ItemStatus
 from masterba.models.ids import doc_type_of
 from masterba.trace_store.errors import (
     DuplicateIdError,
@@ -391,6 +392,70 @@ def save_question(store: ProjectStore, question: Question, action: str) -> None:
         raise NotFoundError(f"{question.id} does not exist")
     _write_json(path, _data(question))
     _commit(store, [path], f"question({store.project_id}): {action} {question.id}")
+
+
+def _review_path(store: ProjectStore, review_id: str) -> Path:
+    return store.path / "reviews" / f"{review_id}.json"
+
+
+def _version_path(store: ProjectStore, doc_id: str, version: int) -> Path:
+    return _doc_dir(store, DocType(doc_type_of(doc_id))) / f"{doc_id}.v{version}.json"
+
+
+def _write_status(store: ProjectStore, doc_id: str, version: int, status: DocStatus) -> Path:
+    """Change only `document.status` of a stored version; `content` stays as written."""
+    path = _version_path(store, doc_id, version)
+    if not path.exists():
+        raise NotFoundError(f"{doc_id} version {version} does not exist")
+    data = _read_json(path)
+    data["document"]["status"] = status.value
+    Document.model_validate(data["document"])  # the rewritten metadata is still valid
+    _write_json(path, data)
+    return path
+
+
+def set_document_status(
+    store: ProjectStore, doc_id: str, version: int, status: DocStatus, message: str
+) -> None:
+    """Set the status of one stored version in one commit (spec 00 section 4, 2026-11-04)."""
+    _commit(store, [_write_status(store, doc_id, version, status)], message)
+
+
+def add_review(store: ProjectStore, review: Review, status: DocStatus | None) -> None:
+    """Store a review and, when `status` is given, set it on every reviewed version; one commit."""
+    path = _review_path(store, review.id)
+    if path.exists():
+        raise DuplicateIdError(f"{review.id} already exists")
+    _write_json(path, _data(review))
+    paths = [path]
+    if status is not None:
+        paths += [_write_status(store, d.doc_id, d.version, status) for d in review.documents]
+    listed = ", ".join(f"{d.doc_id} v{d.version}" for d in review.documents)
+    verb = "approve" if review.decision.value == "approved" else "reject"
+    _commit(store, paths, f"review({store.project_id}): {verb} {review.stage.value} ({listed})")
+
+
+def get_review(store: ProjectStore, review_id: str) -> Review:
+    path = _review_path(store, review_id)
+    if not path.exists():
+        raise NotFoundError(f"{review_id} does not exist")
+    return Review.model_validate(_read_json(path))
+
+
+def list_reviews(store: ProjectStore) -> list[Review]:
+    folder = store.path / "reviews"
+    if not folder.exists():
+        return []
+    return [Review.model_validate(_read_json(p)) for p in sorted(folder.glob("REV-????.json"))]
+
+
+def save_review(store: ProjectStore, review: Review, action: str) -> None:
+    """Rewrite an existing review as one commit ``review(P): <action> <id>``."""
+    path = _review_path(store, review.id)
+    if not path.exists():
+        raise NotFoundError(f"{review.id} does not exist")
+    _write_json(path, _data(review))
+    _commit(store, [path], f"review({store.project_id}): {action} {review.id}")
 
 
 def _dr_extra_path(store: ProjectStore, dr_id: str, suffix: str) -> Path:

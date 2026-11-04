@@ -45,6 +45,9 @@ Each stage reads only the **latest stored version of the document before it**, n
 never the model's memory. That is why the stages must run in order: `run srs` fails with
 "DOC-BRD-0001 does not exist; run the brd stage first" if the BRD is missing.
 
+With review gates on (new projects), a person approves each phase between the stages above; see
+[9. Phase review gates](09-phase-review-gates.md).
+
 ## 3.2 What every stage does in the same four moves
 
 ```mermaid
