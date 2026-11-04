@@ -295,3 +295,20 @@ tr:last-child td { border-bottom: 0; }
 
 .review-box { display: grid; gap: 0.5rem; }
 .review-box textarea { width: 100%; font: inherit; }
+
+/* Workflow strip: phases in order with the review gate between them. */
+.wf-track { list-style: none; margin: 0.6rem 0; padding: 0; display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem; }
+.wf-step { display: grid; gap: 0.2rem; align-content: start; min-width: 9rem; flex: 1 1 9rem; padding: 0.6rem 0.75rem; border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; background: var(--paper); }
+.wf-step[aria-current="step"] { border-color: var(--accent); box-shadow: var(--shadow); }
+.wf-step.approved, .wf-step.done { border-left-color: var(--ok); }
+.wf-step.in_review, .wf-step.escalated { border-left-color: var(--warn); }
+.wf-step.running, .wf-step.ready { border-left-color: var(--run); }
+.wf-step.locked { border-style: dashed; opacity: 0.8; }
+.wf-title { font-family: var(--serif); font-weight: 700; }
+.wf-gate { display: grid; place-items: center; align-content: center; gap: 0.15rem; min-width: 5.5rem; flex: 0 0 auto; color: var(--ink-2); font-size: 0.8rem; text-align: center; }
+.wf-gate.open { color: var(--ok); }
+.wf-gate.waiting { color: var(--warn); font-weight: 700; }
+.wf-next { margin: 0.4rem 0; }
+.wf-loops { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; font-size: 0.9rem; }
+@media (max-width: 640px) { .wf-track { flex-direction: column; } .wf-gate { min-width: 0; } }
+

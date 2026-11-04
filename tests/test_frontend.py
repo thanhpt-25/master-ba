@@ -1,6 +1,9 @@
 """Static checks on the web app: it must stay safe by construction (spec 08 sections 4 and 6)."""
 
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -87,3 +90,58 @@ def test_the_overview_offers_review_controls_and_explains_the_gate() -> None:
     assert "export function parseComments" in view
     assert "customer question(s) are still open" in view  # approval warns about open questions
     assert "in_review:" in (FRONTEND / "dom.js").read_text("utf-8")
+
+
+def test_the_overview_opens_with_a_workflow_strip() -> None:
+    # Spec 15 section 7: phases in order, the gate between them, the next action, side loops.
+    view = (FRONTEND / "views" / "overview.js").read_text("utf-8")
+    assert "export function workflowSteps" in view and "workflowStrip(overview, pid)" in view
+    for link in ("/questions", "/drs", "/knowledge"):
+        assert f"#/p/${{pid}}{link}" in view
+    dom = (FRONTEND / "dom.js").read_text("utf-8")
+    assert "ready:" in dom and "locked:" in dom
+    # Run is offered only for the phase whose turn it is; the page prints no stray "null".
+    assert "ctx.locked.has(stage.key)" in view and "append(clear(main), [" in view
+
+
+WORKFLOW_SCRIPT = """
+import { workflowSteps } from "%s";
+const st = (stage, status, review, waiting = null) =>
+  ({ stage, status, review, waiting_for: waiting, documents: [] });
+const none = (s) => st(s, "not_started", "not_started");
+const cases = {
+  fresh: [none("brd"), none("srs"), none("basic"), none("detail")],
+  inReview: [st("brd", "done", "in_review"), st("srs", "not_started", "not_started", "brd"),
+             none("basic"), none("detail")],
+  approved: [st("brd", "done", "approved"), none("srs"), none("basic"), none("detail")],
+  finished: ["brd", "srs", "basic", "detail"].map((s) => st(s, "done", "approved")),
+};
+const out = {};
+for (const [name, stages] of Object.entries(cases)) out[name] = workflowSteps(stages, true);
+const offStages = [st("brd", "done", "draft"), none("srs"), none("basic"), none("detail")];
+out.off = workflowSteps(offStages, false);
+console.log(JSON.stringify(out));
+"""
+
+
+def test_workflow_steps_follow_the_review_gates(tmp_path: Path) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    script = tmp_path / "check.mjs"
+    script.write_text(WORKFLOW_SCRIPT % (FRONTEND / "views" / "overview.js").as_uri(), "utf-8")
+    done = subprocess.run([node, str(script)], capture_output=True, text=True, check=True)
+    flows = json.loads(done.stdout)
+
+    def states(name: str) -> list[str]:
+        return [s["state"] for s in flows[name]["steps"]]
+
+    assert states("fresh") == ["ready", "locked", "locked", "locked"]
+    assert states("inReview") == ["in_review", "locked", "locked", "locked"]
+    assert flows["inReview"]["gates"] == ["waiting", "closed", "closed"]
+    assert flows["inReview"]["next"].startswith("Review the BRD phase")
+    assert states("approved") == ["approved", "ready", "locked", "locked"]
+    assert flows["approved"]["gates"][0] == "open" and flows["approved"]["current"] == "srs"
+    assert flows["finished"]["current"] is None
+    assert "Decision Record" in flows["finished"]["next"]
+    assert flows["off"]["gates"] == [] and states("off")[:2] == ["done", "ready"]
