@@ -171,6 +171,8 @@ export ANTHROPIC_API_KEY=...            # required for real runs
 export ANTHROPIC_BASE_URL=...           # optional: an Anthropic-compatible gateway
 export MASTERBA_MODEL=...               # optional: default writer model
 export MASTERBA_QA_MODEL=...            # optional: separate, ideally stronger, QA model
+export MASTERBA_REQUEST_TIMEOUT=900     # optional: seconds per request (default 180)
+export MASTERBA_MAX_TOKENS=32000        # optional: output tokens per call (default 16000)
 ```
 
 ### Running the stages
@@ -226,6 +228,19 @@ The repository ships a sample company, `sample-sier`, with seven confirmed templ
 masterba --root work init-project --project PRJ-001 --company sample-sier --language ja
 masterba --root work run brd --project PRJ-001 --input tests/fixtures/intake/hrm_employee_ja.txt
 ```
+
+A larger example for a full run, `tests/fixtures/intake/timesheet_ja.md` (a timesheet system for a 200-person offshore developer: entry, PM approval, PMO reports), goes from BRD to Detail Design:
+
+```bash
+masterba --root work init-project --project PRJ-002 --language ja
+masterba --root work run brd    --project PRJ-002 --input tests/fixtures/intake/timesheet_ja.md
+masterba --root work run srs    --project PRJ-002
+masterba --root work run basic  --project PRJ-002
+masterba --root work run detail --project PRJ-002
+masterba --root work question list --project PRJ-002   # what the stages asked the customer
+```
+
+An intake of this size (60 requirements, 67 SRS items) needs higher request limits for the design tester calls; the recorded run (spec 11 section 10.3) used `MASTERBA_REQUEST_TIMEOUT=1800` and `MASTERBA_MAX_TOKENS=32000`.
 
 ### Dashboard
 

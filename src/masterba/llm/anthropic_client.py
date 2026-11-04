@@ -11,16 +11,38 @@ from masterba.llm.base import LLMConfigError, LLMError, LLMOutputError, LLMResul
 DEFAULT_MODEL = "claude-sonnet-5-5"
 API_KEY_ENV = "ANTHROPIC_API_KEY"
 REQUEST_TIMEOUT_SECONDS = 180.0
+MAX_TOKENS = 16000
+TIMEOUT_ENV = "MASTERBA_REQUEST_TIMEOUT"
+MAX_TOKENS_ENV = "MASTERBA_MAX_TOKENS"
+
+
+def _positive(name: str, default: float) -> float:
+    """A positive number from the environment, or `default` when the variable is unset."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 0.0
+    if value <= 0:
+        raise LLMConfigError(f"{name} must be a positive number, got {raw!r}")
+    return value
 
 
 class AnthropicLLM:
     def __init__(
         self,
         model: str = DEFAULT_MODEL,
-        max_tokens: int = 16000,
+        max_tokens: int | None = None,
         client: Any = None,
-        timeout: float = REQUEST_TIMEOUT_SECONDS,
+        timeout: float | None = None,
     ) -> None:
+        # A large intake needs more for the design tester calls (spec 11 section 1.6).
+        if timeout is None:
+            timeout = _positive(TIMEOUT_ENV, REQUEST_TIMEOUT_SECONDS)
+        if max_tokens is None:
+            max_tokens = int(_positive(MAX_TOKENS_ENV, MAX_TOKENS))
         self._model = model
         self._max_tokens = max_tokens
         if client is None:

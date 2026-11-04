@@ -6,7 +6,7 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from masterba.agents.qa_reviewer import QaIssue, QaOutputInvalidError, QaReview
-from masterba.llm import LLMOutputError, LLMResult
+from masterba.llm import LLMConfigError, LLMError, LLMOutputError, LLMResult
 from masterba.models import QuestionDraft
 from masterba.team.models import MessageType, TaskStatus
 from masterba.team.workspace import Team
@@ -16,6 +16,11 @@ D = TypeVar("D", bound=BaseModel)
 
 def format_issue(issue: QaIssue) -> str:
     return f"[{issue.checklist_id}] {issue.ref or 'document'}: {issue.message}"
+
+
+def request_failed(role: str, error: LLMError) -> str:
+    """Escalation reason for a model request that failed (spec 11 section 1.6)."""
+    return f"model request failed in {role}: {' '.join(str(error).split())[:600]}"
 
 
 def unusable_answer(error: LLMOutputError) -> str:
@@ -67,6 +72,11 @@ def run_writer_review(
             team.set_status(draft_task, TaskStatus.DONE)
             previous_task = draft_task
             continue
+        except LLMConfigError:
+            raise
+        except LLMError as exc:
+            stop([request_failed("writer", exc)])
+            return None
         team.charge(written.input_tokens + written.output_tokens)
         draft = written.value
         team.write("writer", "draft", draft)
@@ -95,6 +105,12 @@ def run_writer_review(
             team.charge(exc.input_tokens + exc.output_tokens)
             feedback = []
             stop([f"qa output invalid: {'; '.join(exc.errors)}"])
+            return None
+        except LLMConfigError:
+            raise
+        except LLMError as exc:
+            feedback = []
+            stop([request_failed("qa", exc)])
             return None
         team.charge(outcome.input_tokens + outcome.output_tokens)
         team.write("qa", "qa-report", outcome.report)

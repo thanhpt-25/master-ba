@@ -1,6 +1,6 @@
 # Spec 11 — Hardening: QA signal, convergence, resume, CI, containers
 
-Status: v0.4 (2026-10-31), implemented except the live runs (2.3); see sections 9 and 10. v0.3: CI run on GitHub, dry-run 1 recorded, QA rule for open upstream facts. v0.4: dry-run 4 on a Japanese HRM intake with the sample company, SRS prompt and checklist changes. Sources: [next-steps.md](../docs/next-steps.md) Phase 11 (owner decisions in 12.5, item 6 for containers), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md), [05-basic-design-and-tests.md](05-basic-design-and-tests.md) section 9 (live findings 3 and 5), [08-dashboard.md](08-dashboard.md), [00-constitution.md](00-constitution.md).
+Status: v0.5 (2026-11-03), v0.5: a failed model request escalates the run (1.6); implemented; the live runs of 2.3 reached `done` on the timesheet example (10.3); see sections 9 and 10. v0.3: CI run on GitHub, dry-run 1 recorded, QA rule for open upstream facts. v0.4: dry-run 4 on a Japanese HRM intake with the sample company, SRS prompt and checklist changes. Sources: [next-steps.md](../docs/next-steps.md) Phase 11 (owner decisions in 12.5, item 6 for containers), [04-srs-qa-and-team-runtime.md](04-srs-qa-and-team-runtime.md), [05-basic-design-and-tests.md](05-basic-design-and-tests.md) section 9 (live findings 3 and 5), [08-dashboard.md](08-dashboard.md), [00-constitution.md](00-constitution.md).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
@@ -55,7 +55,11 @@ The cost is accepted: a problem that a revision introduces and QA notices only l
 
 ### 1.6 A model answer that does not fit its schema
 
-An `LLMOutputError` from a writer, designer or tester call (dry-run 4: a design item without `realizes`) is a gate error. It is posted as feedback (`the last answer could not be used: ...`), the round ends, and the same role is called again in the next round with its previous draft, so the round limit and the token budget still apply. The tokens of the failed call are not known and are not charged. Other model errors (network, configuration) still end the run with an error; an unusable QA report keeps its own retry.
+An `LLMOutputError` from a writer, designer or tester call (dry-run 4: a design item without `realizes`) is a gate error. It is posted as feedback (`the last answer could not be used: ...`), the round ends, and the same role is called again in the next round with its previous draft, so the round limit and the token budget still apply. The tokens of the failed call are charged when the model reports them (they are carried on the error). An unusable QA report keeps its own retry.
+
+A model request that fails (timeout, connection, gateway error, `LLMError` other than `LLMOutputError`) ends the run as `escalated` with the reason `model request failed in <role>: <error>`, instead of raising out of the loop. The summary, tasks and mailbox are committed as for any escalation and the last validated drafts stay in the checkpoint, so `--resume` continues the run. Before this change such a run left a run folder with no summary and could not be resumed (2026-11-03: the tester call of a 67-item Basic Design timed out). A configuration error (`LLMConfigError`, for example a missing key) still raises before any call.
+
+Request limits are set in the environment of the server or the CLI: `MASTERBA_REQUEST_TIMEOUT` (seconds per request, default 180) and `MASTERBA_MAX_TOKENS` (output tokens per call, default 16000). A large intake needs higher values for the Basic and Detail Design tester calls.
 
 ## 2. Convergence on ordinary models
 
@@ -202,7 +206,7 @@ The README setup section gains the `doctor` step and the Docker Compose quick st
 - [x] Customer questions from both loops reach `TeamRun.customer_questions`, and the SRS stage merges them with `open_questions`.
 - [x] `team_max_rounds_by_stage` overrides the default per stage and is set through `init-project --rounds`.
 - [x] A blocking issue that is new after the first review of an artifact is downgraded to advisory, and a schema-invalid model answer is fed back to its role instead of ending the run (1.5, 1.6). *Implemented and unit tested; the first-review limit was checked on a live run (10.3, dry-run 5), the schema retry was not seen live.*
-- [ ] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Open: dry-run 3 reached `done` for both stages, but dry-run 4 (30 requirements) escalated in Basic Design after 7 rounds (10.3); awaits the owner's acceptance.*
+- [x] Live `run basic` and `run detail` reach `done` with a named model, recorded in section 10, or the owner accepts the recorded escalation (2.3). *Done 2026-11-03: the full run on `timesheet_ja.md` (60 requirements, 67 SRS items) reached `done` in every stage with `kr/claude-opus-5.5` (10.3). Dry-run 4 (30 requirements) had escalated in Basic Design after 7 rounds.*
 - [x] `--resume` continues an escalated run with the fake model for every stage; it refuses a run that is done, of another stage, without a checkpoint, with a changed upstream version, or whose target document exists; the commit subject says `(resumed)`.
 - [x] The CI jobs `quick`, `full` and `image` are green on `main`, and `quick` runs in under one minute. *(2026-10-31: run 41208337518, `quick` 32 s; 10.4.)*
 - [x] `docker compose up` serves the dashboard on 127.0.0.1:8000 and the health check passes; `docker compose run --rm masterba init-project ...` and a fake-model stage run create commits visible in the host work tree, authored with the configured name; the container runs as a non-root user; no key is in the image. *A stage run in the container needs a model key and was not tried (10.5).*
@@ -290,6 +294,22 @@ Dry-run 5, same intake and model, after the code changes of 1.5 and 1.6 (Basic D
 The first-review limit works: QA stopped producing a new set of blocking points each round (25 in 12 rounds against 56 in 7). What remained was a different loop: the tester rewrote the whole test list each round and, answering one gate error, broke another (an item tested and excluded at once, then an item with neither). `RUN-0009` did not reach `done`.
 
 Still open: the runs used a gateway model on a synthetic intake; the owner accepts this record or repeats the runs with the model intended for production.
+
+Full run on the owner's example, 2026-11-03: `tests/fixtures/intake/timesheet_ja.md` (a timesheet system, 77 lines of Japanese), model `kr/claude-opus-5.5` through the gateway, default templates, no knowledge base, `MASTERBA_REQUEST_TIMEOUT=900` for Basic Design and 1800 for Detail Design, `MASTERBA_MAX_TOKENS=32000`. Every stage reached `done`; the escalations along the way each found a defect that was fixed before the next attempt.
+
+| Stage | Run | Result | Rounds | Tokens | Output |
+|---|---|---|---|---|---|
+| BRD | `RUN-0001` | done | 2 | 15,931 | 60 requirements, 11 customer questions |
+| SRS | `RUN-0002`, resumed once | done | 4 | 40,738 | 67 items (53 functional, 14 non-functional), 5 questions |
+| Basic Design | `RUN-0005`, resumed once | done | 5 | 150,713 | 55 design items, 68 IT cases, 64 ST cases (2 exclusions), 4 questions |
+| Detail Design | `RUN-0007` | done | 3 | 149,523 | 66 detail items, 148 UT cases (5 exclusions) |
+
+Total 421,345 tokens including the escalated attempts; 20 customer questions in the ledger.
+
+What the attempts found:
+1. SRS `RUN-0002` first escalated: the writer kept answering open question Q-0007 (manual or automatic lock) in an acceptance hint, and QA blocked it each round under the new open-questions rule (spec 13 section 5.1). `srs-writer.md` rule 7 now leaves `acceptance_hint` null instead of choosing; the resumed run passed.
+2. Basic Design `RUN-0003` and `RUN-0004` died with no summary: the tester call (a 61 KB prompt for 67 SRS items) timed out three times at 180 s. A failed request now escalates the run (1.6) and the limits come from the environment.
+3. Detail Design `RUN-0006` escalated: the unit-test writer named exclusion and question fields `item`. `unit-test-design.md` now names `item_ref` and `ref`.
 
 ### 10.4 CI timings (4)
 
