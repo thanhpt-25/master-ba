@@ -1,4 +1,4 @@
-import { badge, cellText, clear, empty, field, h, table } from "../dom.js";
+import { badge, cellText, clear, confirmDialog, empty, field, h, table } from "../dom.js";
 
 const TRIGGERS = {
   requirement_change: "Requirement change",
@@ -101,6 +101,24 @@ export async function render({ main, api, params, me, toast, go }) {
     const dr = data.dr;
     const decision = h("textarea", { id: "decision", rows: "2" });
     const rationale = h("textarea", { id: "rationale", rows: "2" });
+    const decisionField = field("Decision", decision, "Recorded with your name.");
+    const setDecisionError = (msg) => {
+      decisionField.classList.toggle("invalid", Boolean(msg));
+      decisionField.querySelector(".field-error")?.remove();
+      if (msg) {
+        decision.setAttribute("aria-invalid", "true");
+        decisionField.append(h("p", { class: "field-error", role: "alert" }, msg));
+      } else {
+        decision.removeAttribute("aria-invalid");
+      }
+    };
+    decision.addEventListener("input", () => { if (decision.value.trim()) setDecisionError(null); });
+    const requireDecision = () => {
+      if (decision.value.trim()) return true;
+      setDecisionError("Write the decision first.");
+      decision.focus();
+      return false;
+    };
     const act = async (path, body) => {
       try {
         await api.post(`/projects/${pid}/drs/${drId}/${path}`, body);
@@ -119,29 +137,42 @@ export async function render({ main, api, params, me, toast, go }) {
       progress(data.propagation),
     ];
     if (canAct && dr.status === "proposed") {
+      const reject = async () => {
+        if (!requireDecision()) return;
+        const ok = await confirmDialog({ title: "Reject this record?", message: "It is closed and never propagated.", confirmLabel: "Reject", danger: true });
+        if (ok) act("reject", { decision: decision.value, rationale: rationale.value || null });
+      };
       children.push(
         h(
           "section",
           { class: "panel" },
           h("h3", {}, "Decide"),
-          field("Decision", decision, "Recorded with your name."),
+          decisionField,
           field("Rationale (optional)", rationale),
           h(
             "div",
             { class: "toolbar" },
-            h("button", { class: "primary", onClick: () => (decision.value.trim() ? act("approve", { decision: decision.value, rationale: rationale.value || null }) : toast("Write the decision first.", "error")) }, "Approve"),
-            h("button", { onClick: () => (decision.value.trim() ? confirm("Reject this record? It is closed and never propagated.") && act("reject", { decision: decision.value, rationale: rationale.value || null }) : toast("Write the decision first.", "error")) }, "Reject"),
+            h("button", { class: "primary", onClick: () => requireDecision() && act("approve", { decision: decision.value, rationale: rationale.value || null }) }, "Approve"),
+            h("button", { onClick: reject }, "Reject"),
           ),
         ),
       );
     }
     if (canAct && dr.status === "approved") {
+      const propagate = async () => {
+        const ok = await confirmDialog({ title: "Propagate now?", message: "The models revise every affected document as new versions." });
+        if (ok) act("propagate").then(poll);
+      };
       children.push(
-        h("section", { class: "panel propagate" }, h("h3", {}, "Propagate"), h("p", { class: "muted" }, "Revises the documents above as new versions. This calls the models."), h("button", { class: "primary", onClick: () => confirm("Propagate now? The models revise every affected document.") && act("propagate").then(poll) }, "Propagate")),
+        h("section", { class: "panel propagate" }, h("h3", {}, "Propagate"), h("p", { class: "muted" }, "Revises the documents above as new versions. This calls the models."), h("button", { class: "primary", onClick: propagate }, "Propagate")),
       );
     }
     if (canAct && dr.status === "propagated") {
-      children.push(h("button", { onClick: () => confirm("Close this record? It cannot be reopened.") && act("close") }, "Close record"));
+      const close = async () => {
+        const ok = await confirmDialog({ title: "Close this record?", message: "It cannot be reopened.", confirmLabel: "Close record" });
+        if (ok) act("close");
+      };
+      children.push(h("button", { onClick: close }, "Close record"));
     }
     if (["propagated", "closed"].includes(dr.status) && data.propagation) {
       const diff = await api.get(`/projects/${pid}/drs/${drId}/diff`);

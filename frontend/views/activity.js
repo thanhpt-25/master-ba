@@ -1,4 +1,4 @@
-import { badge, clear, empty, fmtTime, h, table } from "../dom.js";
+import { asyncView, badge, clear, empty, fmtTime, h, spinner, table } from "../dom.js";
 
 function runDetail(data) {
   const { summary, tasks = [], mailbox = [] } = data;
@@ -38,30 +38,57 @@ export async function render({ main, api, params, toast, me, go }) {
       h("button", { class: "link", onClick: () => show(r.run_id) }, "Open"),
       canRun && r.resumable && RESUMABLE[r.stage] ? h("button", { class: "link", onClick: () => resume(r) }, "Resume") : null,
     );
-  const [runs, log] = await Promise.all([api.get(`/projects/${pid}/runs`), api.get(`/projects/${pid}/activity?limit=100`)]);
   const detail = h("div", {});
   const show = async (runId) => {
+    detail.setAttribute("aria-busy", "true");
+    clear(detail).append(h("section", { class: "panel" }, spinner("Loading run…")));
     try {
       clear(detail).append(runDetail(await api.get(`/projects/${pid}/runs/${runId}`)));
     } catch (error) {
+      clear(detail);
       toast(error.message, "error");
+    } finally {
+      detail.removeAttribute("aria-busy");
     }
   };
-  clear(main).append(
-    h("h1", {}, "Activity"),
-    h("section", {}, h("h2", {}, "Team runs"),
-      runs.length
-        ? table(
-            ["Run", "Stage", "Trigger", "Status", "Rounds", "Issues", "Tokens", ""],
-            runs.map((r) => [h("code", {}, r.run_id), r.stage, r.trigger, badge(r.status), r.rounds, `${r.issues_resolved}/${r.issues_raised}`, r.tokens_used ?? "", actions(r)]),
-            "Team runs",
-          )
-        : empty("No team has run yet.")),
-    detail,
-    h("section", {}, h("h2", {}, "Audit log"), h("p", { class: "muted" }, "Every action is a git commit; this is the project's history, newest first."),
-      log.length
-        ? table(["Time", "By", "Commit", "Action"], log.map((e) => [fmtTime(e.time), e.author, h("code", {}, e.commit), e.subject]), "Audit log")
-        : empty("Nothing recorded yet.")),
+
+  clear(main).append(h("h1", {}, "Activity"));
+  const runsHost = h("div", {});
+  const logHost = h("div", {});
+  const runsSection = h("section", {}, h("h2", {}, "Team runs"), runsHost);
+  const logSection = h("section", {}, h("h2", {}, "Audit log"), h("p", { class: "muted" }, "Every action is a git commit; this is the project's history, newest first."), logHost);
+  main.append(runsSection, detail, logSection);
+
+  asyncView(
+    runsHost,
+    () => api.get(`/projects/${pid}/runs`),
+    (runs, host) => {
+      host.append(
+        runs.length
+          ? table(
+              ["Run", "Stage", "Trigger", "Status", "Rounds", "Issues", "Tokens", ""],
+              runs.map((r) => [h("code", {}, r.run_id), r.stage, r.trigger, badge(r.status), r.rounds, `${r.issues_resolved}/${r.issues_raised}`, r.tokens_used ?? "", actions(r)]),
+              "Team runs",
+              { dense: true, stickyFirst: true },
+            )
+          : empty("No team has run yet."),
+      );
+    },
+    { rows: 4 },
   );
+
+  asyncView(
+    logHost,
+    () => api.get(`/projects/${pid}/activity?limit=100`),
+    (log, host) => {
+      host.append(
+        log.length
+          ? table(["Time", "By", "Commit", "Action"], log.map((e) => [fmtTime(e.time), e.author, h("code", {}, e.commit), e.subject]), "Audit log", { dense: true, stickyFirst: true })
+          : empty("Nothing recorded yet."),
+      );
+    },
+    { rows: 6 },
+  );
+
   if (params.rest[0]) await show(params.rest[0]);
 }

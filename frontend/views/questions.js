@@ -1,4 +1,4 @@
-import { badge, clear, empty, field, h } from "../dom.js";
+import { badge, clear, confirmDialog, empty, field, h } from "../dom.js";
 
 const ORIGIN = { agent: "Question", qa_blocker: "QA objection" };
 
@@ -26,20 +26,41 @@ export async function render({ main, api, params, me, toast }) {
   function form(q) {
     const answer = h("textarea", { id: `answer-${q.id}`, rows: "3", maxlength: "2000", spellcheck: "false", required: true });
     const source = h("input", { type: "text", id: `source-${q.id}`, name: "source", maxlength: "500", autocomplete: "off", placeholder: "Tanaka, meeting 2026-11-02…" });
+    const answerField = field("Answer", answer, "Recorded as an approved decision record that every later run uses.");
+    const setError = (msg) => {
+      answerField.classList.toggle("invalid", Boolean(msg));
+      answerField.querySelector(".field-error")?.remove();
+      if (msg) {
+        answer.setAttribute("aria-invalid", "true");
+        answerField.append(h("p", { class: "field-error", role: "alert" }, msg));
+      } else {
+        answer.removeAttribute("aria-invalid");
+      }
+    };
+    answer.addEventListener("input", () => { if (answer.value.trim()) setError(null); });
+    const withdraw = async () => {
+      const ok = await confirmDialog({ title: `Withdraw ${q.id}?`, message: "It is closed without a decision.", confirmLabel: "Withdraw", danger: true });
+      if (ok) act(`${q.id}/withdraw`);
+    };
     return h(
       "form",
       {
         class: "q-answer",
         onSubmit: (event) => {
           event.preventDefault();
+          if (!answer.value.trim()) {
+            setError("Write an answer before recording it.");
+            answer.focus();
+            return;
+          }
           return act(`${q.id}/answer`, { answer: answer.value, source: source.value.trim() || null });
         },
       },
-      field("Answer", answer, "Recorded as an approved decision record that every later run uses."),
+      answerField,
       field("Who said it, and where (optional)", source),
       h("div", { class: "toolbar" },
         h("button", { type: "submit", class: "primary" }, "Record answer"),
-        h("button", { type: "button", onClick: () => confirm(`Withdraw ${q.id}? It is closed without a decision.`) && act(`${q.id}/withdraw`) }, "Withdraw"),
+        h("button", { type: "button", onClick: withdraw }, "Withdraw"),
       ),
     );
   }

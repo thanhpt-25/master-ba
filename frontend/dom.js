@@ -82,10 +82,13 @@ export function badge(status) {
   return h("span", { class: `badge ${info.cls}` }, h("span", { "aria-hidden": "true" }, info.icon), " ", info.label);
 }
 
-export function table(headers, rows, caption = "") {
+// opts: { dense } tightens padding for wide audit-style tables;
+// { stickyFirst } pins the first column while the rest scrolls horizontally.
+export function table(headers, rows, caption = "", opts = {}) {
+  const cls = ["table-wrap", opts.dense ? "dense" : "", opts.stickyFirst ? "sticky-first" : ""].filter(Boolean).join(" ");
   return h(
     "div",
-    { class: "table-wrap", tabindex: "0", role: "region", "aria-label": caption || "table" },
+    { class: cls, tabindex: "0", role: "region", "aria-label": caption || "table" },
     h(
       "table",
       {},
@@ -102,10 +105,143 @@ export function field(label, control, hint = "") {
   return h("div", { class: "field" }, h("label", { for: id }, label), control, hint ? h("p", { class: "hint" }, hint) : null);
 }
 
-export function empty(text) {
-  return h("p", { class: "empty" }, text);
+// `action` is an optional element (usually a link or button) offering the next step.
+export function empty(text, action = null) {
+  return h("div", { class: "empty" }, h("p", {}, text), action);
 }
 
 export function chip(id, extra = "") {
   return h("span", { class: `chip ${extra}` }, h("code", {}, id));
+}
+
+// A small inline spinner; label is read by assistive tech, hidden visually.
+export function spinner(label = "Loading…") {
+  return h("span", { class: "spinner", role: "status" }, h("span", { class: "spinner-mark", "aria-hidden": "true" }), h("span", { class: "sr-only" }, label));
+}
+
+// Skeleton placeholder bars that approximate a view while it loads.
+export function skeleton(rows = 4) {
+  const bars = [];
+  for (let i = 0; i < rows; i++) bars.push(h("div", { class: "sk-bar", style: `--w:${55 + ((i * 37) % 40)}%` }));
+  return h("div", { class: "skeleton", "aria-hidden": "true" }, h("div", { class: "sk-bar sk-title", style: "--w:38%" }), ...bars);
+}
+
+// Wraps a split-view <nav> with a disclosure toggle that only appears on narrow
+// screens (CSS-driven). `label` names what the list contains, e.g. "Documents".
+export function splitNav(label, children) {
+  const nav = h("nav", { "aria-label": label, "data-collapsed": "false" });
+  const toggle = h(
+    "button",
+    { class: "button nav-toggle", type: "button", "aria-expanded": "true" },
+    h("span", {}, label),
+    h("span", { class: "nav-toggle-mark", "aria-hidden": "true" }, "▾"),
+  );
+  toggle.addEventListener("click", () => {
+    const open = nav.getAttribute("data-collapsed") === "true";
+    nav.setAttribute("data-collapsed", open ? "false" : "true");
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  append(nav, [toggle, children]);
+  return nav;
+}
+
+// A live-status pulse paired with a word; colour is never the only signal.
+export function liveDot(active, label) {
+  return h("span", { class: `live ${active ? "on" : "off"}` }, h("span", { class: "live-mark", "aria-hidden": "true" }), label);
+}
+
+// An error block with an optional Retry button. onRetry receives no arguments.
+export function errorBox(message, onRetry = null) {
+  return h(
+    "div",
+    { class: "load-error", role: "alert" },
+    h("span", { class: "load-error-mark", "aria-hidden": "true" }, "✕"),
+    h("p", {}, message || "Something went wrong."),
+    onRetry ? h("button", { type: "button", onClick: onRetry }, "Try again") : null,
+  );
+}
+
+let openDialog = null;
+
+// A focus-trapped confirmation dialog that replaces window.confirm.
+// Resolves to true on confirm, false on cancel/escape. Only one is open at a time.
+export function confirmDialog({ title = "Please confirm", message = "", confirmLabel = "Confirm", cancelLabel = "Cancel", danger = false } = {}) {
+  return new Promise((resolve) => {
+    if (openDialog) {
+      openDialog.close(false);
+      openDialog = null;
+    }
+    const lastFocus = document.activeElement;
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKey, true);
+      overlay.remove();
+      openDialog = null;
+      if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus({ preventScroll: true });
+      resolve(value);
+    };
+    const confirmBtn = h("button", { type: "button", class: danger ? "primary danger" : "primary", onClick: () => finish(true) }, confirmLabel);
+    const cancelBtn = h("button", { type: "button", onClick: () => finish(false) }, cancelLabel);
+    const card = h(
+      "div",
+      { class: "dialog", role: "alertdialog", "aria-modal": "true", "aria-labelledby": "dlg-title", "aria-describedby": message ? "dlg-msg" : null },
+      h("h2", { id: "dlg-title" }, title),
+      message ? h("p", { id: "dlg-msg", class: "prose" }, message) : null,
+      h("div", { class: "dialog-actions" }, cancelBtn, confirmBtn),
+    );
+    const overlay = h("div", { class: "dialog-overlay", onClick: (e) => { if (e.target === overlay) finish(false); } }, card);
+    const focusable = () => card.querySelectorAll("button");
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        finish(false);
+      } else if (event.key === "Tab") {
+        const items = focusable();
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    document.body.append(overlay);
+    openDialog = { close: finish };
+    confirmBtn.focus({ preventScroll: true });
+  });
+}
+
+// Runs an async loader into `host`, showing a skeleton first, then either the
+// rendered content or an error with a Retry button. Returns a function that
+// re-runs the load. `render` receives the resolved data and the host element.
+export function asyncView(host, load, render, { rows = 5 } = {}) {
+  let token = 0;
+  const run = async () => {
+    const mine = ++token;
+    clear(host).append(skeleton(rows));
+    try {
+      const data = await load();
+      if (mine !== token) return;
+      clear(host);
+      render(data, host);
+    } catch (error) {
+      if (mine !== token) return;
+      clear(host).append(loadError(error, run));
+    }
+  };
+  run();
+  return run;
+}
+
+// An errorBox for a failed load; a 401 instead tells app.js to show the login page.
+export function loadError(error, onRetry) {
+  if (error?.status === 401) window.dispatchEvent(new Event("masterba:unauthorized"));
+  return errorBox(error?.message, onRetry);
 }

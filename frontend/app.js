@@ -1,10 +1,10 @@
 // Shell and hash router. Views live in ./views and are loaded on demand.
 
 import { api, ApiError } from "./api.js";
-import { clear, h } from "./dom.js";
+import { clear, errorBox, h, skeleton } from "./dom.js";
 
 const app = document.getElementById("app");
-const state = { me: null, cleanup: null };
+const state = { me: null, cleanup: null, seq: 0 };
 
 const VIEWS = {
   login: () => import("./views/login.js"),
@@ -99,7 +99,6 @@ async function route() {
   }
   if (!state.me && params.name !== "login") return go("#/login");
   if (state.me && params.name === "login") return go("#/projects");
-  const module = await (VIEWS[params.name] ?? VIEWS.projects)();
   const main = h("div", { class: "view" });
   clear(app);
   if (params.name === "login") {
@@ -108,19 +107,38 @@ async function route() {
     app.append(...shell(params, main).filter(Boolean));
   }
   document.title = `MasterBA — ${params.name}`;
-  const context = { main, params, me: state.me, api, go, toast };
-  try {
-    const cleanup = await module.render(context);
-    if (typeof cleanup === "function") state.cleanup = cleanup;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      state.me = null;
-      return go("#/login");
-    }
-    main.append(h("p", { class: "error", role: "alert" }, error.message));
-  }
   document.getElementById("main")?.focus({ preventScroll: true });
+
+  // Show a skeleton while the view module loads and runs its first fetch, so the
+  // main area is never blank on a slow call. The view replaces it on first draw.
+  if (params.name !== "login") main.append(skeleton(5));
+
+  const run = async () => {
+    const seq = ++state.seq;
+    try {
+      const module = await (VIEWS[params.name] ?? VIEWS.projects)();
+      if (seq !== state.seq) return; // navigated away while loading
+      const context = { main, params, me: state.me, api, go, toast };
+      const cleanup = await module.render(context);
+      if (typeof cleanup !== "function") return;
+      if (seq !== state.seq) cleanup(); // a newer view owns state.cleanup now
+      else state.cleanup = cleanup;
+    } catch (error) {
+      if (seq !== state.seq) return;
+      if (error instanceof ApiError && error.status === 401) {
+        state.me = null;
+        return go("#/login");
+      }
+      clear(main).append(errorBox(error.message, run));
+    }
+  };
+  await run();
 }
 
 window.addEventListener("hashchange", route);
+window.addEventListener("masterba:unauthorized", () => {
+  if (!state.me) return;
+  state.me = null;
+  go("#/login");
+});
 route();

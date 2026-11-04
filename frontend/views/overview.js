@@ -1,4 +1,4 @@
-import { append, badge, clear, empty, fmtTime, h } from "../dom.js";
+import { append, badge, clear, confirmDialog, empty, fmtTime, h, liveDot } from "../dom.js";
 
 const LEFT = [
   { key: "brd", title: "BRD", sub: "業務要件定義書", needs: "Intake text" },
@@ -112,10 +112,15 @@ function reviewBox(stage, ctx) {
     "aria-label": `Comments for rejecting ${stage.title}, one per line`,
     placeholder: "DOC-SRS-0001#item.3: Split this obligation…",
   });
-  const approve = () => {
+  const approve = async () => {
     const open = ctx.openQuestions.length;
-    const warning = open ? `\n\n${open} customer question(s) are still open; they stay open and later stages may not decide them.` : "";
-    if (!confirm(`Approve the ${stage.title} phase? The next stage can then start.${warning}`)) return;
+    const warning = open ? ` ${open} customer question(s) are still open; they stay open and later stages may not decide them.` : "";
+    const ok = await confirmDialog({
+      title: `Approve ${stage.title}?`,
+      message: `The next stage can then start.${warning}`,
+      confirmLabel: "Approve",
+    });
+    if (!ok) return;
     ctx.approve(stage.key).catch((e) => ctx.toast(e.message, "error"));
   };
   const reject = () => {
@@ -222,16 +227,33 @@ export async function render(context) {
   const pid = params.pid;
   let timer = null;
   let stopped = false;
+  let paused = false;
   let shown = null;
+  let lastActive = false;
+
+  const liveBar = (active) => {
+    if (!active && !paused) return null;
+    const toggle = h(
+      "button",
+      { class: "link", type: "button", onClick: () => {
+        paused = !paused;
+        if (!paused) refresh().catch((e) => toast(e.message, "error"));
+        else { clearTimeout(timer); draw.last && draw.last(); }
+      } },
+      paused ? "Resume updates" : "Pause updates",
+    );
+    return h("div", { class: "live-bar" }, liveDot(active && !paused, paused ? "Paused" : "Live"), toggle);
+  };
 
   const draw = (overview, job) => {
     const stages = overview.stages;
     const flow = workflowSteps(stages, overview.project.review_gates);
     const locked = new Set(flow.steps.filter((s) => s.state === "locked").map((s) => s.key));
     const ctx = { ...context, pid, start, approve, reject, locked, openQuestions: overview.open_questions };
+    draw.last = () => draw(overview, job);
     // dom.js append skips empty sections; the native one would print "null".
     append(clear(main), [
-      h("h1", {}, pid),
+      h("div", { class: "vcard-head" }, h("h1", {}, pid), liveBar(lastActive)),
       h(
         "p",
         { class: "muted" },
@@ -246,13 +268,19 @@ export async function render(context) {
         RIGHT.map((card, i) => h("div", { class: "link-label", style: `--i:${i}`, "aria-hidden": "true" }, card.link)),
       ),
       jobPanel(job),
-      overview.open_questions.length
-        ? h("section", { class: "panel" }, h("h2", {}, "Open questions for the customer"), h("ul", {}, overview.open_questions.map((q) => h("li", {}, q))), h("p", {}, h("a", { href: `#/p/${pid}/questions` }, "Answer them in the Questions tab")))
-        : null,
+      h(
+        "section",
+        { class: "panel" },
+        h("h2", {}, "Open questions for the customer"),
+        overview.open_questions.length
+          ? h("div", {}, h("ul", {}, overview.open_questions.map((q) => h("li", {}, q))), h("p", {}, h("a", { href: `#/p/${pid}/questions` }, "Answer them in the Questions tab")))
+          : empty("No open questions. Agents raise one here when only the customer can settle something.", h("a", { class: "button", href: `#/p/${pid}/questions` }, "Review the Questions tab")),
+      ),
     ]);
   };
 
   async function start(stage, body) {
+    paused = false;
     const started = await api.post(`/projects/${pid}/stages/${stage}/run`, body);
     toast(`Started ${stage}`);
     shown = started.id;
@@ -260,12 +288,14 @@ export async function render(context) {
   }
 
   async function approve(stage) {
+    paused = false;
     const done = await api.post(`/projects/${pid}/stages/${stage}/approve`);
     toast(`Approved ${stage} (${done.review.id})`);
     await refresh();
   }
 
   async function reject(stage, comments) {
+    paused = false;
     const started = await api.post(`/projects/${pid}/stages/${stage}/reject`, { comments });
     toast(`Rejected ${stage}; revising`);
     shown = started.id;
@@ -273,12 +303,13 @@ export async function render(context) {
   }
 
   async function refresh() {
-    if (stopped) return;
+    if (stopped || paused) return;
     const overview = await api.get(`/projects/${pid}`);
     let job = overview.job;
     if (!job && shown) job = await api.get(`/jobs/${shown}`);
+    const active = Boolean(job && ["queued", "running"].includes(job.status));
+    lastActive = active;
     draw(overview, job);
-    const active = job && ["queued", "running"].includes(job.status);
     if (active) {
       timer = setTimeout(() => refresh().catch((e) => toast(e.message, "error")), 2000);
     } else {

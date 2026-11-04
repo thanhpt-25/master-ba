@@ -1,4 +1,4 @@
-import { badge, clear, empty, field, h, table } from "../dom.js";
+import { badge, clear, empty, field, h, loadError, spinner, table } from "../dom.js";
 
 const DOC_TYPES = ["BRD", "SRS", "BASIC_DESIGN", "DETAIL_DESIGN", "TEST_IT", "TEST_ST", "TEST_UT"];
 const STATE_BADGE = { confirmed: "approved", draft: "proposed" };
@@ -31,7 +31,14 @@ export async function render({ main, api, toast }) {
   const detail = h("div", {});
 
   const refresh = async () => {
-    const rows = await api.get("/templates");
+    clear(list).append(spinner("Loading templates…"));
+    let rows;
+    try {
+      rows = await api.get("/templates");
+    } catch (error) {
+      clear(list).append(loadError(error, refresh));
+      return;
+    }
     clear(list).append(
       rows.length
         ? table(
