@@ -30,7 +30,7 @@ from masterba.models import (
     TestSpecContent,
     TraceLink,
 )
-from masterba.models.enums import DocType, Level, LinkType, TeamRunStatus
+from masterba.models.enums import DocType, Level, LinkType, ReviewStage, TeamRunStatus
 from masterba.pipeline.basic import DESIGN_DOC_ID
 from masterba.pipeline.stage import (
     KnowledgeOpener,
@@ -53,6 +53,7 @@ from masterba.pipeline.stage import (
     unique_links,
 )
 from masterba.rendering import render_to_project
+from masterba.review import require_reviewed
 from masterba.team import (
     Answer,
     DesignTestHooks,
@@ -158,6 +159,7 @@ def run_detail_design(
             )
     if not document_exists(store, DESIGN_DOC_ID):
         raise NotFoundError(f"{DESIGN_DOC_ID} does not exist; run the basic stage first")
+    require_reviewed(store, ReviewStage.DETAIL)  # before the team opens (spec 15 3.2)
     _, content = get_document(store, DESIGN_DOC_ID)
     assert isinstance(content, BasicDesignContent)
     basic_items = active_basic_items(content)

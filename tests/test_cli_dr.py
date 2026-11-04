@@ -22,7 +22,10 @@ EMPTY = RevisionPatch(operations=[], summary="nothing to change")
 def root(git_repo: Path) -> Path:
     shutil.copytree(REPO / "templates", git_repo / "templates")
     assert (
-        main(["--root", str(git_repo), "init-project", "--project", "PRJ-001", "--language", "en"])
+        main(
+            ["--root", str(git_repo), "init-project", "--project", "PRJ-001", "--language", "en"]
+            + ["--no-review-gates"]  # the chain runs stages back to back
+        )
         == 0
     )
     build_chain(open_project(git_repo / "projects", "PRJ-001"), git_repo / "templates")

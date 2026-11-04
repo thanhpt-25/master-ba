@@ -27,6 +27,7 @@ from masterba.change import (
     rows,
 )
 from masterba.cli_kb import KB_ERRORS, add_kb_parsers, dispatch_kb
+from masterba.cli_review import REVIEW_ERRORS, add_review_parsers, dispatch_review
 from masterba.doctor import init_root, run_checks
 from masterba.llm import DEFAULT_MODEL, LLM, AnthropicLLM, LLMError
 from masterba.models import ProjectConfig
@@ -108,6 +109,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="round limit of one stage (brd, srs, basic, detail); repeatable",
     )
     init.add_argument("--team-token-budget", type=int, default=None)
+    init.add_argument(
+        "--no-review-gates",
+        action="store_true",
+        help="run stages back to back without a review between them (spec 15)",
+    )
 
     run = commands.add_parser("run", help="run one stage")
     stages = run.add_subparsers(dest="stage", required=True)
@@ -152,6 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_question_parsers(commands)
     _add_template_parsers(commands)
     add_kb_parsers(commands, _project_id)
+    add_review_parsers(commands, _project_id)
     doctor = commands.add_parser("doctor", help="check this root and print what to fix")
     doctor.add_argument("--init", action="store_true", help="prepare an empty folder first")
     serve = commands.add_parser("serve", help="run the dashboard (API and web app)")
@@ -429,6 +436,7 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
                 team_max_rounds=args.team_max_rounds,
                 team_max_rounds_by_stage=dict(args.rounds),
                 team_token_budget=args.team_token_budget,
+                review_gates=not args.no_review_gates,
             ),
         )
         _emit({"project_id": store.project_id, "path": str(store.path)})
@@ -436,6 +444,8 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
     store = open_project(projects, args.project)
     if args.command == "question":
         return _dispatch_question(args, store)
+    if args.command == "review":
+        return dispatch_review(args, root, llm_factory)
     if args.command == "dr":
         return _dispatch_dr(args, store, root, llm_factory)
     model = args.model or os.environ.get("MASTERBA_MODEL") or DEFAULT_MODEL
@@ -480,6 +490,7 @@ def main(argv: Sequence[str] | None = None, *, llm_factory: LLMFactory | None = 
         LLMError,
         QaOutputInvalidError,
         *KB_ERRORS,
+        *REVIEW_ERRORS,
         OSError,
         ValueError,
     ) as exc:

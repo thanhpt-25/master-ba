@@ -13,6 +13,7 @@ from masterba.knowledge.trace import knowledge_links
 from masterba.models import Document, KbCitation, Payload, TeamRun, TraceLink
 from masterba.models.enums import DocStatus, DocType, TeamRunStatus
 from masterba.questions import attach_facts, record_run_questions
+from masterba.review import initial_status
 from masterba.team import ResumeError, RunCheckpoint, Team
 from masterba.trace_store import (
     NotFoundError,
@@ -65,8 +66,12 @@ def kb_gate(
 
 
 def store_document(store: ProjectStore, doc: Document, content: Payload) -> None:
-    """Store a document with its Knowledge_Nodes and `derives_from` links in one commit."""
+    """Store a document with its Knowledge_Nodes and `derives_from` links in one commit.
+
+    With review gates on, a stage's documents wait for review (spec 15 section 3.1).
+    """
     nodes, links = knowledge_links(content)
+    doc = doc.model_copy(update={"status": initial_status(store)})
     add_document(store, doc, content, links=links, knowledge=nodes)
 
 
