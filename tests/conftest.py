@@ -25,6 +25,10 @@ def git_repo(tmp_path: Path) -> Path:
     _git(tmp_path, "config", "user.name", "Test")
     _git(tmp_path, "config", "user.email", "test@example.com")
     _git(tmp_path, "config", "commit.gpgsign", "false")
+    # git 2.55 runs maintenance in the background after a commit; a test that deletes its
+    # repo while that still writes objects fails with "Directory not empty".
+    _git(tmp_path, "config", "maintenance.auto", "false")
+    _git(tmp_path, "config", "gc.auto", "0")
     _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "init")
     return tmp_path
 

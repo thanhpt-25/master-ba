@@ -79,6 +79,8 @@ def fresh_project(tmp: Path) -> "ProjectStore":
         ["config", "user.name", "Test"],
         ["config", "user.email", "test@example.com"],
         ["config", "commit.gpgsign", "false"],
+        ["config", "maintenance.auto", "false"],  # no background writes into a deleted tmp
+        ["config", "gc.auto", "0"],
         ["commit", "-q", "--allow-empty", "-m", "init"],
     ):
         subprocess.run(["git", *args], cwd=tmp, capture_output=True, check=True)
