@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Phases 0 (scaffold), 1 (data contracts: models, `trace_store`, diff), 2 (Excel rendering) 3 (BRD walking skeleton), 4 (SRS, QA reviewer, team runtime) 5 (Basic Design + IT/ST tests, three-member team) 6 (Detail Design + UT tests, same loop) and 7 (change management) 8 (dashboard) and 9 (template calibration) are done (live reviews in spec 03/04/05 section 9; the Phase 5 live run has not reached `done` on the free gateway models). Phase 9 has only been verified on synthetic samples (no real customer workbook yet). Phase 10 (code generation) is a backlog spec only, `specs/10-dev-extension.md`. Phase 11 (hardening, `specs/11-hardening.md`) is being implemented; Phase 12 (local RAG, `specs/12-local-rag.md`) is implemented and verified offline, waiting for the owner's retrieval evaluation and live run (spec section on manual results). Conventions (toolchain, repo layout, ID scheme, ID Stability Rule, document versioning, commit format) are binding and defined in `specs/00-constitution.md` — read it before adding code.
+Phases 0 (scaffold), 1 (data contracts: models, `trace_store`, diff), 2 (Excel rendering) 3 (BRD walking skeleton), 4 (SRS, QA reviewer, team runtime) 5 (Basic Design + IT/ST tests, three-member team) 6 (Detail Design + UT tests, same loop) and 7 (change management) 8 (dashboard) and 9 (template calibration) are done (live reviews in spec 03/04/05 section 9; the Phase 5 live run has not reached `done` on the free gateway models). Phase 9 has only been verified on synthetic samples (no real customer workbook yet). Phase 10 (code generation) is a backlog spec only, `specs/10-dev-extension.md`. Phase 11 (hardening, `specs/11-hardening.md`), Phase 12 (local RAG, `specs/12-local-rag.md`), spec 13 (customer questions) and spec 15 (phase review gates) are implemented; the full live run of `timesheet_ja.md` reached `done` in every stage (spec 11 section 10.3), before the review gates existed. Conventions (toolchain, repo layout, ID scheme, ID Stability Rule, document versioning, commit format) are binding and defined in `specs/00-constitution.md` — read it before adding code.
 
 ## Commands
 
@@ -20,7 +20,7 @@ uv run python -m masterba.schema_export   # regenerate schemas/*.schema.json aft
 uv run python -m masterba.rendering.shells # regenerate templates/default/* after editing rendering/catalog.py
 ```
 
-## Architecture (Phase 12 state)
+## Architecture (current state)
 
 Code lives in `src/masterba/`:
 - `models/`: frozen Pydantic v2 models are the single source of truth; `schemas/*.schema.json` are generated from them and a test fails if they drift.

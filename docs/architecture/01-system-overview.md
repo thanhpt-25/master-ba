@@ -21,6 +21,13 @@ are the order in which documents are written; the dotted arrows are the V-model 
 design level and its test level. A Decision Record (DR) later changes a requirement or a design
 item and rewrites every document downstream of it.
 
+The stages do not run end to end on their own. With review gates (on for new projects), each stage
+stores its documents `in_review` and a person approves the phase, or rejects it with comments,
+before the next stage may start ([document 9](09-phase-review-gates.md)). Three side loops feed
+every stage: the ledger of customer questions ([document 7](07-customer-questions.md)), Decision
+Records ([document 5](05-change-management-flow.md)) and the project knowledge base
+([document 8](08-knowledge-base.md)).
+
 ## 1.2 The one idea that shapes everything
 
 **A model proposes; code decides and records.** Language models write drafts and review them, but
@@ -31,6 +38,7 @@ they never choose an ID, never write a file, and never decide that a draft is go
 | Cut requirements out of the intake | Check every citation points at real lines and quotes real text |
 | Write SRS, design, test and detail items | Check every upstream item is covered and every reference exists |
 | Review a draft against a checklist and list issues | Decide the verdict from the issues; downgrade issues that ask for no change |
+| Cite a knowledge passage, raise a customer question | Check every citation against the index; store questions in the ledger; refuse to start a stage whose upstream phase is still in review |
 | Propose a patch to a document for a DR | Validate the patch, apply it, keep untouched items identical |
 | (optional) Suggest a column mapping for a customer's Excel sample | Assign every ID, write JSON, commit to git, render Excel, walk the trace graph |
 
@@ -48,6 +56,9 @@ flowchart TB
     subgraph Orchestration
         PIPE["pipeline/<br/>brd, srs, basic, detail"]
         CHG["change/<br/>Decision Records, propagation"]
+        REV["review/<br/>phase gates, approve, reject"]
+        QST["questions/<br/>ledger, confirmed facts"]
+        KB["knowledge/<br/>sources, index, retriever"]
     end
     subgraph Team["Team runtime (team/)"]
         WS["workspace.py<br/>run state"]
@@ -70,6 +81,11 @@ flowchart TB
 
     CLI --> PIPE
     CLI --> CHG
+    CLI --> REV
+    PIPE --> REV
+    PIPE --> QST
+    PIPE --> KB
+    REV --> CHG
     WEB --> PIPE
     WEB --> CHG
     PIPE --> Team
@@ -86,7 +102,7 @@ flowchart TB
 | Layer | Package | Responsibility |
 |---|---|---|
 | Interfaces | `cli.py`, `api/`, `frontend/` | Parse a request, check who may make it, call the library, show the result. Neither interface holds business logic: both call the same functions, so git history is identical. |
-| Orchestration | `pipeline/`, `change/` | Know the order of steps in a stage or a DR propagation, read upstream documents, assign IDs after a team succeeds, write results. |
+| Orchestration | `pipeline/`, `change/`, `review/`, `questions/`, `knowledge/` | Know the order of steps in a stage or a DR propagation, read upstream documents, assign IDs after a team succeeds, write results. `review/` holds the gate a stage checks before it starts and the approve and reject actions; `questions/` the ledger and the `<confirmed>` and `<open_questions>` blocks; `knowledge/` the retrieval and citation gate. The parts that need `change/` (`review/actions.py`, `questions/answer.py`, `knowledge/proposal.py`) are imported only by the CLI and the API, never by `pipeline/`. |
 | Team runtime | `team/` | Run the loop of writer, gate and reviewer; count rounds and tokens; keep the task list and mailbox; escalate; checkpoint and resume. |
 | Agents | `agents/`, `skills/` | One module per role: its prompt (`agents/*.md`), its draft model (no IDs), and its gate. `qa_reviewer.py` is one stage-neutral reviewer; only the checklist in `skills/qa-review/checklists/` differs. |
 | Model access | `llm/` | The `LLM` protocol: `generate(system, user, output, tool_name)` returns a validated object. `AnthropicLLM` forces a tool call so the answer is structured; `FakeLLM` serves tests. |

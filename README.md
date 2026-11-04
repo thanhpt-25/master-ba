@@ -18,6 +18,16 @@ Basic design (基本設計書) ────────────────�
 Detail design (詳細設計書) ─────────────────────── UT specification (単体テスト)
 ```
 
+A person reviews each phase before the next one starts: the stages do not run end to end on their own.
+
+```
+intake ─▶ BRD ─▶ [review] ─▶ SRS ─▶ [review] ─▶ Basic design + IT/ST ─▶ [review] ─▶ Detail design + UT ─▶ [review]
+              ▲                  ▲
+              │ reject with comments: a writer and QA team writes the next version
+              │
+   side loops: customer questions · Decision Records · knowledge base
+```
+
 ## Concept
 
 ### Why the work is split into content and layout
@@ -41,6 +51,9 @@ Models do not invent identifiers. Code assigns them after a stage has passed its
 | Test case | `TC-<LEVEL>-####` | `TC-IT-0003` |
 | Decision record | `DR-####` | `DR-0001` |
 | Team run | `RUN-####` | `RUN-0007` |
+| Customer question | `Q-####` | `Q-0004` |
+| Knowledge source and chunk | `KB-####`, and `KB-####` + `#chunk.<n>` | `KB-0001#chunk.3` |
+| Phase review | `REV-####` | `REV-0002` |
 
 Documents are versioned with integers and a version is never overwritten. The ID stability rule says that a new version may not drop an item id or bring a dropped one back. Impact analysis relies on it: a link from `REQ-0002` to `DOC-SRS-0001#item.4` must still mean the same thing after the fourth revision.
 
@@ -57,7 +70,19 @@ Each stage is run by a small team rather than a single call. The shape is the sa
 3. A QA reviewer works from a checklist in `skills/qa-review/checklists/<stage>.toml`. The model only reports issues; code computes the verdict, and the checklist caps how severe an issue can be.
 4. The loop repeats until the draft passes or a limit is reached (`team_max_rounds`, `team_token_budget` in the project config).
 
-When a limit is reached the run is escalated: the command exits with code 3 and nothing business-related is written. The design stages add a tester. A tester can put questions to the designer through a mailbox, at most two exchanges per cycle, and a question about an item that was already answered is reported as an open question for the customer instead of blocking the loop.
+When a limit is reached the run is escalated: the command exits with code 3 and nothing business-related is written. A model request that fails (timeout, connection or gateway error) escalates the run the same way, so it can be resumed. The design stages add a tester. A tester can put questions to the designer through a mailbox, at most two exchanges per cycle, and a question about an item that was already answered is reported as an open question for the customer instead of blocking the loop.
+
+### Review gates between phases
+
+A finished stage stores its documents `in_review`, and the next stage refuses to start until a person approves the phase. The reviewer either approves (the documents become `approved`, a review record `reviews/REV-####.json` is committed) or rejects with comments. A rejection becomes a `review_feedback` Decision Record: the reviser writes version n+1 for another review and the rejected version is marked `superseded`. Basic design is reviewed together with its IT and ST specifications, detail design with its UT specification. The gate is a project setting, on for new projects (`init-project --no-review-gates` turns it off for scripted runs).
+
+### Customer questions
+
+What only the customer can settle is not guessed. The writers, the tester and QA raise questions, which go into a ledger (`questions/Q-####.json`). An answer is recorded as an approved clarification Decision Record, and every later model call gets the answered points as `<confirmed>` facts and the unanswered ones as `<open_questions>`. No stage may state an answer to an open question, even when the intake or a knowledge passage contains one.
+
+### Knowledge base
+
+A project can hold reference files (glossaries, standards, earlier specifications in `.md`, `.txt`, `.xlsx`, `.docx` or `.pdf`). They are split into chunks and indexed locally: always a keyword index, and with the optional `rag` extra also vectors from a local embedding model. Each writer gets the passages that match its input in an escaped `<knowledge>` block, may cite them by chunk, and code checks every citation before QA sees the draft. QA gets the same block and may block a draft that contradicts it. Citations become trace links, so replacing or removing a cited source proposes a Decision Record.
 
 ### Change management
 
@@ -80,6 +105,8 @@ The defaults follow common SIer layouts and live in `templates/default/`. A comp
                                         │ same library calls, same git history
                           ┌─────────────▼──────────────┐
                           │ pipeline/   change/        │   stages, decision records
+                          │ review/     questions/     │   phase gates, customer questions
+                          │ knowledge/                 │   retrieval for the writers
                           └───────┬─────────────┬──────┘
                                   │             │
                   ┌───────────────▼───┐   ┌─────▼────────────────┐
@@ -110,31 +137,37 @@ The defaults follow common SIer layouts and live in `templates/default/`. A comp
 | `team/` | The Phase Team runtime: a run workspace with tasks, a mailbox, a token budget, escalations and a single-writer check. |
 | `pipeline/` | `run_brd`, `run_srs`, `run_basic_design` and `run_detail_design`. Each runs its team and, only if the team is done, assigns ids, writes the document, links it and renders it. |
 | `change/` | Decision record lifecycle, impact analysis, patches, the reviser and propagation. |
+| `review/` | Phase review gates: the gate the pipelines check before a stage starts (`gates.py`), and approve and reject (`actions.py`). |
+| `questions/` | The ledger of customer questions, answers as clarification DRs, and the `<confirmed>` and `<open_questions>` blocks. |
+| `knowledge/` | The project knowledge base: upload checks, extraction, keyword and optional vector indexes, the hybrid retriever, the `<knowledge>` block and the citation gate. |
 | `calibration/` | Profile, heuristic mapper, optional model refinement, validation gate, build and confirmation of company templates. |
-| `api/`, `frontend/` | The dashboard. FastAPI on the server; plain ES modules in the browser with no build step. |
+| `api/`, `frontend/` | The dashboard. FastAPI on the server; plain ES modules in the browser with no build step. The project overview opens with a workflow strip: phases in order, the review gate between them, the next action. |
 | `diff/` | Structural diff by item id and the reworded or structural classifier. |
 
 ### What happens when a stage runs
 
 Taking `masterba run srs` as the example:
 
-1. The CLI opens the project and loads the latest BRD from the store.
-2. The SRS writer produces a draft; the coverage gate checks that every BRD requirement is addressed.
+1. The CLI opens the project and loads the latest BRD from the store. With review gates on, it refuses to start while the BRD phase is still in review.
+2. The SRS writer produces a draft from the BRD, the confirmed facts, the open questions and the matching knowledge passages; the coverage gate checks that every BRD requirement is addressed, and the citation gate checks every knowledge citation.
 3. The QA reviewer checks the draft against `srs.toml`; the loop repeats within its limits.
-4. On success the pipeline assigns ids in code, writes `json/srs/DOC-SRS-0001.v1.json`, writes the requirement records and trace links, renders `xlsx/srs/DOC-SRS-0001.v1.xlsx` with the company template, and commits.
+4. On success the pipeline assigns ids in code, writes `json/srs/DOC-SRS-0001.v1.json` (status `in_review` with gates), writes the trace links, renders `xlsx/srs/DOC-SRS-0001.v1.xlsx` with the company template, and commits. New customer questions go into the ledger.
 5. The run record (summary, tasks and mailbox) is committed once at the end. Raw transcripts stay local and are git-ignored.
 
 ### Project layout on disk
 
 ```
 projects/PRJ-001/
-  project.json                 language, company id, team limits
+  project.json                 language, company id, team limits, review_gates
   intake/                      customer text as supplied
   requirements/REQ-0001.json
   json/<type>/DOC-<TYPE>-0001.v1.json
   xlsx/<type>/DOC-<TYPE>-0001.v1.xlsx
   traceability/links.json
   decision-records/DR-0001.json  (+ .impact.json, .propagation.json)
+  questions/Q-0001.json        the customer questions ledger
+  reviews/REV-0001.json        phase approvals and rejections
+  knowledge/manifest.json      knowledge sources (sources/ and index/ are gitignored)
   runs/RUN-0001/               team-summary.json, team-tasks.json, mailbox.json
 ```
 
@@ -146,12 +179,12 @@ Commit subjects follow `<scope>(<project>): <action> <id>`, so `git log` reads a
 
 ## Status
 
-Phases 0 to 9 are implemented. Phase 10, code generation and executable unit tests, exists only as a backlog spec (`specs/10-dev-extension.md`); it argues that the base needs only a new node kind for code and an optional result field on test cases.
+Implemented: phases 0 to 9, hardening (spec 11), the local knowledge base (spec 12), the customer questions ledger (spec 13) and the phase review gates (spec 15). Phase 10, code generation and executable unit tests, exists only as a backlog spec (`specs/10-dev-extension.md`).
 
+- A full live run of `tests/fixtures/intake/timesheet_ja.md` reached `done` in every stage with `kr/claude-opus-5.5` through a gateway (60 requirements, 67 SRS items, 55 design items, 148 UT cases; spec 11 section 10.3). That run predates the review gates; no live run with the gates has been recorded yet.
 - Calibration has been tested only on synthetic samples. No real customer workbook has been tried.
 - Templates for all eight document types exist, but nothing generates the UAT specification yet.
-- With the free gateway models used so far, the basic design stage has not reached `done`, because the QA reviewer is strict (see `specs/05-basic-design-and-tests.md`, section 9).
-- Phase 11 (hardening: QA signal, resume, containers, CI) is in progress; see `specs/11-hardening.md`.
+- The knowledge-base evaluation set is too easy to rank embedding models (keyword search alone scores 1.0; spec 12 section 18).
 
 ## Getting started
 
@@ -173,7 +206,10 @@ export MASTERBA_MODEL=...               # optional: default writer model
 export MASTERBA_QA_MODEL=...            # optional: separate, ideally stronger, QA model
 export MASTERBA_REQUEST_TIMEOUT=900     # optional: seconds per request (default 180)
 export MASTERBA_MAX_TOKENS=32000        # optional: output tokens per call (default 16000)
+export MASTERBA_EMBED_MODEL=BAAI/bge-m3 # optional: embedding model for the rag extra
 ```
+
+A failed model request escalates the run instead of crashing it, so `--resume` continues it. Raise the two limits above for a large intake.
 
 ### Running the stages
 
@@ -260,6 +296,18 @@ masterba --root work question list --project PRJ-002   # what the stages asked t
 
 An intake of this size (60 requirements, 67 SRS items) needs higher request limits for the design tester calls; the recorded run (spec 11 section 10.3) used `MASTERBA_REQUEST_TIMEOUT=1800` and `MASTERBA_MAX_TOKENS=32000`.
 
+### Customer questions and the knowledge base
+
+```bash
+masterba question list   --project PRJ-001 --status open
+masterba question answer --project PRJ-001 Q-0004 --by alice --text "Partial deliveries: at most three."
+masterba kb add    --project PRJ-001 --by alice glossary.md standards.xlsx
+masterba kb search --project PRJ-001 "受注"
+masterba kb list   --project PRJ-001
+```
+
+An answer becomes an approved clarification Decision Record and reaches every later model call. For vector search as well as keyword search, install the extra and download the model once: `uv sync --extra rag`, then `masterba kb setup`.
+
 ### Dashboard
 
 ```bash
@@ -267,7 +315,7 @@ masterba user add alice --role admin          # roles: viewer < approver < admin
 masterba serve --port 8000                    # then open http://127.0.0.1:8000
 ```
 
-Users are stored in `.masterba/`, which git ignores.
+Users are stored in `.masterba/`, which git ignores. The project overview opens with the workflow strip; a phase in review shows Approve and Reject with comments, and the next stage's Run button waits until the phase before it is approved. The Questions and Knowledge tabs cover the side loops.
 
 ### Docker Compose
 
@@ -275,13 +323,25 @@ The image holds the code; your work tree stays on the host, so it remains a git 
 
 ```bash
 cp .env.example .env                                   # put the key here; .env is gitignored
+docker compose build
 docker compose run --rm masterba doctor --init         # prepares ./work (MASTERBA_WORK to change it)
 docker compose run --rm masterba user add alice --role admin
-docker compose up                                      # dashboard on http://127.0.0.1:8000
-docker compose run --rm masterba run brd --project PRJ-001 --input intake.txt   # a file in ./work
+docker compose up -d                                   # dashboard on http://127.0.0.1:8000
 ```
 
-The port is published on 127.0.0.1 only; the dashboard has local accounts and no TLS, so think twice before exposing it. A gateway running on the host is reached from the container as `http://host.docker.internal:<port>`. Commits are authored as `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` from `.env`.
+A first example from the CLI, with a file placed in `./work/examples/`:
+
+```bash
+docker compose run --rm masterba init-project --project PRJ-001 --language ja
+docker compose run --rm masterba run brd --project PRJ-001 --input /work/examples/order_portal.txt
+docker compose run --rm masterba review approve --project PRJ-001 --stage brd --by alice
+docker compose run --rm masterba run srs --project PRJ-001
+docker compose run --rm masterba review status --project PRJ-001
+```
+
+The workbooks appear in `./work/projects/PRJ-001/xlsx/` on the host. `docker compose down` stops the service and keeps `./work`.
+
+The port is published on 127.0.0.1 only; the dashboard has local accounts and no TLS, so think twice before exposing it. A gateway running on the host is reached from the container as `http://host.docker.internal:<port>`. Commits are authored as `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` from `.env`; on macOS also set `UID` and `GID` there so files in `./work` belong to you. Build with `EXTRAS=rag` for vector search; the embedding model is downloaded once into the `model-cache` volume with `docker compose run --rm masterba kb setup`.
 
 ## Development
 
@@ -295,7 +355,7 @@ uv run pytest -m live                      # optional: live model test, needs a 
 
 CI (`.github/workflows/ci.yml`) runs the quick job on every push, the full suite with coverage on `main`, and builds the image.
 
-To understand how the system works, read [docs/architecture](docs/architecture/README.md): the layers, the data model and storage, the data flow of each stage, the control flow of the writer, QA and resume loops, change management, and the interfaces and deployment.
+To understand how the system works, read [docs/architecture](docs/architecture/README.md): the layers, the data model and storage, the data flow of each stage, the control flow of the writer, QA and resume loops, change management, the interfaces and deployment, customer questions, the knowledge base and the phase review gates.
 
 Development is spec-driven. A phase's `specs/NN-*.md` is written and approved before its code, and `specs/00-constitution.md` holds the binding conventions (toolchain, layout, id scheme, versioning, commit format). `docs/concept-design.md` and `docs/roadmap-phases.md` give the full design and the phase plan. New documents are written in English; the earlier Vietnamese documents (`docs/concept-design.md`, `docs/roadmap-phases.md` and specs 00 and 01) stay as they are.
 

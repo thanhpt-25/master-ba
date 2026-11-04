@@ -16,14 +16,16 @@ flowchart TB
         G1 --> Q1["QA: brd checklist"]
     end
     S1 -->|"REQ-####, DOC-BRD-0001<br/>realizes links"| BRD[("BRD v1")]
-    BRD --> S2
+    BRD --> R1{{"review brd"}}
+    R1 -->|approve| S2
     subgraph S2["Stage srs"]
         direction TB
         A2["srs-writer<br/>writes SrsDraft"] --> G2["gate: every in-scope requirement covered"]
         G2 --> Q2["QA: srs checklist"]
     end
     S2 -->|"DOC-SRS-0001<br/>realizes links"| SRS[("SRS v1")]
-    SRS --> S3
+    SRS --> R2{{"review srs"}}
+    R2 -->|approve| S3
     subgraph S3["Stage basic"]
         direction TB
         A3["basic-design"] --> A3b["basic-test-design"]
@@ -31,7 +33,8 @@ flowchart TB
         G3 --> Q3["QA: basic_design and tests checklists"]
     end
     S3 -->|"Basic Design, IT, ST<br/>realizes and tests links"| BD[("Basic Design v1<br/>IT and ST v1")]
-    BD --> S4
+    BD --> R3{{"review basic"}}
+    R3 -->|approve| S4
     subgraph S4["Stage detail"]
         direction TB
         A4["detail-design"] --> A4b["unit-test-design"]
@@ -39,14 +42,20 @@ flowchart TB
         G4 --> Q4["QA: detail_design and unit_tests checklists"]
     end
     S4 -->|"Detail Design, UT<br/>realizes and tests links"| DD[("Detail Design v1<br/>UT v1")]
+    DD --> R4{{"review detail"}}
+    R1 & R2 & R3 & R4 -. "reject with comments:<br/>version n+1 for review" .-> REVISE["review_feedback DR<br/>reviser and QA"]
 ```
 
 Each stage reads only the **latest stored version of the document before it**, never a draft and
 never the model's memory. That is why the stages must run in order: `run srs` fails with
 "DOC-BRD-0001 does not exist; run the brd stage first" if the BRD is missing.
 
-With review gates on (new projects), a person approves each phase between the stages above; see
-[9. Phase review gates](09-phase-review-gates.md).
+The review steps (hexagons) apply when the project has review gates, which new projects do: each
+stage stores its documents `in_review`, and the next stage refuses to start until a person approves
+the phase. A rejection sends the comments to a reviser and QA team that writes the next version for
+another review. See [9. Phase review gates](09-phase-review-gates.md). Every writer and QA call also
+carries the confirmed facts and open customer questions ([document 7](07-customer-questions.md))
+and, when the project has a knowledge base, the matching passages ([document 8](08-knowledge-base.md)).
 
 ## 3.2 What every stage does in the same four moves
 

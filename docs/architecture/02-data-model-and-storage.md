@@ -49,6 +49,9 @@ output contains one.
 | Decision Record | `DR-####` | `DR-0002` | a project |
 | Team run | `RUN-####` | `RUN-0005` | a project |
 | Question | `Q-####` | `Q-0007` | a project |
+| Knowledge source | `KB-####` | `KB-0001` | a project |
+| Knowledge chunk | `KB-####` + `#chunk.<n>` | `KB-0001#chunk.3` | a source |
+| Phase review | `REV-####` | `REV-0002` | a project |
 
 `<TYPE>` is one of `BRD`, `SRS`, `BASIC_DESIGN`, `DETAIL_DESIGN`, `TEST_IT`, `TEST_ST`, `TEST_UT`,
 `TEST_UAT`. `<LEVEL>` is `UT`, `IT`, `ST` or `UAT`.
@@ -150,6 +153,8 @@ running all four stages on a small intake:
     ├── traceability/links.json
     ├── decision-records/                  # DR-0001.json, DR-0001.impact.json, DR-0001.propagation.json
     ├── questions/Q-0001.json              # the ledger of customer questions
+    ├── reviews/REV-0001.json              # phase approvals and rejections (spec 15)
+    ├── knowledge/manifest.json            # knowledge sources; sources/, index/, .lock are gitignored
     └── runs/RUN-0005/
         ├── team-summary.json              # TeamRun
         ├── team-tasks.json                # task list of the run
@@ -161,6 +166,11 @@ running all four stages on a small intake:
 
 Version numbers are plain integers: a document written once is `v1`, and the first change makes
 `v2` in a new file next to it. File names are `<DOC_ID>.v<version>.json` and `.xlsx`.
+
+`document.status` is metadata about a version, not content: `draft` (written without review gates
+or by a Decision Record), `in_review`, `approved` or `superseded`. Review actions change only that
+field of a stored version (`set_document_status`) and render the workbook again, because it prints
+the status; the `content` of a version never changes.
 
 ## 2.6 Git history as the audit log
 

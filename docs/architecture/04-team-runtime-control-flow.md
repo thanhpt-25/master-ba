@@ -61,7 +61,7 @@ Points to notice:
   `team_max_rounds` in `project.json`, or per stage with `team_max_rounds_by_stage`.
 - **`team_token_budget`** is optional. When set, the run stops before the next model call once the
   sum of input and output tokens reaches it.
-- **A model answer that does not fit its schema is feedback, not a crash.** An `LLMOutputError` from the writer, designer or tester becomes a gate message (`the last answer could not be used: ...`), costs one round and is not charged tokens; other model errors still end the run.
+- **A model answer that does not fit its schema is feedback, not a crash.** An `LLMOutputError` from the writer, designer or tester becomes a gate message (`the last answer could not be used: ...`), costs one round, and its tokens are charged when the model reports them. A request that fails (timeout, connection or gateway error) escalates the run with a checkpoint, so it can be resumed; only a configuration error such as a missing key still raises.
 - **Escalation returns nothing.** The loop returns `None`; the pipeline then writes only the run
   record. The escalation reasons are the stop reason followed by the last feedback, so a reader sees
   what was still unresolved.
@@ -169,6 +169,7 @@ A run escalates when it cannot produce an accepted result. The reasons it record
 | `max rounds reached (N)` | the round limit was hit with blocking issues or gate errors still open |
 | `token budget exhausted (used/budget)` | the optional token budget was reached |
 | `qa output invalid: ...` | QA's report was unusable twice |
+| `model request failed in <role>: ...` | a writer, designer, tester or QA request timed out or failed (`MASTERBA_REQUEST_TIMEOUT`, `MASTERBA_MAX_TOKENS` set the limits) |
 | the last feedback | appended to every reason list, so the open problems are visible |
 
 On escalation the pipeline stores no requirement, document, link or workbook. What remains is the
