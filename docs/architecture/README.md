@@ -15,6 +15,7 @@ what. They describe the code as it is today (Phase 12); the planned work is in
 | 6 | [Interfaces and deployment](06-interfaces-and-deployment.md) | CLI, dashboard, background jobs, rendering and templates, security, containers, CI |
 | 7 | [Customer questions](07-customer-questions.md) | how a point only the customer can settle is recorded, answered as a Decision Record and given back to the agents |
 | 8 | [Knowledge base](08-knowledge-base.md) | how reference files are indexed, retrieved into prompts, checked by the citation gate and traced |
+| 9 | [Phase review gates](09-phase-review-gates.md) | how a person approves or rejects each phase before the next one starts |
 
 ## Suggested reading order
 

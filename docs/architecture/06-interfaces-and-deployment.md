@@ -85,6 +85,10 @@ request, so changing a role takes effect at once without signing out.
 
 ### Endpoints
 
+Phase review routes (`/reviews`, `/stages/{stage}/approve`, `/stages/{stage}/reject`) are described in
+[9. Phase review gates](09-phase-review-gates.md).
+
+
 | Area | Endpoints (all under `/api`) |
 |---|---|
 | Session | `POST /login`, `POST /logout`, `GET /me` |
