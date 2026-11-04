@@ -292,3 +292,6 @@ tr:last-child td { border-bottom: 0; }
   .top { flex-wrap: wrap; }
   .who { margin-left: 0; width: 100%; justify-content: space-between; }
 }
+
+.review-box { display: grid; gap: 0.5rem; }
+.review-box textarea { width: 100%; font: inherit; }
