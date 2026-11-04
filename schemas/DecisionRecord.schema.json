@@ -16,7 +16,8 @@
         "design_change",
         "defect",
         "clarification",
-        "knowledge_change"
+        "knowledge_change",
+        "review_feedback"
       ],
       "title": "DrTrigger",
       "type": "string"

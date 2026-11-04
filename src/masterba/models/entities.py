@@ -163,6 +163,9 @@ class ProjectConfig(FrozenModel):
     dashboard_roles: list[Role] = Field(
         default_factory=lambda: [Role.ADMIN, Role.APPROVER, Role.VIEWER]
     )
+    # Spec 15: false for project.json files written before review gates, so they run as before;
+    # init-project and the dashboard write true unless asked not to.
+    review_gates: bool = False
 
     def max_rounds_for(self, stage: DocType) -> int:
         """The round limit of one stage: its own entry, else `team_max_rounds` (spec 11 2.1)."""

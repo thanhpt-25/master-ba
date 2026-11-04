@@ -37,6 +37,7 @@ from masterba.models.payloads import (
     TestSpecContent,
     payload_items,
 )
+from masterba.models.review import Review, ReviewComment, ReviewedDocument
 
 __all__ = [
     "LEVEL_BY_TEST_TYPE",
@@ -58,6 +59,9 @@ __all__ = [
     "ProjectConfig",
     "ReindexRecord",
     "RequirementItem",
+    "Review",
+    "ReviewComment",
+    "ReviewedDocument",
     "SourceIndexState",
     "SrsContent",
     "SrsItem",

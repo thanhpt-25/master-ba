@@ -67,6 +67,11 @@
       "$ref": "#/$defs/PropagationMode",
       "default": "manual_gate"
     },
+    "review_gates": {
+      "default": false,
+      "title": "Review Gates",
+      "type": "boolean"
+    },
     "team_max_rounds": {
       "default": 3,
       "minimum": 1,

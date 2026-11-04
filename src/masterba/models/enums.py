@@ -53,6 +53,7 @@ class DrTrigger(StrEnum):
     DEFECT = "defect"
     CLARIFICATION = "clarification"
     KNOWLEDGE_CHANGE = "knowledge_change"
+    REVIEW_FEEDBACK = "review_feedback"
 
 
 class DrStatus(StrEnum):
@@ -122,3 +123,17 @@ class QuestionStatus(StrEnum):
 class QuestionOrigin(StrEnum):
     AGENT = "agent"
     QA_BLOCKER = "qa_blocker"
+
+
+class ReviewStage(StrEnum):
+    """A phase that is reviewed as a whole (spec 15 section 1)."""
+
+    BRD = "brd"
+    SRS = "srs"
+    BASIC = "basic"
+    DETAIL = "detail"
+
+
+class ReviewDecision(StrEnum):
+    APPROVED = "approved"
+    REJECTED = "rejected"
