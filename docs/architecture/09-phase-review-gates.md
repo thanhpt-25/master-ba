@@ -43,6 +43,6 @@ run <stage> ─▶ done ─▶ documents in_review ─┬─ approve ─▶ appr
 |---|---|
 | CLI (`cli_review.py`) | `masterba review status`, `list`, `approve --stage S --by NAME`, `reject --stage S --by NAME --comment TEXT ...` |
 | API (`api/routes_reviews.py`) | `GET /api/projects/{pid}/reviews` (viewer), `POST /api/projects/{pid}/stages/{stage}/approve` (approver), `POST /api/projects/{pid}/stages/{stage}/reject` (approver, a background job) |
-| Dashboard | Approve and Reject with comments on a phase card in review; the next Run button waits with the reason |
+| Dashboard | A workflow strip on the overview (phases, gates, next action, links to questions, Decision Records and the knowledge base); Approve and Reject with comments on a phase card in review; the next Run button waits with the reason |
 
 The reviewer is the signed-in user on the dashboard. A refused action is HTTP 409.
