@@ -2,7 +2,7 @@
 
 These documents explain how MasterBA works as built: what the parts are, where data lives, how a
 document travels from a customer's text to Excel workbooks, and which part of the system decides
-what. They describe the code as it is today (Phase 12); the planned work is in
+what. They describe the code as it is today (specs 11, 12, 13 and 15 included); the planned work is in
 [../next-steps.md](../next-steps.md).
 
 | # | Document | Read it to learn |
@@ -40,6 +40,7 @@ what. They describe the code as it is today (Phase 12); the planned work is in
 | Question (`Q-####`) | A point only the customer can settle, kept in the project ledger until a person answers it |
 | Decision Record (`DR-####`) | An approved change request that is propagated to the documents it touches |
 | Knowledge source (`KB-####`) | A reference file in the project knowledge base; its chunks are cited as `KB-####` + `#chunk.<n>` |
+| Phase review (`REV-####`) | A person's approval or rejection of one phase; the next stage waits for it when review gates are on |
 | Template | The Excel layout a document is rendered into; a default set ships with the repository |
 | Work tree | The git repository MasterBA runs in (`--root`); every project lives inside it |
 

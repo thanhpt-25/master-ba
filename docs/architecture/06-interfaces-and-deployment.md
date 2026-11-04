@@ -30,7 +30,7 @@ CLI refuses to run outside a work tree that can commit (only `doctor` runs witho
 | Command | Purpose |
 |---|---|
 | `doctor [--init]` | check git, the work tree, the default templates, dashboard users and the model key; `--init` prepares an empty folder (git init, `.gitignore`, templates) |
-| `init-project --project PRJ-001 [--language ja\|en] [--rounds STAGE=N]` | create a project and its `project.json` |
+| `init-project --project PRJ-001 [--language ja\|en] [--rounds STAGE=N] [--no-review-gates]` | create a project and its `project.json`; review gates are on unless turned off |
 | `run brd --project P --input FILE` | intake to BRD |
 | `run srs --project P` | BRD to SRS |
 | `run basic --project P` | SRS to Basic Design with IT and ST tests |
@@ -38,6 +38,8 @@ CLI refuses to run outside a work tree that can commit (only `doctor` runs witho
 | `dr new / from-run / approve / reject / propagate / close / list / show / diff` | Decision Records ([document 5](05-change-management-flow.md)) |
 | `template calibrate / show / check / set / preview / confirm / unconfirm / list` | company templates from a sample workbook (6.6) |
 | `question list / show / answer / withdraw` | the ledger of customer questions ([document 7](07-customer-questions.md)) |
+| `review status / list / approve / reject` | phase review gates ([document 9](09-phase-review-gates.md)) |
+| `kb setup / add / list / replace / remove / reindex / search` | the project knowledge base ([document 8](08-knowledge-base.md)) |
 | `user add / list / remove` | dashboard accounts |
 | `serve [--host H] [--port N]` | run the dashboard (default `127.0.0.1:8000`) |
 
@@ -47,7 +49,9 @@ prints the stage summary as JSON and exits `0` when done, `3` when escalated, `1
 (`2` for a bad command line).
 
 The model key is read only from the environment: `ANTHROPIC_API_KEY`, and for a gateway
-`ANTHROPIC_BASE_URL` and `MASTERBA_MODEL`.
+`ANTHROPIC_BASE_URL` and `MASTERBA_MODEL`. `MASTERBA_REQUEST_TIMEOUT` (seconds per request, default
+180) and `MASTERBA_MAX_TOKENS` (output tokens per call, default 16000) set the request limits;
+`MASTERBA_EMBED_MODEL` picks the embedding model of the knowledge base.
 
 ## 6.3 The dashboard
 
@@ -85,8 +89,6 @@ request, so changing a role takes effect at once without signing out.
 
 ### Endpoints
 
-Phase review routes (`/reviews`, `/stages/{stage}/approve`, `/stages/{stage}/reject`) are described in
-[9. Phase review gates](09-phase-review-gates.md).
 
 
 | Area | Endpoints (all under `/api`) |
@@ -98,6 +100,8 @@ Phase review routes (`/reviews`, `/stages/{stage}/approve`, `/stages/{stage}/rej
 | Runs and activity | `GET /projects/{pid}/runs`, `.../runs/{run_id}`, `.../activity` |
 | Trace | `GET /projects/{pid}/requirements`, `.../rtm/{req_id}`, `.../links`, `.../impact` |
 | Questions | `GET /projects/{pid}/questions[?status=]`, `.../questions/{qid}`, `POST .../answer`, `POST .../withdraw` |
+| Phase reviews | `GET /projects/{pid}/reviews`, `POST /projects/{pid}/stages/{stage}/approve`, `POST /projects/{pid}/stages/{stage}/reject` (a background job) |
+| Knowledge base | `GET/POST /projects/{pid}/knowledge`, `PUT/DELETE .../knowledge/{source_id}`, `GET .../knowledge/search?q=&k=` |
 | Decision Records | `GET/POST /projects/{pid}/drs`, `.../drs/from-run`, `.../drs/{dr_id}`, `.../approve`, `.../reject`, `.../close`, `.../propagate`, `.../diff` |
 | Templates (admin) | `GET /templates`, `POST /templates/{company}/{type}/calibrate`, `.../mapping`, `.../preview`, `.../confirm`, `.../unconfirm` |
 | Health | `GET /health`, the only endpoint that needs no sign-in |
@@ -241,7 +245,8 @@ flowchart LR
 | `Dockerfile` | multi-stage; the builder installs dependencies with uv from `uv.lock` (no dev tools); the final image is `python:3.11-slim` with git, a non-root user `masterba` (UID and GID are build arguments so files on the bind mount belong to the host user), `/work` as the working folder, entrypoint `masterba --root /work`, default command `doctor` |
 | `compose.yaml` | one service; the port is published on `127.0.0.1` only because the dashboard has local accounts and no TLS; `.env` is read if present; the git author is passed as `GIT_AUTHOR_*` variables (the container has no git config); `host.docker.internal` reaches a gateway on the host; a health check calls `/api/health` |
 | Secrets | the key lives in `.env` (gitignored) or the shell; the image holds none, and CI scans for it |
-| First use | `docker compose run --rm masterba doctor --init`, then `docker compose run --rm masterba user add admin --role admin`, then `docker compose up` |
+| Model cache | `HF_HOME=/models` on the named volume `model-cache`; an image built with `EXTRAS=rag` downloads the embedding model there once (`kb setup`); `torch` comes from the CPU-only index on Linux |
+| First use | `docker compose build`, `docker compose run --rm masterba doctor --init`, then `docker compose run --rm masterba user add admin --role admin`, then `docker compose up -d`; on macOS put `UID` and `GID` in `.env` |
 
 ## 6.8 Continuous integration
 
@@ -262,15 +267,21 @@ calls, needs a key) is excluded everywhere in CI. Every automated test uses `Fak
 uv sync                                         # install
 uv run masterba --root work doctor --init       # prepare a work tree
 export ANTHROPIC_API_KEY=...                    # key, from the environment only
-uv run masterba --root work init-project --project PRJ-001 --language en
+uv run masterba --root work init-project --project PRJ-001 --language en   # review gates on
 uv run masterba --root work run brd --project PRJ-001 --input intake.txt
+uv run masterba --root work review approve --project PRJ-001 --stage brd --by alice
 uv run masterba --root work run srs --project PRJ-001
+uv run masterba --root work review approve --project PRJ-001 --stage srs --by alice
 uv run masterba --root work run basic --project PRJ-001
+uv run masterba --root work review approve --project PRJ-001 --stage basic --by alice
 uv run masterba --root work run detail --project PRJ-001
+uv run masterba --root work review approve --project PRJ-001 --stage detail --by alice
 uv run masterba --root work user add admin --role admin
 uv run masterba --root work serve               # dashboard on http://127.0.0.1:8000
 ```
 
-If a stage exits with `3`, read `escalations` in its output, then either
-`run <stage> --resume RUN-#### --rounds N`, or `dr from-run --run RUN-####` when the problem is an
-open fact rather than too few rounds.
+Between the stages, read the documents and `question list`; instead of approving, `review reject
+--comment ...` sends the phase back for a revised version. If a stage exits with `3`, read
+`escalations` in its output, then either `run <stage> --resume RUN-#### --rounds N`, or
+`dr from-run --run RUN-####` when the problem is an open fact rather than too few rounds. A run
+that escalated because a model request failed resumes the same way.
