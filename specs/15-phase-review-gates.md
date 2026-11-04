@@ -1,6 +1,6 @@
 # Spec 15 — Phase review gates
 
-Status: v0.1 (2026-11-04), draft, awaiting the owner's approval. Sources: the owner's request of 2026-11-04 ("the system needs to ask the user for a review between phases before going to the next step") and the owner's answers to four design questions (section 9), [00-constitution.md](00-constitution.md), [01-data-contracts.md](01-data-contracts.md), [07-change-management.md](07-change-management.md) (Decision Records and propagation), [08-dashboard.md](08-dashboard.md) (roles, jobs), [13-customer-questions.md](13-customer-questions.md) (open questions).
+Status: v0.2 (2026-11-04), approved by the owner; v0.2 records the approval of v0.1 without other changes. Sources: the owner's request of 2026-11-04 ("the system needs to ask the user for a review between phases before going to the next step") and the owner's answers to four design questions (section 9), [00-constitution.md](00-constitution.md), [01-data-contracts.md](01-data-contracts.md), [07-change-management.md](07-change-management.md) (Decision Records and propagation), [08-dashboard.md](08-dashboard.md) (roles, jobs), [13-customer-questions.md](13-customer-questions.md) (open questions).
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
