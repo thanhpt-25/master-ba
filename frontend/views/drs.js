@@ -1,4 +1,4 @@
-import { badge, cellText, clear, confirmDialog, empty, field, h, table } from "../dom.js";
+import { badge, cellText, clear, confirmDialog, empty, field, h, liveDot, table } from "../dom.js";
 
 const TRIGGERS = {
   requirement_change: "Requirement change",
@@ -161,7 +161,7 @@ export async function render({ main, api, params, me, toast, go }) {
     if (canAct && dr.status === "approved") {
       const propagate = async () => {
         const ok = await confirmDialog({ title: "Propagate now?", message: "The models revise every affected document as new versions." });
-        if (ok) act("propagate").then(poll);
+        if (ok) act("propagate").then(poll).catch((e) => toast(e.message, "error"));
       };
       children.push(
         h("section", { class: "panel propagate" }, h("h3", {}, "Propagate"), h("p", { class: "muted" }, "Revises the documents above as new versions. This calls the models."), h("button", { class: "primary", onClick: propagate }, "Propagate")),
@@ -188,26 +188,91 @@ export async function render({ main, api, params, me, toast, go }) {
     clear(detail).append(...children.flat().filter(Boolean));
   }
 
+  let polling = false;
+  let paused = false;
+
+  // Shared by the Pause/Resume button and the "P" shortcut so they stay in sync.
+  const togglePause = () => {
+    if (!polling) return;
+    paused = !paused;
+    clearTimeout(timer);
+    if (!paused) poll().catch((e) => toast(e.message, "error"));
+    else refreshJobPanel();
+  };
+
+  const liveBar = () => {
+    const toggle = h(
+      "button",
+      { class: "link", type: "button", onClick: togglePause, title: "Pause or resume live updates (P)" },
+      paused ? "Resume updates (P)" : "Pause updates (P)",
+    );
+    return h("div", { class: "live-bar" }, liveDot(!paused, paused ? "Paused" : "Live"), toggle);
+  };
+
+  // Redraws the propagating panel from the last known job (used when pausing,
+  // so the live bar reflects the paused state without a fresh fetch).
+  let lastJob = null;
+  const refreshJobPanel = () => {
+    if (!lastJob) return;
+    detail.querySelector(".job")?.remove();
+    detail.querySelector(".propagate")?.remove();
+    detail.append(
+      h(
+        "section",
+        { class: "panel job" },
+        h("div", { class: "vcard-head" }, h("h3", {}, "Propagating"), badge(lastJob.status), liveBar()),
+        h("pre", { class: "log", tabindex: "0", "aria-label": "Job log" }, lastJob.log.join("\n")),
+      ),
+    );
+  };
+
   async function poll() {
-    if (stopped) return;
+    if (stopped || paused) return;
     const jobs = await api.get(`/projects/${pid}/jobs`);
     const job = jobs.find((j) => j.kind === `propagate:${drId}`);
     if (job && ["queued", "running"].includes(job.status)) {
-      detail.querySelector(".job")?.remove();
-      detail.querySelector(".propagate")?.remove();
-      detail.append(h("section", { class: "panel job" }, h("div", { class: "vcard-head" }, h("h3", {}, "Propagating"), badge(job.status)), h("pre", { class: "log", tabindex: "0", "aria-label": "Job log" }, job.log.join("\n"))));
-      timer = setTimeout(() => poll().catch((e) => toast(e.message, "error")), 2000);
+      polling = true;
+      lastJob = job;
+      refreshJobPanel();
+      if (!document.hidden) timer = setTimeout(() => poll().catch((e) => toast(e.message, "error")), 2000);
     } else {
+      polling = false;
+      lastJob = null;
       await draw();
       if (job?.status === "escalated") toast("A document could not be revised: see the run in Activity.", "error");
       if (job?.status === "failed") toast(job.error, "error");
     }
   }
 
+  // Idle the poll while the tab is backgrounded; resume on return.
+  const onVisibility = () => {
+    if (document.hidden) {
+      clearTimeout(timer);
+    } else if (!stopped && !paused && polling) {
+      poll().catch((e) => toast(e.message, "error"));
+    }
+  };
+  document.addEventListener("visibilitychange", onVisibility);
+
+  // "P" toggles live polling, mirroring the Pause/Resume button. Skip while
+  // typing in a field or with a modifier held, and only while a job is polling.
+  const onKey = (event) => {
+    if (event.key !== "p" && event.key !== "P") return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const el = document.activeElement;
+    if (el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))) return;
+    if (!polling) return;
+    event.preventDefault();
+    togglePause();
+  };
+  document.addEventListener("keydown", onKey);
+
   await draw();
   await poll();
   return () => {
     stopped = true;
     clearTimeout(timer);
+    document.removeEventListener("visibilitychange", onVisibility);
+    document.removeEventListener("keydown", onKey);
   };
 }

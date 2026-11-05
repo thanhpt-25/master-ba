@@ -1,0 +1,10 @@
+{
+  "name": "masterba-frontend",
+  "private": true,
+  "type": "module",
+  "description": "MasterBA control-room frontend — vanilla-JS SPA, no build step, no runtime dependencies.",
+  "scripts": {
+    "test": "node --test",
+    "serve": "python3 -m http.server 8000"
+  }
+}

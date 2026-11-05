@@ -231,16 +231,22 @@ export async function render(context) {
   let shown = null;
   let lastActive = false;
 
+  // Shared by the Pause/Resume button and the keyboard shortcut so they stay in sync.
+  const togglePause = () => {
+    paused = !paused;
+    if (!paused) refresh().catch((e) => toast(e.message, "error"));
+    else {
+      clearTimeout(timer);
+      draw.last && draw.last();
+    }
+  };
+
   const liveBar = (active) => {
     if (!active && !paused) return null;
     const toggle = h(
       "button",
-      { class: "link", type: "button", onClick: () => {
-        paused = !paused;
-        if (!paused) refresh().catch((e) => toast(e.message, "error"));
-        else { clearTimeout(timer); draw.last && draw.last(); }
-      } },
-      paused ? "Resume updates" : "Pause updates",
+      { class: "link", type: "button", onClick: togglePause, title: "Pause or resume live updates (P)" },
+      paused ? "Resume updates (P)" : "Pause updates (P)",
     );
     return h("div", { class: "live-bar" }, liveDot(active && !paused, paused ? "Paused" : "Live"), toggle);
   };
@@ -310,17 +316,42 @@ export async function render(context) {
     const active = Boolean(job && ["queued", "running"].includes(job.status));
     lastActive = active;
     draw(overview, job);
-    if (active) {
+    if (active && !document.hidden) {
       timer = setTimeout(() => refresh().catch((e) => toast(e.message, "error")), 2000);
-    } else {
+    } else if (!active) {
       shown = null;
     }
   }
+
+  // Idle the poll while the tab is backgrounded; resume on return.
+  const onVisibility = () => {
+    if (document.hidden) {
+      clearTimeout(timer);
+    } else if (!stopped && !paused && lastActive) {
+      refresh().catch((e) => toast(e.message, "error"));
+    }
+  };
+  document.addEventListener("visibilitychange", onVisibility);
+
+  // "P" toggles live polling, mirroring the Pause/Resume button. Skip while
+  // typing in a field or with a modifier held, and only when the bar is shown.
+  const onKey = (event) => {
+    if (event.key !== "p" && event.key !== "P") return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const el = document.activeElement;
+    if (el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))) return;
+    if (!lastActive && !paused) return;
+    event.preventDefault();
+    togglePause();
+  };
+  document.addEventListener("keydown", onKey);
 
   await refresh();
   if (!main.firstChild) main.append(empty("Nothing to show."));
   return () => {
     stopped = true;
     clearTimeout(timer);
+    document.removeEventListener("visibilitychange", onVisibility);
+    document.removeEventListener("keydown", onKey);
   };
 }

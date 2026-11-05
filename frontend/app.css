@@ -947,6 +947,50 @@ button.primary.danger:hover { background: color-mix(in srgb, var(--bad) 85%, #00
 .field-error { display: flex; align-items: center; gap: var(--s1); color: var(--bad); font-size: var(--fs-sm); font-weight: 600; margin: var(--s1) 0 0; }
 .field-error::before { content: "✕"; font-size: var(--fs-xs); }
 
+/* ---------- keyboard shortcut help overlay ---------- */
+.dialog.shortcuts { width: min(32rem, 100%); }
+.shortcut-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s2) var(--s4);
+  align-items: baseline;
+  margin: 0 0 var(--s5);
+}
+.shortcut-list dt { margin: 0; }
+.shortcut-list dd { margin: 0; color: var(--ink-2); }
+
+/* ---------- global error boundary ---------- */
+.fatal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: var(--s6);
+  background: var(--surface);
+}
+.fatal-card {
+  width: min(32rem, 100%);
+  padding: var(--s6);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--bad);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-2);
+}
+.fatal-card h1 { margin: 0 0 var(--s3); font-size: var(--fs-xl); }
+.fatal-card p { margin: 0 0 var(--s3); color: var(--ink-2); }
+.fatal-detail {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: var(--fs-sm);
+  color: var(--bad);
+  background: var(--bad-soft);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-md);
+  overflow-wrap: anywhere;
+}
+.fatal-actions { display: flex; gap: var(--s3); flex-wrap: wrap; margin-top: var(--s4); }
+
 /* ---------- responsive ---------- */
 @media (max-width: 1024px) {
   .vmodel { grid-template-columns: minmax(0, 1fr) 6rem minmax(0, 1fr); }

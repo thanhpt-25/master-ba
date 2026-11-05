@@ -167,55 +167,103 @@ let openDialog = null;
 // Resolves to true on confirm, false on cancel/escape. Only one is open at a time.
 export function confirmDialog({ title = "Please confirm", message = "", confirmLabel = "Confirm", cancelLabel = "Cancel", danger = false } = {}) {
   return new Promise((resolve) => {
-    if (openDialog) {
-      openDialog.close(false);
-      openDialog = null;
-    }
-    const lastFocus = document.activeElement;
-    let settled = false;
-    const finish = (value) => {
-      if (settled) return;
-      settled = true;
-      document.removeEventListener("keydown", onKey, true);
-      overlay.remove();
-      openDialog = null;
-      if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus({ preventScroll: true });
-      resolve(value);
-    };
-    const confirmBtn = h("button", { type: "button", class: danger ? "primary danger" : "primary", onClick: () => finish(true) }, confirmLabel);
-    const cancelBtn = h("button", { type: "button", onClick: () => finish(false) }, cancelLabel);
-    const card = h(
-      "div",
-      { class: "dialog", role: "alertdialog", "aria-modal": "true", "aria-labelledby": "dlg-title", "aria-describedby": message ? "dlg-msg" : null },
-      h("h2", { id: "dlg-title" }, title),
-      message ? h("p", { id: "dlg-msg", class: "prose" }, message) : null,
-      h("div", { class: "dialog-actions" }, cancelBtn, confirmBtn),
+    // answer is true only if the confirm button was pressed; Escape and the
+    // backdrop leave it false. onClose fires exactly once, after teardown.
+    let answer = false;
+    modal(
+      (close) => {
+        const confirmBtn = h("button", { type: "button", class: danger ? "primary danger" : "primary", onClick: () => { answer = true; close(); } }, confirmLabel);
+        const cancelBtn = h("button", { type: "button", onClick: () => { answer = false; close(); } }, cancelLabel);
+        const card = h(
+          "div",
+          { class: "dialog" },
+          h("h2", { id: "dlg-title" }, title),
+          message ? h("p", { id: "dlg-msg", class: "prose" }, message) : null,
+          h("div", { class: "dialog-actions" }, cancelBtn, confirmBtn),
+        );
+        // Prefer focusing the confirm button over the first focusable (cancel).
+        queueMicrotask(() => confirmBtn.focus({ preventScroll: true }));
+        return card;
+      },
+      { role: "alertdialog", labelledBy: "dlg-title", describedBy: message ? "dlg-msg" : undefined, onClose: () => resolve(answer) },
     );
-    const overlay = h("div", { class: "dialog-overlay", onClick: (e) => { if (e.target === overlay) finish(false); } }, card);
-    const focusable = () => card.querySelectorAll("button");
-    const onKey = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        finish(false);
-      } else if (event.key === "Tab") {
-        const items = focusable();
-        if (!items.length) return;
-        const first = items[0];
-        const last = items[items.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    document.body.append(overlay);
-    openDialog = { close: finish };
-    confirmBtn.focus({ preventScroll: true });
   });
+}
+
+// A focus-trapped modal overlay used by confirmDialog and shortcutsDialog. `build`
+// receives a `close` function and returns the card element to mount. Only one
+// dialog is open at a time; Escape and the backdrop close it.
+function modal(build, { labelledBy, describedBy, role = "dialog", onClose = null } = {}) {
+  if (openDialog) {
+    openDialog.close();
+    openDialog = null;
+  }
+  const lastFocus = document.activeElement;
+  let settled = false;
+  let overlay;
+  const close = () => {
+    if (settled) return;
+    settled = true;
+    document.removeEventListener("keydown", onKey, true);
+    overlay.remove();
+    openDialog = null;
+    if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus({ preventScroll: true });
+    if (onClose) onClose();
+  };
+  const card = build(close);
+  card.setAttribute("role", role);
+  card.setAttribute("aria-modal", "true");
+  if (labelledBy) card.setAttribute("aria-labelledby", labelledBy);
+  if (describedBy) card.setAttribute("aria-describedby", describedBy);
+  overlay = h("div", { class: "dialog-overlay", onClick: (e) => { if (e.target === overlay) close(); } }, card);
+  const focusable = () =>
+    card.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  const onKey = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    } else if (event.key === "Tab") {
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+  };
+  document.addEventListener("keydown", onKey, true);
+  document.body.append(overlay);
+  openDialog = { close };
+  (focusable()[0] || card).focus({ preventScroll: true });
+  return close;
+}
+
+// A focus-trapped list of keyboard shortcuts. `shortcuts` is an array of
+// { keys, description }. Opened by the global "?" handler in app.js.
+export function shortcutsDialog(shortcuts) {
+  return modal(
+    (close) =>
+      h(
+        "div",
+        { class: "dialog shortcuts" },
+        h("h2", { id: "sc-title" }, "Keyboard shortcuts"),
+        h(
+          "dl",
+          { class: "shortcut-list" },
+          shortcuts.flatMap((s) => [
+            h("dt", {}, h("kbd", {}, s.keys)),
+            h("dd", {}, s.description),
+          ]),
+        ),
+        h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "primary", onClick: close }, "Close")),
+      ),
+    { labelledBy: "sc-title" },
+  );
 }
 
 // Runs an async loader into `host`, showing a skeleton first, then either the

@@ -1,7 +1,15 @@
 // Shell and hash router. Views live in ./views and are loaded on demand.
 
 import { api, ApiError } from "./api.js";
-import { clear, errorBox, h, skeleton } from "./dom.js";
+import { clear, errorBox, h, shortcutsDialog, skeleton } from "./dom.js";
+
+// Shortcuts shown by the "?" help overlay. Views that add their own entries
+// (e.g. Overview's "P") describe them here so the list stays in one place.
+const SHORTCUTS = [
+  { keys: "?", description: "Show this keyboard shortcut help" },
+  { keys: "P", description: "Pause or resume live polling (Overview, Decision Records)" },
+  { keys: "Esc", description: "Close an open dialog" },
+];
 
 const app = document.getElementById("app");
 const state = { me: null, cleanup: null, seq: 0 };
@@ -41,12 +49,18 @@ export function toast(message, kind = "info") {
   setTimeout(() => note.remove(), kind === "error" ? 9000 : 4000);
 }
 
-function parse() {
-  const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
+// Exported and hash-parameterised so it can be unit-tested without booting the
+// router. route() calls parseHash(location.hash).
+export function parseHash(hash) {
+  const parts = String(hash).replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
   if (parts[0] === "p" && parts[1]) {
     return { name: parts[2] ?? "overview", pid: parts[1], rest: parts.slice(3) };
   }
   return { name: parts[0] ?? "projects", pid: null, rest: [] };
+}
+
+function parse() {
+  return parseHash(location.hash);
 }
 
 function shell(params, content) {
@@ -79,7 +93,12 @@ function shell(params, content) {
 }
 
 async function logout() {
-  await api.post("/logout");
+  try {
+    await api.post("/logout");
+  } catch (error) {
+    toast(error.message, "error");
+    return;
+  }
   state.me = null;
   go("#/login");
 }
@@ -141,4 +160,48 @@ window.addEventListener("masterba:unauthorized", () => {
   state.me = null;
   go("#/login");
 });
+
+// Last-resort boundary for errors that escape route()'s own try/catch — an
+// uncaught throw in a timer, an event callback, or a rejected promise with no
+// handler. It shows a recoverable panel instead of leaving a blank or frozen
+// screen. Routine 401s are handled elsewhere and never reach here.
+let boundaryShown = false;
+function fatalBoundary(error) {
+  if (error instanceof ApiError && error.status === 401) {
+    state.me = null;
+    go("#/login");
+    return;
+  }
+  if (boundaryShown) return;
+  boundaryShown = true;
+  const panel = h(
+    "div",
+    { class: "fatal", role: "alert" },
+    h("div", { class: "fatal-card" },
+      h("h1", {}, "Something went wrong"),
+      h("p", {}, "The screen hit an unexpected error. Your work on the server is unaffected — reloading usually clears it."),
+      error?.message ? h("p", { class: "fatal-detail" }, error.message) : null,
+      h("div", { class: "fatal-actions" },
+        h("button", { class: "primary", type: "button", onClick: () => location.reload() }, "Reload"),
+        h("button", { type: "button", onClick: () => { boundaryShown = false; panel.remove(); route(); } }, "Try to continue"),
+      ),
+    ),
+  );
+  document.body.append(panel);
+}
+window.addEventListener("error", (event) => { if (event.error) fatalBoundary(event.error); });
+window.addEventListener("unhandledrejection", (event) => fatalBoundary(event.reason));
+
+// "?" opens the keyboard shortcut help. Skip while typing in a field or with a
+// modifier held; skip on the login page where no shortcuts apply.
+window.addEventListener("keydown", (event) => {
+  if (event.key !== "?") return;
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  const el = document.activeElement;
+  if (el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))) return;
+  if (!state.me) return;
+  event.preventDefault();
+  shortcutsDialog(SHORTCUTS);
+});
+
 route();

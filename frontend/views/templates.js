@@ -17,6 +17,7 @@ function mappingTables(data, onSet) {
           return [h("code", {}, c.col), c.header, h("span", { class: "row" }, input, save)];
         }),
         `Columns of ${t.sheet}`,
+        { dense: true, stickyFirst: true },
       ),
     ),
   );
@@ -45,6 +46,7 @@ export async function render({ main, api, toast }) {
             ["Company", "Type", "State", ""],
             rows.map((r) => [r.company, r.doc_type, badge(STATE_BADGE[r.state] ?? r.state), h("button", { class: "link", onClick: () => open(r.company, r.doc_type) }, "Open")]),
             "Company templates",
+            { dense: true, stickyFirst: true },
           )
         : empty("No company template yet. Upload a sample workbook to start."),
     );
@@ -97,10 +99,13 @@ export async function render({ main, api, toast }) {
   };
 
   const open = async (c, t) => {
+    clear(detail).append(spinner("Opening template\u2026"));
     try {
-      show(await api.get(`/templates/${c}/${t}`));
+      const data = await api.get(`/templates/${c}/${t}`);
+      clear(detail);
+      show(data);
     } catch (error) {
-      toast(error.message, "error");
+      clear(detail).append(loadError(error, () => open(c, t)));
     }
   };
 
