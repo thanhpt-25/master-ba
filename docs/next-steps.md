@@ -1,120 +1,202 @@
-# Next steps: hardening and local RAG
+# Next steps: from a working system to production
 
-Status: proposal v0.2 (2026-10-31). v0.2 records the owner's answers on embeddings, vector store, source storage, file types, reviser scope and containers (12.5). Nothing here is implemented. Each phase below still follows the repo's spec-driven process: a `specs/NN-*.md` is written and approved before any code.
+Status: proposal v0.3 (2026-11-10). Nothing here is implemented. Each phase below follows the repo's spec-driven process: a `specs/NN-*.md` is written and approved before any code. The previous plan (Phases 11 and 12) is implemented and kept in [archive/next-steps-phases-11-12.md](archive/next-steps-phases-11-12.md).
 
-Phases 0 to 9 are done and Phase 10 is a backlog spec. This plan adds two phases:
+Spec numbers continue at 16. The number 14 is taken by work on the unmerged branch `claude/bd-architecture-team-process-7690de` (patch revisions for the design-test loop, a DR that starts a stage that has not run yet); decision O4 below settles what happens to it.
 
-- Phase 11 fixes what the live runs and the Phase 9 review exposed, and makes the project easier to install, run and keep green.
-- Phase 12 lets the agents read a local, per-project knowledge base (retrieval-augmented generation that runs entirely on the user's machine), so drafts can rely on customer documents, glossaries and company standards beyond the intake text.
+## 1. Where the project stands
 
-Phase 11 comes first because Phase 12 changes prompts and gates. Without the QA and resume fixes, a regression caused by retrieval would be hard to tell apart from the existing flakiness.
+The idea in [concept-design.md](concept-design.md) is built end to end: intake to BRD, SRS, Basic Design with IT and ST tests, and Detail Design with UT tests, each written by a writer, a tester where needed and a QA reviewer; deterministic gates; Excel rendering from JSON; a trace graph; Decision Records with impact analysis and propagation; customer questions; phase review gates; a local knowledge base; template calibration; a dashboard with three roles; containers and CI. The suite has about 680 tests at over 95% coverage.
 
-## Phase 11: hardening (`specs/11-hardening.md`)
+The evidence that the documents are good enough to hand to a customer is thin:
 
-### 11.1 Findings this phase answers
-
-| Finding | Where it was recorded | Effect today |
+| Evidence | What it shows | Where recorded |
 |---|---|---|
-| The basic design stage never reached `done` on the free gateway models | spec 05 section 9 | Phases 5 and 6 have no successful live run |
-| A QA issue marked blocking can say the draft is acceptable | Phase 4 and 5 live runs | The loop spends rounds on issues that are not issues |
-| An escalated run cannot resume from its last draft | specs 04 and 05 | A long run that stops at round N must start again from round 1 |
-| No continuous integration | repo has no `.github/` | Nothing checks a push; the full suite takes about 5.5 minutes locally |
-| `masterba` is not on `PATH` after `uv sync` | user report | The first command a new user types fails |
-| Empty `backend/` and `mcp-configs/` folders from the Phase 0 scaffold; the constitution still names React/Next.js although spec 08 chose plain ES modules | repo, spec 00 | Readers are misled about the layout |
-| Dashboard jobs live in memory | spec 08 | A server restart loses the job list and its logs |
-| UAT has a template but no generating agent | spec 02, README | The top left of the V has no test document |
+| One full live run, `timesheet_ja.md` (77 lines), `kr/claude-opus-5.5`, 2026-11-03 | every stage can reach `done` with a strong model; 421,345 tokens; 20 customer questions | spec 11 section 10.3 |
+| That run predates the review gates | the gated flow (approve, reject, revision run) has not run live | spec 15 |
+| Basic Design on weaker gateway models | never reached `done` in 10+ runs; the tester oscillates between gate errors; the spec 14 branch scored 0 of 3 | spec 05 section 9, spec 11 section 11 item 7 |
+| Template calibration | verified on synthetic samples only | spec 09 section 10 |
+| Nobody outside the project has used it | no real intake, no real company template, no SIer reviewer has scored a document | |
 
-### 11.2 Work items
+In short, the machinery is proven and the product is not. Production readiness here means proving and fixing the product, then making it safe to run for a team.
 
-1. QA signal consistency. Add a deterministic check after each QA call: an issue whose severity is blocking must name an item id and a checklist rule, and its message must not contain the checklist's "acceptable" phrases. A contradictory issue is downgraded to advisory and recorded in the run's mailbox, so the record shows what was changed. Add a regression test built from the transcript of the live run that showed the problem.
-2. Convergence on weaker models. Three changes, each measured separately on the recorded basic design run: tighten the designer and tester prompts with the questions QA asked most often, let the project config set a per-stage round limit, and allow QA to accept a draft whose only remaining issues are open customer questions. Success is a recorded live `done` for `run basic` and `run detail` with a named model.
-3. Resume after escalation. Store the last validated draft and the open QA issues in the run workspace. `masterba run <stage> --resume RUN-####` starts the next round from that draft instead of from nothing. The run keeps its id and the summary records the resume. No business data is written until the run is done, as now.
-4. CI. A GitHub Actions workflow running `ruff`, `mypy --strict` and `pytest` on push and pull request. Split the suite with a `slow` marker (the session-built demo chain and the API flows) so a quick job runs in under a minute and the full job runs on `main`.
-5. Install and onboarding. Document `uv run masterba ...` and `uv tool install --editable .` in the README, and add `masterba doctor`, which checks git, the root layout, the template files and whether a model key is set, and prints what to fix.
-6. Clean-up. Remove the empty scaffold folders or give them a README saying what will live there, and amend spec 00 (in Vietnamese, as that file is) to record the plain ES module frontend decision from spec 08.
-7. Persistent jobs. Write each dashboard job's state and log lines to `.masterba/jobs/<project>/<job>.json`, so a restart shows past jobs and marks interrupted ones as `interrupted`. Still one job per project, with no queue.
-8. UAT generation (optional here; it may move to its own phase). A `run uat` stage from the BRD, reusing `run_design_test_team` with the BRD as the design side, and a `uat.toml` checklist. Only if the owner wants the full V before Phase 12.
-9. Containers (owner decision: Docker Compose for every component). One image built from `pyproject.toml` and `uv.lock` (multi-stage: `uv sync --frozen` in a builder, a slim Python 3.11 runtime with git, running as a non-root user). One Compose service `masterba` runs `masterba serve --host 0.0.0.0` and the CLI runs as `docker compose run --rm masterba <command>`, so both use the same code and the same data. The work tree (`projects/`, `templates/`, `.masterba/`) is a bind mount or named volume, because the store must stay a git repository the user can inspect; git author name and email come from environment variables. Model keys come from an env file that is gitignored, never from the image. A health check calls a new unauthenticated `GET /api/health`. The CI job builds the image and runs the quick test job inside it.
+## 2. What "production ready" means for MasterBA
 
-### 11.3 Acceptance criteria
+A SIer delivery team uses MasterBA on a real engagement (the customer's own intake, the company's own templates, the model the company has a contract for) from intake to approved Detail Design and test specifications. The workbooks go to the customer after the usual human review and edits. Concretely, all of these hold:
 
-- The QA consistency check has unit tests and one transcript-based regression test.
-- Live `run basic` and `run detail` reach `done` with a named model, recorded in the spec with token counts.
-- `--resume` continues a recorded escalated run and finishes it with the fake model in tests.
-- CI is green on `main`, and the quick job takes under a minute.
-- On a fresh clone, `uv sync` followed by `uv run masterba doctor` reports a clean setup.
-- `docker compose up` serves the dashboard; `docker compose run --rm masterba init-project ...` and a stage run with the fake model write commits that are visible in the mounted work tree; the container runs as a non-root user and no key is present in the image (`docker history` and the image filesystem are checked in CI).
+1. **Quality is measured.** On a fixed benchmark (Phase 16), an SIer reviewer scores each document with a written rubric, and the scores meet a threshold the owner sets. A prompt or model change is judged against the same benchmark.
+2. **Runs are reliable.** With the production model, each stage reaches `done` within its round limit in at least 4 of 5 runs per benchmark intake, including a large intake (300+ requirements). No run loses work: an escalated or interrupted run resumes.
+3. **The workbooks fit.** They match the company template, show Japanese labels, carry a filled cover sheet (表紙) and revision history (改訂履歴), and no sheet says "pending".
+4. **It operates like a service.** It installs from a runbook on the company's server behind TLS, has backups with a tested restore, upgrades without losing project data, and shows logs, job metrics and cost.
+5. **Data handling is stated and controllable.** Which provider receives which text is configurable and documented, transcripts have a retention rule, and every decision has an audit trail.
 
-## Phase 12: local RAG (`specs/12-local-rag.md`)
+## 3. Gaps found in this review
 
-### 12.1 Goal
+### A. Document quality and fit (the product)
 
-Agents today see only the intake text and the upstream document. Real projects come with more: earlier specifications, interface lists, business glossaries, the customer's naming standards, meeting notes and the SIer's own design standards. Phase 12 indexes such files per project and gives the writers and the QA reviewer the passages relevant to each item, with citations a gate can check.
+| # | Gap | Source |
+|---|---|---|
+| A1 | No quality benchmark. One full live run exists; there is no way to tell whether a prompt or model change makes documents better or worse. `scripts/qa_issue_stats.py` counts QA rules but does not score documents. | spec 11 section 10.3 |
+| A2 | No real company template has been calibrated. Real samples usually need merged data cells, multi-row headers or several tables per sheet, which the renderer lacks. | spec 02 open point 3, spec 09 open point 1 |
+| A3 | Workbooks show English enum values (`functional`, `draft`) in Japanese documents; only the `scope` value map exists. | spec 11 open point 6 |
+| A4 | The default templates have no 表紙 (cover, with author, approver, version, date) and no 改訂履歴 (revision history), which every Japanese SIer document carries. The data exists: document versions, reviews (`REV-####`) and DRs. | `rendering/catalog.py` |
+| A5 | Sheets with no payload source say "pending": 背景・目的, 制約事項, システム概要, 結合テスト観点; diagrams say 別途添付. The payload has no document-level sections. | spec 02 open point 1, spec 03 open point 4 |
+| A6 | Matrices a reviewer expects are not derived: CRUD (function by table), screen transition, the RTM as a workbook. They can be computed from items and links without a model. | concept-design section 8 |
+| A7 | Exclusions of test documents live in the JSON only; no 除外項目 sheet. | spec 05 open point 1, spec 09 open point 3 |
+| A8 | No UAT stage: the template exists, nothing generates it, so the top of the V's right side is empty. | archived plan 11.2 item 8 |
 
-Local means the documents, the index and the embedding model stay on the user's machine. Only the passages chosen for a prompt go to the language model, the same way the intake text does today. A fully offline setup, with a local model behind an Anthropic-compatible gateway, already works through `ANTHROPIC_BASE_URL` and needs no change here.
+### B. Agent runs: reliability and scale
 
-### 12.2 Design
+| # | Gap | Source |
+|---|---|---|
+| B1 | Convergence of the design-test loop depends on a strong model. The tester rewrites its whole list each round and swaps one gate error for another; TS-01 (a test asserting an outcome the upstream leaves open) was the main reason for escalation on the spec 14 branch. | spec 11 open point 7, spec 14 branch |
+| B2 | Scale. 67 SRS items made a 61 KB tester prompt that timed out at 180 s and needed 900 to 1800 s. Real systems have hundreds of requirements; the writers, the tester and the DR reviser all receive whole documents. | spec 11 section 10.3, spec 07 open point 2 |
+| B3 | Attempts whose answer does not fit the schema are recorded as 0 tokens, so cost is under-reported. | spec 12 section 21 |
+| B4 | The supported models are not stated. Prompts were tuned on one strong model through a gateway. | spec 11 section 10.3 |
+| B5 | A person can change a document only through a DR, and propagation always calls the model reviser. A typo fix costs a model call and may change more than intended. | `change/propagate.py` |
 
-```
-projects/PRJ-001/knowledge/
-  sources/               files added by the user (md, txt, docx, xlsx, pdf); gitignored
-  manifest.json          source id, file name, sha256, added by, added at; committed
-  index/                 chunks, LanceDB vectors, FTS5 keyword index; gitignored, rebuildable
-```
+### C. Operations
 
-- Sources and manifest. `masterba kb add --project PRJ-001 FILE...` copies files into `sources/` and records them in `manifest.json`, one commit of the manifest per action like every other store change. Each source gets an id `KB-####` and each chunk a ref `KB-#####chunk.<n>`, following the existing item-ref style.
-- Extraction. Plain text and Markdown as they are; `.xlsx` with openpyxl (one chunk per block of rows, sheet name kept); `.docx` and `.pdf` through small extractors chosen in the spec. Chunks follow headings and paragraphs, a few hundred characters each, with the heading path kept as context.
-- Retrieval. Hybrid search: a keyword index (SQLite FTS5 with character bigrams, so Japanese text without spaces still matches) plus vector search over local embeddings, merged by reciprocal rank fusion. Keyword search catches exact terms such as screen names and ids, which embeddings often miss.
-- Embeddings. A multilingual model that handles Japanese well, run locally through `sentence-transformers` (decision 12.5.1). The spec picks between `bge-m3` and `multilingual-e5` on the evaluation set. Vectors are stored in LanceDB (decision 12.5.2), which keeps the index in files and needs no server.
-- A `Retriever` protocol (`search(query, k, filters) -> list[Passage]`), mirroring the `LLM` protocol, with a `FakeRetriever` for tests. Every automated test keeps running offline and without the embedding model.
-- Prompt use. Passages go into the prompt between `<reference>` tags with their refs, marked as data and never as instructions, like the intake text. The writer may cite `KB-#####chunk.<n>` in `source_ref`.
-- Citation gate. The deterministic gate that already checks intake citations also checks KB citations: the ref exists in this project's manifest, and a quoted span is a substring of that chunk. A wrong citation goes back to the writer, as today.
-- QA. The reviewer receives the same passages and a checklist rule: a statement that contradicts a cited passage is a blocking issue.
-- Traceability. KB sources become trace nodes (kind `knowledge`) linked to the items that cite them, so impact analysis can answer "which requirements depend on this glossary entry". Replacing a source creates a DR proposal listing the citing items, through the existing `dr new` path.
-- Dashboard. A Knowledge tab with upload, a list with status (indexed, failed, stale) and a search box showing ranked passages with their refs. Admins and approvers may add sources; viewers may search.
+| # | Gap | Source |
+|---|---|---|
+| C1 | The dashboard binds to 127.0.0.1 with no TLS; there is no documented reverse proxy setup, so it cannot be shared with a team safely. | architecture 6.7 |
+| C2 | All state is one git work tree on one disk. Nothing pushes it to a remote, there is no restore drill, and checkpoints stay on one machine. | spec 08 open point 3, spec 11 open point 1 |
+| C3 | Stage runs execute in a thread of the web process; a restart interrupts them (they can resume, but a person has to notice). | architecture 6.3 |
+| C4 | No structured logs, no metrics, no alerting. A job keeps its last 200 log lines. | `api/jobs.py` |
+| C5 | No release process: no version policy or changelog, the image is not published, and there is no migration path when `project.json` or a payload model changes beyond adding a defaulted field. | spec 11 open point 3 |
+| C6 | Accounts are local and managed only from the CLI; no SSO, no password reset in the dashboard. The concept deferred SSO on purpose. | concept-design 13.2 |
+| C7 | No dependency audit or SBOM in CI. | `.github/workflows/ci.yml` |
 
-### 12.3 Security and privacy
+### D. Cost and data governance
 
-- Sources may be confidential, so `sources/` and the index are gitignored (decision 12.5.3); only the manifest of hashes is committed.
-- Uploads follow the intake and calibration rules: an allow-list of file types, a size limit per file, no macros, no external links followed, archives refused.
-- Retrieved text is untrusted. It is wrapped and labeled as data, and the prompts already tell agents to ignore instructions inside data. A test feeds a passage containing an injected instruction and checks that the draft ignores it.
-- Indexing needs no network access beyond downloading the embedding model once, which `masterba kb setup` does explicitly.
+| # | Gap | Source |
+|---|---|---|
+| D1 | Cost is tokens per run only. There is no price table, no total per project and no budget across runs (one full chain cost 421k tokens before review revisions). | spec 11 section 10.3 |
+| D2 | Intake text, design content and knowledge passages go to whatever endpoint `ANTHROPIC_BASE_URL` names. Japanese enterprise customers often require a contracted provider or data residency; the options and what is sent are not documented. | architecture 6.2 |
+| D3 | `transcripts/` keep full prompts and answers on disk with no retention rule. | spec 04 decision 6 |
 
-### 12.4 Acceptance criteria
+### E. Use by a BA team
 
-- `kb add`, `kb list`, `kb remove`, `kb search` and `kb reindex` work from the CLI with one commit per stored change, and the index rebuilds from the sources alone.
-- Retrieval quality is measured on a small Japanese and English test set committed with the spec (questions with their expected chunk). Recall at 5 is reported for keyword only, vector only and hybrid, and hybrid is not worse than either.
-- A stage run with the fake model and a fake retriever cites a KB chunk, and the gate rejects a fabricated ref and a quote that is not in the chunk.
-- One live BRD and SRS run on a demo project with a glossary source cites at least one glossary entry correctly, recorded in the spec.
-- Replacing a cited source proposes a DR listing the citing items.
-- All existing tests pass without the embedding model installed; it is an optional extra (`uv sync --extra rag`).
+| # | Gap | Source |
+|---|---|---|
+| E1 | The intake upload accepts `.txt` and `.md` only, while customers send `.docx`, `.pdf`, `.xlsx` and mail. The knowledge base already has extractors for these. | spec 03 open point 2, spec 08 open point 4 |
+| E2 | A real engagement often starts mid-way, with a BRD or SRS already written in Excel. There is no import into the JSON store. | |
+| E3 | The dashboard is in English (`lang="en"`); the users are Japanese SIer staff. | `frontend/index.html` |
+| E4 | Customer questions cannot be added by hand or exported for the customer meeting, and nobody is notified when a run raises them. | spec 13 open points 2 and 3 |
 
-### 12.5 Decisions (taken 2026-10-31 by the owner)
+## 4. Phases
 
-1. Embeddings run with `sentence-transformers` inside the Python process. No separate embedding service.
-2. Vectors are stored in LanceDB, under `knowledge/index/`. The keyword index stays in SQLite FTS5 next to it.
-3. Knowledge sources stay local and are never committed. `sources/` is gitignored; `manifest.json` is committed and holds only the source id, file name, sha256, who added it and when. A clone without the sources shows them as missing, and `kb reindex` refuses until they are put back.
-4. The first round supports md, txt, xlsx, docx and pdf. PDF means the text layer only; scanned PDFs (OCR) are out of scope and reported as "no text found".
-5. Retrieval feeds only the generating stages (BRD, SRS, basic design, detail design) at first. The DR reviser gets it later, once the evaluation set shows retrieval helps.
-6. All components run in containers with Docker Compose (see 11.2 item 9 and 12.6).
+Each phase has its own spec. Phase 16 comes first because every later change is judged by it.
 
-### 12.6 Containers for RAG
+### Phase 16: quality benchmark (`specs/16-quality-benchmark.md`)
 
-The Phase 11 image gains the `rag` extra as a build argument (`--build-arg EXTRAS=rag`), so the default image stays small. The embedding model is downloaded once by `masterba kb setup` into a named volume (`model-cache`, mounted as the Hugging Face cache), never baked into the image and never fetched at request time. The LanceDB and FTS index live in the project volume with the sources, so they persist across container restarts and rebuild from the sources if deleted.
+Answers A1, B3, B4.
 
-## Order and size
+1. A benchmark set under `benchmarks/`: four intakes of different size and language (the existing `timesheet_ja.md` and `hrm_employee_ja.txt`, one English intake, and one large Japanese intake of 300+ requirements), plus one real anonymised intake as soon as the pilot partner provides one. Each comes with the review decisions a person would take at each gate, so the gated flow runs unattended.
+2. `scripts/benchmark.py` runs the chain N times per intake on a named model and writes one record per run: result per stage, rounds, resumes, gate errors and QA rules by count, tokens (fixing B3), duration and cost.
+3. A scoring rubric per document type (completeness against upstream, correctness, testability, Japanese business style, fit to IPA structure), scored 1 to 5 by an SIer reviewer through a small form, stored next to the run records. A model may pre-score, but the threshold applies to human scores.
+4. A supported-models table in the README, filled from benchmark results: which models are supported for which role.
+
+Acceptance: a baseline report for the current `main` on the production model, with done-rate, tokens and human scores, committed under `benchmarks/results/`.
+
+### Phase 17: convergence and scale (`specs/17-convergence-and-scale.md`)
+
+Answers B1, B2, and decision O4 on the spec 14 branch. Every change is measured on the Phase 16 benchmark against the baseline.
+
+1. Chunked generation. Writers, the tester and the reviser work on one slice at a time (by item kind or by feature group from the BRD), with the slice's upstream items and the titles of the other slices' items for context. Gates run per slice and once over the whole document (coverage, unique titles, links). Ids stay stable because only code assigns them.
+2. Incremental test revision. The tester returns changes to its case list (add, update, remove, the `RevisionPatch` shape spec 07 already has) instead of a whole new list, so fixing one gate error cannot break another item. Take what the spec 14 branch proved useful; drop the rest.
+3. TS-01. The tester receives the open questions of its upstream items explicitly and must write either a case for the stated part or an exclusion naming the open fact; the gate checks that an expected result does not assert the subject of an open question.
+4. Request limits per stage from the measured prompt sizes instead of one global timeout.
+
+Acceptance: on the production model, every benchmark intake, the large one included, reaches `done` in at least 4 of 5 runs per stage, and no stage needs a timeout above 600 s.
+
+### Phase 18: deliverable fit (`specs/18-deliverable-fit.md`)
+
+Answers A2 to A7, B5, E1, E3. Can run in parallel with Phase 17; it does not touch the loops.
+
+1. Japanese value maps for every enum in the default templates (A3).
+2. 表紙 and 改訂履歴 sheets in every default template, filled by code from the document, its versions, reviews and DRs (A4). The calibration heuristic learns to map these sheets in company samples.
+3. Document-level sections in the payloads (背景・目的, 制約事項, システム概要, 結合テスト観点), written by the stage writer from upstream material and checked by the citation gate like items (A5). A spec 01 amendment, in its own commit.
+4. Derived sheets with no model: CRUD matrix, screen list with transitions where design items name them, RTM workbook, 除外項目 (A6, A7). Diagrams: decision O8.
+5. Renderer support for merged data cells, multi-row headers and several tables per sheet, built against the first real company sample; then that sample calibrated, previewed and confirmed (A2).
+6. Direct edits: a DR whose patch a person writes in the dashboard (one item, one field), checked by the same gate, versioned and reviewed like a model revision, with no model call (B5).
+7. Intake upload of `.docx`, `.pdf`, `.xlsx` and `.eml`, reusing `knowledge/extract/` to produce numbered text; the stored intake is that text, so citations keep working (E1).
+8. Dashboard in Japanese with English as an option: strings moved to one catalog per language, chosen per user (E3).
+
+Acceptance: an SIer reviewer compares the workbooks of one benchmark intake, rendered into the pilot company's confirmed templates, with that company's own documents and records which differences remain; no default sheet shows a pending note.
+
+### Phase 19: operations (`specs/19-operations.md`)
+
+Answers C1 to C5 and C7.
+
+1. Deployment recipe: Compose with a reverse proxy (Caddy) terminating TLS, the app published only to the proxy, secure cookies, and the security headers kept (C1).
+2. Backups: after each business commit, or on a schedule, the work tree is pushed to a configured git remote; `masterba backup check` verifies the remote is current. A restore drill (clone, `doctor`, resume an interrupted run) is part of the runbook and of CI on a sample project (C2).
+3. A worker process: stage runs and propagations move out of the web process into a `masterba worker` service that takes jobs from `.masterba/jobs/`; the web process only submits and reads. Still one job per project and one writer per work tree (C3, decision O6).
+4. Structured JSON logs with the job id and run id on every line, and a `/api/metrics` endpoint (jobs by status, run durations, tokens and cost per project) (C4).
+5. Releases: semantic versions, a changelog, the image published to a registry by digest, and a `schema_version` in `project.json` with `masterba migrate` for changes that are not additive (C5).
+6. CI: `pip-audit`, an SBOM of the image, and image scanning (C7).
+7. A runbook: install, first admin, upgrade, restore, rotate the session secret and the model key, read logs, resume interrupted runs.
+
+Acceptance: a person who has not worked on the project installs it on a fresh server from the runbook, serves it over TLS, runs the benchmark chain, restores the project from the remote onto a second machine, and resumes an interrupted run there.
+
+### Phase 20: cost and data governance (`specs/20-governance.md`)
+
+Answers D1 to D3, C6, E4.
+
+1. A price table per model in the server configuration; cost per call, run, stage and project in the run records and the dashboard; a project budget with a warning level and a hard stop that escalates the run like any other limit (D1).
+2. Provider profiles: the Anthropic API, Claude on AWS Bedrock and on Google Vertex AI (both have Japanese regions), and an Anthropic-compatible gateway. The `LLM` protocol stays; each profile is one class. A data-handling section in the README states what text leaves the server at each stage (D2, decision O1).
+3. Optional masking of personal data in the intake (names, mail addresses, phone numbers) before it reaches a prompt, with the mapping kept locally so the stored documents show the real values (decision O9).
+4. Transcript retention: a configured age after which `transcripts/` of finished runs are deleted; checkpoints of escalated runs are kept until the run is resumed or closed (D3).
+5. Sign-in through OIDC (Entra ID, Google Workspace, Keycloak) mapped to the three roles, local accounts kept for small installs (C6, decision O7).
+6. Customer questions: add by hand, export the open ones as an Excel 質問管理表 for the customer meeting, and notify approvers by mail or a webhook when a run raises questions or ends (E4).
+
+Acceptance: a benchmark run on the provider chosen in O1 shows its cost per stage in the dashboard and stops at a hard budget, and a person signs in through OIDC.
+
+### Phase 21: pilot on a real engagement
+
+Not a spec but a review record (`docs/pilot-001.md`). A partner SIer team runs one real engagement, or replays a finished past one, through MasterBA with its own templates and model, while delivering the usual way in parallel. Recorded: effort with and without MasterBA per document, the reviewer's rubric scores, every edit the team had to make after generation, the questions MasterBA raised against the questions the customer actually had to answer, and incidents. The edits become benchmark cases and the next round of prompt and checklist work.
+
+Production ready is declared when the pilot meets the criteria of section 2 and the owner accepts the record.
+
+### After the pilot
+
+- UAT stage (A8): `run uat` from the BRD, reusing `run_design_test_team` with the BRD as the design side and a `uat.toml` checklist; links `verifies`. Size M. It moves before the pilot if the pilot partner needs it (decision O5).
+- Import of existing workbooks (E2): the calibration mapping read in reverse, each row becoming an item with a stable id and a `derives_from` link to the imported file. Size M.
+- Phase 10 (code generation), as in [../specs/10-dev-extension.md](../specs/10-dev-extension.md), only when a pilot asks for it.
+
+## 5. Order and size
 
 | Step | Size | Depends on |
 |---|---|---|
-| 11.2 items 1 to 3: QA check, convergence, resume | M | live model access |
-| 11.2 items 4 to 7: CI, onboarding, clean-up, persistent jobs | S each | nothing |
-| 11.2 item 8: UAT stage | M | the owner's choice |
-| 11.2 item 9: Docker image and Compose | S | item 4 (CI builds the image) |
-| Spec 12, with the decisions in 12.5 | S | Phase 11 QA and resume items |
-| Phase 12 store, extraction, keyword index | M | spec 12 |
-| Phase 12 embeddings, hybrid retrieval, evaluation set | M | spec 12 |
-| Phase 12 RAG image variant and model cache volume | S | item 9 and the embeddings row |
-| Phase 12 prompt, gate, QA and trace integration | M | the two rows above |
-| Phase 12 dashboard Knowledge tab | S | the store |
+| Owner decisions O1 to O4 | S | nothing; blocks the Phase 16 baseline and Phase 17 |
+| Phase 16: benchmark set, runner, rubric, baseline | M | O1, O2 |
+| Phase 17: convergence and scale | L | Phase 16 baseline, O4 |
+| Phase 18 items 1 to 4 and 6 to 8 (labels, cover, sections, derived sheets, edits, intake formats, Japanese UI) | M | nothing; in parallel with Phase 17 |
+| Phase 18 item 5 (renderer features, first real template) | M | O3 (a real sample) |
+| Phase 19: operations | M | nothing; in parallel with Phases 17 and 18 |
+| Phase 20: governance | M | O1, Phase 19 item 4 (metrics) |
+| Phase 21: pilot | L (calendar time) | Phases 16 to 20, O3 |
 
-CI, onboarding and clean-up depend on nothing else. They can start at once, alongside the spec for Phase 12.
+Phase 18 items that need no real sample, and all of Phase 19, can start at once, alongside the Phase 16 spec.
+
+## 6. Decisions for the owner
+
+| # | Decision | Why it matters |
+|---|---|---|
+| O1 | The production model(s) and provider, and whether data must stay in Japan | fixes the benchmark model, Phase 17 tuning and the Phase 20 provider profiles |
+| O2 | Who scores the benchmark (an SIer reviewer), and the threshold score | without a human score, "good enough" stays undefined |
+| O3 | The pilot partner, one real anonymised intake and one real company template | the critical path; A2 and the pilot cannot start without them |
+| O4 | The spec 14 branch: merge parts into Phase 17, or close it | it holds 12 commits of convergence work and is 80 commits behind `main` |
+| O5 | UAT in the first production release or after it | completes the V; size M |
+| O6 | A separate worker process (Phase 19 item 3), or runs kept in the web process for small installs | operational simplicity against robustness |
+| O7 | OIDC in the first release, or local accounts only | depends on the pilot partner's IT rules |
+| O8 | Diagrams: generate Mermaid diagrams rendered as images in the workbook, or keep "attached separately" | Japanese reviewers expect 構成図, 業務フロー図 and ER図; generated diagrams are a new kind of output to check |
+| O9 | Masking of personal data in intakes: required, optional, or not needed | depends on O1 and the customers' contracts |
+| O10 | Hosting: one installation per SIer company on its own server, or a shared service for several companies | a shared service needs tenant isolation, which the single-work-tree design does not have |
+
+## 7. Risks
+
+- **The benchmark shows the documents are not good enough.** That is the purpose of Phase 16; it is cheaper to learn before the pilot than during it. Phases 17 and 18 are sized for prompt, checklist and structure changes, not a redesign.
+- **The production model differs from the one the prompts were tuned on.** Phase 16 records results per model; the supported-models table lists only what was measured.
+- **No real template or intake arrives.** Phase 18 item 5 and the pilot wait; everything else proceeds. The synthetic benchmark keeps the work honest but cannot replace O3.
+- **Chunked generation breaks consistency across items.** The whole-document gate and QA pass stay, and the benchmark scores catch regressions.

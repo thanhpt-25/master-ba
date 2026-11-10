@@ -2,6 +2,8 @@
 
 Status: DRAFT v0.1 (2026-10-31). Đi cùng [concept-design.md](concept-design.md) (v0.3 — kiến trúc/what); tài liệu này trả lời **implement theo thứ tự nào, mỗi phase làm gì, khi nào coi là xong**.
 
+> Cập nhật 2026-11-10: các phase 0–9, 11–13 và 15 trong roadmap này đã xong. Kế hoạch tiếp theo (đưa hệ thống lên mức production, phase 16–21) nằm ở [next-steps.md](next-steps.md).
+
 ## 0. Quy trình SDD áp dụng cho MỌI phase (không lặp lại ở từng phase)
 
 Mỗi phase bên dưới đi qua đúng 5 bước, theo thứ tự, không bỏ bước:
