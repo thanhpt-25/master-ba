@@ -87,7 +87,20 @@ def open_project(root: Path, project_id: str) -> ProjectStore:
 
 
 def get_config(store: ProjectStore) -> ProjectConfig:
-    return ProjectConfig.model_validate(_read_json(store.path / "project.json"))
+    data = _read_json(store.path / "project.json")
+    # Project files from before the budget field existed remain unlimited until an admin edits
+    # their settings. New ProjectConfig instances default to the hard cap.
+    data.setdefault("team_token_budget", None)
+    return ProjectConfig.model_validate(data)
+
+
+def set_config(store: ProjectStore, config: ProjectConfig) -> None:
+    """Persist a validated project configuration change as an auditable commit."""
+    if config.project_id != store.project_id:
+        raise ValueError("project id cannot be changed")
+    path = store.path / "project.json"
+    _write_json(path, _data(config))
+    _commit(store, [path], f"project({store.project_id}): update settings")
 
 
 def normalize_text(text: str) -> str:

@@ -83,6 +83,8 @@ class Team:
     upstream: dict[str, int] = field(default_factory=dict)
     resumed: int = 0
     carried_tasks: int = 0
+    waiting_for_input: bool = False
+    budget_warning_emitted: bool = False
     blocking_seen: dict[str, set[tuple[str, str | None]]] = field(default_factory=dict)
     question_sources: dict[str, list[QuestionDraft]] = field(default_factory=dict)
     facts: Callable[[], str] = lambda: ""  # the confirmed block for model calls (spec 13 section 5)
@@ -123,9 +125,12 @@ class Team:
         summary = TeamRun.model_validate(_load(run_dir / "team-summary.json"))
         if summary.stage is not stage:
             raise ResumeError(f"run {run_id} belongs to the {summary.stage.value} stage")
-        if summary.status is not TeamRunStatus.ESCALATED:
+        if summary.status not in {
+            TeamRunStatus.ESCALATED,
+            TeamRunStatus.WAITING_FOR_INPUT,
+        }:
             raise ResumeError(
-                f"run {run_id} ended {summary.status.value}; only escalated runs resume"
+                f"run {run_id} ended {summary.status.value}; only stopped runs resume"
             )
         if not (run_dir / CHECKPOINT).is_file():
             # No draft ever passed the gate, so there is nothing to continue from.
@@ -153,6 +158,9 @@ class Team:
             upstream=dict(checkpoint.upstream),
             resumed=summary.resumed + 1,
             carried_tasks=len(tasks),
+            budget_warning_emitted=(
+                token_budget is not None and checkpoint.tokens_used >= token_budget * 0.8
+            ),
             blocking_seen={a: set(pairs) for a, pairs in checkpoint.blocking_seen.items()},
             kb_seen_refs={r: set(refs) for r, refs in checkpoint.kb_seen_refs.items()},
         )
@@ -218,6 +226,13 @@ class Team:
 
     def charge(self, tokens: int) -> None:
         self.tokens_used += tokens
+        if (
+            not self.budget_warning_emitted
+            and self.token_budget is not None
+            and self.tokens_used >= self.token_budget * 0.8
+        ):
+            self.budget_warning_emitted = True
+            self.emit(f"token budget warning: {self.tokens_used}/{self.token_budget} tokens used")
 
     def budget_exhausted(self) -> bool:
         return self.token_budget is not None and self.tokens_used >= self.token_budget
@@ -314,7 +329,9 @@ class Team:
 
     def finish(self, status: TeamRunStatus) -> TeamRun:
         """Write summary, tasks and mailbox and commit them as one commit."""
-        if status is TeamRunStatus.ESCALATED:
+        if self.waiting_for_input:
+            status = TeamRunStatus.WAITING_FOR_INPUT
+        if status in {TeamRunStatus.ESCALATED, TeamRunStatus.WAITING_FOR_INPUT}:
             self.tasks = [
                 t.model_copy(update={"status": TaskStatus.BLOCKED}) if t.status in _OPEN else t
                 for t in self.tasks
@@ -339,6 +356,7 @@ class Team:
             issues_resolved=self.issues_resolved,
             escalations=list(self.escalations),
             tokens_used=self.tokens_used,
+            token_budget=self.token_budget,
             customer_questions=list(self.customer_questions),
             resumed=self.resumed,
         )

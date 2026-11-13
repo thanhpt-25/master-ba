@@ -54,6 +54,16 @@ test("workflowSteps surfaces an in-review phase as the current one", () => {
   assert.match(flow.next, /Review the BRD/);
 });
 
+test("workflowSteps calls out a run waiting for customer input", () => {
+  const flow = overview.workflowSteps([
+    { stage: "brd", status: "waiting_for_input", review: "not_started" },
+    { stage: "srs", status: "not_started", review: "not_started" },
+  ], true);
+  assert.equal(flow.steps[0].state, "waiting_for_input");
+  assert.equal(flow.current, "brd");
+  assert.match(flow.next, /Answer or withdraw/);
+});
+
 test("parseHash routes a project section", async () => {
   const app = await import("../app.js");
   const r = app.parseHash("#/p/PRJ-001/documents/DOC-SRS-0001");

@@ -123,17 +123,20 @@ flowchart LR
     V -- errors --> RT["one retry with the errors<br/>MAX_ATTEMPTS = 2"]
     RT --> V
     V -- ok --> CAP["cap_severity<br/>never above the<br/>checklist's severity"]
-    CAP --> NORM["normalise_report<br/>no action_required, or a<br/>customer question: advisory"]
-    NORM --> OUT["QaReport<br/>passed = no blocking issue"]
+    CAP --> NORM["normalise_report<br/>actionable QA verdict"]
+    NORM --> OUT["QaReview<br/>customer blocker tracked separately"]
+    OUT --> WAIT{"customer_question<br/>still blocking after cap?"}
+    WAIT -- yes --> PAUSE["checkpoint and wait<br/>for answer or withdrawal"]
+    WAIT -- no --> LOOP["pass or repair loop"]
 ```
 
 - **The verdict is computed.** `QaReport.passed` is true when no issue is blocking. The model never
   says "pass".
-- **Blocking means "change this".** An issue that names no concrete change in `action_required`, or
-  that only the customer can settle, is downgraded to advisory. Each downgrade is recorded as a
-  mailbox note such as `[TS-05] DOC-TEST_IT-0001#item.2: downgraded (no action required)`. Customer
-  questions are collected into `TeamRun.customer_questions` and end up in the stage's
-  `open_questions`.
+- **Blocking means "change this" or "ask the customer".** An issue with no concrete change in
+  `action_required` is downgraded to advisory. A customer question that remains blocking after
+  checklist severity is applied is also visible as advisory to the report, but is separately
+  recorded as a `qa_blocker`; the run checkpoints and waits for input instead of asking the writer
+  to guess. Other customer questions remain informational. Downgrades are mailbox notes.
 - **Facts the upstream leaves open are not defects.** The QA prompt (rule 6) and the `tests`
   checklist (TS-02, TS-05) tell the reviewer not to demand a case, a check or an exclusion for a
   detail the upstream material does not state, such as the event a deadline is counted from.
@@ -146,21 +149,21 @@ flowchart LR
 
 | File | Content | Committed |
 |---|---|---|
-| `team-summary.json` | status, rounds, issues raised and resolved, tokens, escalations, customer questions, resume count | yes, at the end |
+| `team-summary.json` | status (`done`, `escalated`, `waiting_for_input`), rounds, issues raised and resolved, tokens and budget, escalations, customer questions, resume count | yes, at the end |
 | `team-tasks.json` | the task list: `T-01...`, title, owner, status (todo, in progress, blocked, done), dependencies | yes, at the end |
 | `mailbox.json` | messages: sender, recipient, type (`question`, `answer`, `feedback`, `done`), item reference, round, body | yes, at the end |
 | `transcripts/NNN-round-R-<name>.txt` | every model request and response and every artifact | no (gitignored) |
 | `checkpoint.json` | the last validated drafts, pending feedback, upstream versions, counters | no (gitignored) |
 
-Summary, tasks and mailbox are committed once, by `finish`, as `run(PRJ-001): RUN-0005 done` or
-`escalated`. A run cannot finish as `done` while a task of that attempt is not done; on escalation
-the unfinished tasks are marked `blocked`.
+Summary, tasks and mailbox are committed once, by `finish`, with status `done`, `escalated` or
+`waiting_for_input`. A run cannot finish as `done` while a task of that attempt is not done; stopped
+runs mark unfinished tasks `blocked`.
 
 Each task depends on the one before it, so the task list reads as the order of work: draft, review,
 revise, review. The mailbox is the readable story of a run: each gate error, QA issue, question and
 answer in order.
 
-## 4.6 Escalation
+## 4.6 Stops and escalation
 
 A run escalates when it cannot produce an accepted result. The reasons it records:
 
@@ -168,13 +171,16 @@ A run escalates when it cannot produce an accepted result. The reasons it record
 |---|---|
 | `max rounds reached (N)` | the round limit was hit with blocking issues or gate errors still open |
 | `token budget exhausted (used/budget)` | the optional token budget was reached |
+| `waiting for customer input: ...` | a QA blocker needs an answer or withdrawal; the run is `waiting_for_input` |
+| `no progress: ...` | the same non-empty QA blocker set remained after a targeted repair |
 | `qa output invalid: ...` | QA's report was unusable twice |
 | `model request failed in <role>: ...` | a writer, designer, tester or QA request timed out or failed (`MASTERBA_REQUEST_TIMEOUT`, `MASTERBA_MAX_TOKENS` set the limits) |
 | the last feedback | appended to every reason list, so the open problems are visible |
 
-On escalation the pipeline stores no requirement, document, link or workbook. What remains is the
-run record, the transcripts and the checkpoint. The next step is the owner's: resume the run, raise
-a clarification Decision Record from it, or change the inputs.
+On escalation or while waiting, the pipeline stores no requirement, document, link or workbook.
+What remains is the run record, the transcripts and the checkpoint. The next step is the owner's:
+answer or withdraw blocker questions, resume the run, raise a clarification Decision Record from it,
+or change the inputs.
 
 ## 4.7 Resume
 
@@ -183,8 +189,8 @@ run starts from the last good draft **and** the feedback that was pending, not f
 
 ```mermaid
 flowchart LR
-    ESC["RUN-0003 escalated<br/>checkpoint.json kept"] --> CMD["masterba run basic<br/>--resume RUN-0003 --rounds 3"]
-    CMD --> CHK{"run exists, stage matches,<br/>status escalated,<br/>checkpoint present?"}
+    ESC["RUN-0003 stopped<br/>checkpoint.json kept"] --> CMD["resume RUN-0003"]
+    CMD --> CHK{"run exists, stage matches,<br/>stopped status,<br/>checkpoint present?"}
     CHK -- no --> ERR["ResumeError"]
     CHK -- yes --> UP{"upstream versions<br/>unchanged?"}
     UP -- no --> ERR2["ResumeError:<br/>inputs changed,<br/>start a new run"]
@@ -195,10 +201,11 @@ flowchart LR
 
 Rules of a resume:
 
-- Only an **escalated** run of the **same stage** resumes, and only if the inputs have the same
+- An **escalated** or **waiting_for_input** run of the **same stage** resumes, and only if the inputs have the same
   versions as when it ran (`upstream` in the checkpoint, for example `{"DOC-SRS-0001": 1}`; for the
   BRD, the intake file name). If the SRS changed, the old drafts no longer fit.
-- `--rounds N` adds N rounds to what the run has already used; the default adds the stage limit.
+- `--rounds N` adds N rounds to what the run has already used; dashboard resume defaults to one
+  additional round, while other callers may request more.
 - Tokens, issue counts and the task list carry over. The earlier attempt's open tasks stay
   `blocked`, and the `done` check covers only the new attempt.
 - The summary is rewritten and committed again, with ` (resumed)` at the end of the subject.
@@ -207,7 +214,7 @@ Rules of a resume:
 
 ## 4.8 Questions and confirmed facts
 
-The loops collect what only the customer can settle and give back what the customer decided ([document 7](07-customer-questions.md)). `Team` keeps question drafts by source (the writer's open questions, QA's `customer_question` issues, the tester's unresolved questions) and QA's latest blocking issues. After `finish`, `stage_result` records them in the ledger; an escalated run also records at most 10 of its blocking issues as objections. Every model call of the team, writer or QA, carries the project's confirmed facts as a `<confirmed>` block, added in `RecordingLLM`.
+The loops collect what only the customer can settle and give back what the customer decided ([document 7](07-customer-questions.md)). `Team` keeps question drafts by source (the writer's open questions, QA's `customer_question` issues, the tester's unresolved questions) and QA's latest blocking issues. After `finish`, `stage_result` records them in the ledger; stopped runs also record at most 10 blocking objections. Every model call carries confirmed facts as a `<confirmed>` block. New projects default to 100,000 tokens per run; usage and budget are stored in the run summary and usage carries over on resume.
 
 ## 4.9 Why it is built this way
 

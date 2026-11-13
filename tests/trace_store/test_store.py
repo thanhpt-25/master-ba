@@ -51,6 +51,17 @@ def test_create_project_writes_config_in_one_commit(
     assert open_project(projects_root, "PRJ-001") == store
 
 
+def test_project_config_without_a_token_budget_keeps_legacy_unlimited_behavior(
+    projects_root: Path,
+) -> None:
+    store = create_project(projects_root, make_config())
+    path = store.path / "project.json"
+    config = json.loads(path.read_text("utf-8"))
+    config.pop("team_token_budget")
+    path.write_text(json.dumps(config), encoding="utf-8")
+    assert get_config(store).team_token_budget is None
+
+
 def test_create_project_twice_fails(projects_root: Path, store: ProjectStore) -> None:
     with pytest.raises(DuplicateIdError):
         create_project(projects_root, make_config())

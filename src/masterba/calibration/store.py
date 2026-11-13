@@ -260,7 +260,9 @@ def list_templates(root: Path, company: str | None = None) -> list[dict[str, str
         if company is not None and folder.name != company:
             continue
         for doc_type in DocType:
-            state = state_of(root, folder.name, doc_type) if COMPANY.match(folder.name) else "none"
+            state = (
+                state_of(root, folder.name, doc_type) if re.match(COMPANY, folder.name) else "none"
+            )
             if state != "none":
                 found.append({"company": folder.name, "doc_type": doc_type.value, "state": state})
     return found

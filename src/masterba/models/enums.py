@@ -88,6 +88,7 @@ class TeamRunStatus(StrEnum):
     RUNNING = "running"
     DONE = "done"
     ESCALATED = "escalated"
+    WAITING_FOR_INPUT = "waiting_for_input"
 
 
 class Scope(StrEnum):

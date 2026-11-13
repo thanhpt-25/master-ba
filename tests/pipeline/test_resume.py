@@ -83,7 +83,7 @@ def test_resume_adds_the_requested_rounds(projects_root: Path) -> None:
     llm = FakeLLM([login_srs_draft(), BLOCKED, login_srs_draft(), BLOCKED])
     result = run_srs(store, TEMPLATES, llm, resume=Resume(run_id, rounds=2))
     assert (result.status, result.rounds) == (TeamRunStatus.ESCALATED, 3)
-    assert result.escalations[0] == "max rounds reached (3)"
+    assert result.escalations[0].startswith("no progress:")
 
 
 def test_resume_refuses_a_run_that_did_not_escalate(projects_root: Path) -> None:

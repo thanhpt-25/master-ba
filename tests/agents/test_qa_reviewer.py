@@ -212,3 +212,5 @@ def test_review_returns_notes_and_customer_questions() -> None:
     assert outcome.report.passed
     assert len(outcome.notes) == 1
     assert len(outcome.customer_questions) == 1
+    assert len(outcome.blocking_questions) == 1
+    assert outcome.blocking_questions[0].origin.value == "qa_blocker"

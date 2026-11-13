@@ -91,7 +91,7 @@ export async function render({ main, api, params, me, toast }) {
     const closed = all.filter((q) => q.status !== "open");
     clear(main).append(
       h("h1", {}, "Questions for the customer"),
-      h("p", { class: "muted" }, `${open.length} open, ${closed.length} closed. Agents record here what only the customer can settle; they do not wait for the answer.`),
+      h("p", { class: "muted" }, `${open.length} open, ${closed.length} closed. A QA blocker pauses its run until you answer or withdraw it; other questions remain informational.`),
       ...(all.length ? [...open, ...closed].map(card) : [empty("No questions yet.")]),
     );
   }

@@ -12,12 +12,14 @@ from masterba.change import rows
 from masterba.change.diffview import diff_versions
 from masterba.diff import Classification
 from masterba.models import payload_items
+from masterba.models.enums import QuestionOrigin, QuestionStatus
 from masterba.trace_store import (
     NotFoundError,
     ProjectStore,
     document_versions,
     get_document,
     latest_documents,
+    list_questions,
 )
 
 router = APIRouter(prefix="/api/projects/{pid}")
@@ -33,8 +35,18 @@ def run_summaries(store: ProjectStore) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for path in sorted(folder.glob("RUN-????/team-summary.json"), reverse=True):
         summary = json.loads(path.read_text("utf-8"))
+        pending = [
+            q
+            for q in list_questions(store)
+            if q.run_id == summary.get("run_id")
+            and q.origin is QuestionOrigin.QA_BLOCKER
+            and q.status is QuestionStatus.OPEN
+        ]
+        summary["waiting_questions"] = [{"id": q.id, "text": q.text} for q in pending]
         summary["resumable"] = (
-            summary.get("status") == "escalated" and (path.parent / "checkpoint.json").is_file()
+            summary.get("status") in {"escalated", "waiting_for_input"}
+            and not pending
+            and (path.parent / "checkpoint.json").is_file()
         )
         out.append(summary)
     return out

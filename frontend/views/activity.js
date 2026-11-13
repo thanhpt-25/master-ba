@@ -6,6 +6,7 @@ function runDetail(data) {
     "section",
     { class: "panel" },
     h("h3", {}, `${summary.run_id} · ${summary.stage} · ${summary.trigger}`),
+    h("p", { class: "muted" }, `Tokens: ${summary.tokens_used ?? 0}${summary.token_budget ? ` / ${summary.token_budget}` : " · no cap"}`),
     summary.escalations.length ? h("ul", {}, summary.escalations.map((e) => h("li", {}, e))) : null,
     h("h4", {}, "Tasks"),
     tasks.length ? table(["Task", "Title", "Owner", "Status"], tasks.map((t) => [h("code", {}, t.id), t.title, t.owner, badge(t.status === "in_progress" ? "running" : t.status === "blocked" ? "escalated" : t.status)]), "Tasks") : empty("No tasks."),
@@ -37,6 +38,7 @@ export async function render({ main, api, params, toast, me, go }) {
       {},
       h("button", { class: "link", onClick: () => show(r.run_id) }, "Open"),
       canRun && r.resumable && RESUMABLE[r.stage] ? h("button", { class: "link", onClick: () => resume(r) }, "Resume") : null,
+      r.waiting_questions?.length ? h("a", { class: "link", href: `#/p/${pid}/questions` }, `Answer ${r.waiting_questions.length} blocker question(s)`) : null,
     );
   const detail = h("div", {});
   const show = async (runId) => {
@@ -67,7 +69,7 @@ export async function render({ main, api, params, toast, me, go }) {
         runs.length
           ? table(
               ["Run", "Stage", "Trigger", "Status", "Rounds", "Issues", "Tokens", ""],
-              runs.map((r) => [h("code", {}, r.run_id), r.stage, r.trigger, badge(r.status), r.rounds, `${r.issues_resolved}/${r.issues_raised}`, r.tokens_used ?? "", actions(r)]),
+              runs.map((r) => [h("code", {}, r.run_id), r.stage, r.trigger, badge(r.status), r.rounds, `${r.issues_resolved}/${r.issues_raised}`, `${r.tokens_used ?? 0}${r.token_budget ? ` / ${r.token_budget}` : " / ∞"}`, actions(r)]),
               "Team runs",
               { dense: true, stickyFirst: true },
             )

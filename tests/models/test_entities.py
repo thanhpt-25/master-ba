@@ -96,6 +96,10 @@ def test_project_config_defaults() -> None:
     assert cfg.team_token_budget is None
 
 
+def test_new_project_config_defaults_to_the_token_cap() -> None:
+    assert ProjectConfig(project_id="PRJ-001", company_id="default").team_token_budget == 100_000
+
+
 def test_project_config_rejects_zero_rounds() -> None:
     with pytest.raises(ValidationError):
         ProjectConfig.model_validate(

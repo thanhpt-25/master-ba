@@ -1,12 +1,12 @@
 # Spec 13 — Customer questions ledger
 
-Status: v0.4 (2026-11-03), approved by the owner; v0.4 adds the open-questions block (section 5.1), from the owner's decision after the 2026-11-03 dry run. v0.3 dropped the unused name option of withdraw (section 4). v0.2 answers a review of v0.1 (13 findings, see section 12). Sources: dry-runs 4 and 5 ([11-hardening.md](11-hardening.md) section 10.3 and section 11), [architecture/04-team-runtime-control-flow.md](../docs/architecture/04-team-runtime-control-flow.md), [architecture/05-change-management-flow.md](../docs/architecture/05-change-management-flow.md), [07-change-management.md](07-change-management.md). The number 12 stays with the local RAG phase in [../docs/archive/next-steps-phases-11-12.md](../docs/archive/next-steps-phases-11-12.md); this spec does not depend on it.
+Status: v0.5 (2026-11-13), approved by the owner; v0.5 implements blocker-aware pauses and early no-progress escalation (spec 16). v0.4 (2026-11-03) added the open-questions block (section 5.1), from the owner's decision after the 2026-11-03 dry run. v0.3 dropped the unused name option of withdraw (section 4). v0.2 answers a review of v0.1 (13 findings, see section 12). Sources: dry-runs 4 and 5 ([11-hardening.md](11-hardening.md) section 10.3 and section 11), [architecture/04-team-runtime-control-flow.md](../docs/architecture/04-team-runtime-control-flow.md), [architecture/05-change-management-flow.md](../docs/architecture/05-change-management-flow.md), [07-change-management.md](07-change-management.md). The number 12 stays with the local RAG phase in [../docs/archive/next-steps-phases-11-12.md](../docs/archive/next-steps-phases-11-12.md); this spec does not depend on it.
 
 This document is written in English (new documents are English; see `CLAUDE.md`).
 
 ## Goal
 
-A point that only the customer or the product owner can settle is written into a project **ledger of questions** as soon as an agent finds it. The run does not wait for it: what is clear goes on, what is unclear is recorded. When a run escalates, the objections that QA still held are recorded too, so a person can settle them instead of the team spending more rounds. When the product owner answers, the answer is finalised as an approved **Decision Record**, and every later run and every propagation uses it as a confirmed fact.
+A point that only the customer or the product owner can settle is written into a project **ledger of questions** as soon as an agent finds it. Ordinary open questions are informational; QA blockers explicitly marked as requiring customer input pause the run after its draft is checkpointed. When a run escalates, the objections that QA still held are recorded too. When the product owner answers, the answer is finalised as an approved **Decision Record**, and every later run and every propagation uses it as a confirmed fact.
 
 The rule, in the owner's words: clear parts keep running; unclear parts go into the Q&A ledger; the answers are fixed as decision records.
 
@@ -15,10 +15,10 @@ What this does and does not change: it gives open points a place to be answered,
 ## Non-goals
 
 - No automatic delivery of questions to the product owner (mail, chat). The ledger is read in the CLI, the API and the dashboard.
-- No waiting state and no new run status. A stage still ends `done` or `escalated` exactly as today, and a later stage may run while questions are open (nothing at the start of a stage reads the ledger).
+- Only QA blockers marked as requiring customer input pause a run. Other open questions do not stop a stage.
 - No answers written by a model. Only a signed-in person (or the CLI `--by`) answers.
 - No threads, comments or editing of a question's text.
-- No change to the loops, the gates or the QA normalisation of [11-hardening.md](11-hardening.md).
+- Existing checklist severity and human review gates remain mandatory; see [16-escalation-efficiency.md](16-escalation-efficiency.md).
 - DR propagation runs ([07-change-management.md](07-change-management.md)) are not covered: the questions their reviewers raise stay in the run record.
 
 ## 1. Problem
@@ -29,10 +29,10 @@ Questions for the customer are produced in four places and only reported:
 |---|---|
 | BRD analyst: `open_questions` with intake lines | printed in `StageResult.open_questions` |
 | SRS writer: `open_questions` with requirement ids | same |
-| QA: an issue with `customer_question` set | downgraded to advisory, collected as a string in `TeamRun.customer_questions` |
+| QA: an issue with `customer_question` set | collected in the question ledger; if it remains blocking after checklist severity is applied, the run pauses for input |
 | Tester: a question about an item the designer already answered | posted to the `customer` mailbox, returned as the string list `unresolved` |
 
-Nothing reads an answer. In dry-run 5 the team collected 13, then 17, then 27 open questions while it looped for 12 rounds and 513,292 tokens, and a person had no place to answer ("is deleting an employee in scope?", "what does the three business days count from?"). The only way to carry a decision into the documents is a `clarification` Decision Record written by hand, and it reaches documents that already exist, not the next run of a stage that escalated.
+Answers are recorded as clarification Decision Records and injected as confirmed facts into later runs. QA blocker questions now pause the current run with its checkpoint intact; answering or withdrawing all such blockers unlocks resume. Other agent questions remain informational and do not pause a run. (The original dry-run 5 accumulated 513,292 tokens across 12 rounds before this workflow existed.)
 
 ## 2. The ledger
 
@@ -57,7 +57,7 @@ A question is one file, `projects/<project_id>/questions/Q-####.json`, in the pr
 
 ## 3. Capturing questions
 
-After `team.finish` of a BRD, SRS, basic design or detail design run (done or escalated), the pipeline records the run's questions: `record_questions(store, run_id, stage, drafts)`. The ledger is written after the run record and changes nothing inside the loop.
+After `team.finish` of a BRD, SRS, basic design or detail design run (done, escalated or waiting for input), the pipeline records the run's questions: `record_questions(store, run_id, stage, drafts)`. The ledger is written after the run record; blocker questions pause through the loop behavior in spec 16.
 
 **Structured drafts.** Today QA and the tester produce strings such as `ref: message`, and the run record keeps them as strings (`TeamRun.customer_questions` does not change, so `team-summary.json` and its schema stay as they are). The runtime gains a second, structured channel: `Team.question_drafts`, a list of `QuestionDraft(origin, refs, text)`. The BRD analyst and SRS writer drafts, `QaReview` (a `question_drafts` field next to its strings) and the design loop's unresolved questions fill it. The strings of `StageResult.open_questions` stay as they are.
 
@@ -189,7 +189,7 @@ Read side by side: the `<confirmed>` block is in the writer's and QA's prompts o
 1. Near-duplicate questions (the same doubt worded differently each round) stay separate; only equal normalised text is merged.
 2. A person cannot add a question by hand yet; the ledger holds only what agents and QA raised.
 3. Notifying the product owner (mail, chat) is not covered.
-4. A run can still loop on a point that neither an agent nor QA marked as unclear, and objections are recorded only when the run escalates. Stopping earlier (a `needs_input` state, or recording an objection that survives two reviews) is left out until the ledger shows how often it would help.
+4. A run can still loop on a point that neither an agent nor QA marked as unclear. QA blocker questions pause immediately; an identical non-empty blocker set after a targeted repair escalates early (spec 16). Detecting issues no agent or QA flags remains out of scope.
 5. A long list of facts will not fit every prompt; choosing the relevant ones belongs with the local RAG phase. The open-questions block is capped at 100 entries for the same reason.
 6. A DR written by hand with `dr new --trigger clarification` becomes a prompt fact as soon as it is approved, which is intended, but a long free-text description is not limited the way an answer is.
 
@@ -198,7 +198,7 @@ Read side by side: the `<confirmed>` block is in the writer's and QA's prompts o
 | # | Finding of the review | Change |
 |---|---|---|
 | 1 | A draft's own item numbers in an escalated run point at nothing, or at another item later | section 3: only stable references are stored |
-| 2 | The ledger does not stop a loop that nobody flagged | Goal made precise; section 3 records QA's objections at escalation; open point 4 |
+| 2 | The ledger does not stop a loop that nobody flagged | QA-marked blockers pause; identical blocker sets after a targeted repair escalate early (spec 16); unflagged issues remain open point 4 |
 | 3 | An override by a new DR never reached the prompts | section 5: facts come from clarification DRs, not from answered questions |
 | 4 | "`reasked` is zero" could not be measured | section 8: compare the new questions of two runs by reading them |
 | 5 | QA and the tester only produce strings | section 3: a structured channel in `Team`; `TeamRun` unchanged |

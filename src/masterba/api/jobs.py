@@ -125,7 +125,11 @@ class JobManager:
         try:
             result = work()
             job.result = result
-            job.status = "escalated" if result.get("status") == "escalated" else "done"
+            job.status = (
+                result.get("status")
+                if result.get("status") in {"escalated", "waiting_for_input"}
+                else "done"
+            )
         except Exception as exc:  # the worker must never die silently; the error is reported
             logger.exception("job %s failed", job.id)
             job.status = "failed"

@@ -20,6 +20,7 @@ from masterba.api.schemas import (
     STAGES,
     CreateProjectBody,
     LoginBody,
+    ProjectBudgetBody,
     RunStageBody,
 )
 from masterba.api.settings import MAX_UPLOAD_CHARS, Settings
@@ -45,6 +46,7 @@ from masterba.trace_store import (
     list_decision_records,
     list_questions,
     list_requirements,
+    set_config,
 )
 from masterba.trace_store.git import ensure_ready
 
@@ -125,6 +127,14 @@ def new_project(request: Request, body: CreateProjectBody) -> dict[str, Any]:
     return _project_json(settings, store)
 
 
+@router.post("/projects/{pid}/settings/token-budget", dependencies=[Admin])
+def update_token_budget(store: Store, body: ProjectBudgetBody) -> dict[str, Any]:
+    current = get_config(store)
+    updated = current.model_copy(update={"team_token_budget": body.team_token_budget})
+    set_config(store, ProjectConfig.model_validate(updated.model_dump()))
+    return get_config(store).model_dump(mode="json")
+
+
 def _stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, Any]:
     docs = []
     for doc_id in STAGE_DOCS[stage]:
@@ -140,8 +150,8 @@ def _stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, A
     last = runs[0] if runs else None
     if running:
         status = "running"
-    elif last is not None and last["status"] == "escalated":
-        status = "escalated"
+    elif last is not None and last["status"] in {"escalated", "waiting_for_input"}:
+        status = last["status"]
     elif len(docs) == len(STAGE_DOCS[stage]):
         status = "done"
     else:
@@ -214,7 +224,11 @@ def _stage_work(settings: Settings, store: ProjectStore, stage: str, body: RunSt
         writer = settings.llm_factory(settings.model)
         qa = settings.llm_factory(settings.qa_model) if settings.qa_model else None
         tester = settings.llm_factory(settings.test_model) if settings.test_model else None
-        resume = Resume(body.resume, body.rounds) if body.resume else None
+        resume = (
+            Resume(body.resume, body.rounds if body.rounds is not None else 1)
+            if body.resume
+            else None
+        )
         if stage == "brd":
             result = run_brd(
                 store,
@@ -242,6 +256,30 @@ def run_stage(request: Request, store: Store, stage: str, body: RunStageBody) ->
     if stage not in STAGES:
         raise HTTPException(status_code=404, detail="no such stage")
     app = state_of(request)
+    runs = [
+        r
+        for r in run_summaries(store)
+        if r["stage"] == STAGE_TYPE[stage] and r["trigger"] == "initial"
+    ]
+    if body.resume:
+        selected = next((r for r in runs if r["run_id"] == body.resume), None)
+        if selected is None or selected["status"] not in {"escalated", "waiting_for_input"}:
+            raise HTTPException(status_code=409, detail="run is not resumable")
+        if selected["waiting_questions"]:
+            ids = ", ".join(q["id"] for q in selected["waiting_questions"])
+            raise HTTPException(
+                status_code=409, detail=f"answer or withdraw blocker questions first: {ids}"
+            )
+    else:
+        waiting = next(
+            (r for r in runs if r["status"] == "waiting_for_input" and r["waiting_questions"]), None
+        )
+        if waiting:
+            ids = ", ".join(q["id"] for q in waiting["waiting_questions"])
+            raise HTTPException(
+                status_code=409,
+                detail=f"resume {waiting['run_id']} after answering blocker questions: {ids}",
+            )
     work = _stage_work(app.settings, store, stage, body)
     try:
         job = app.jobs.submit(store.project_id, f"stage:{stage}", work)

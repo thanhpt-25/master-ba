@@ -91,7 +91,7 @@ loop:
 Rules:
 
 - **Round** = one writer draft. `rounds` in the summary is the number of drafts produced. `team_max_rounds` comes from `ProjectConfig` (default 3). Phase 3's "retry once" is replaced by this loop for the BRD stage: up to `team_max_rounds` drafts instead of two.
-- **Token budget**: `team_token_budget` (optional) is compared with the running total (input + output tokens of every model call, writer and QA) *before* each call; if the total is at or above the budget the run escalates. A call that crosses the budget is allowed to finish; the next one is not made.
+- **Token budget**: `team_token_budget` defaults to 100,000 for newly created projects and may be disabled or edited by an admin. It is compared with the cumulative running total (input + output tokens of every model call, including writer, tester and QA) *before* each call; if the total is at or above the budget the run escalates. A call that crosses the budget is allowed to finish; the next one is not made. Resumes keep the same usage and budget. One warning is emitted at 80%.
 - **Done** requires: the gate passed, the QA report has no blocking issue, and no task is `todo`, `in_progress` or `blocked`.
 - **Escalated** records one line per unresolved point in `escalations` (the open blocking issues of the last review, the last gate errors, or the budget/round reason) and exits without writing business artifacts. Exit code 3.
 - **QA output problems**: an unusable QA report (no tool call, unknown `checklist_id`, a `ref` that is not an item of the draft) is retried once inside the same round without consuming a round; a second failure escalates with the reason `qa output invalid`.

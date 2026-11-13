@@ -244,12 +244,12 @@ def test_test_gate_errors_end_the_cycle_without_a_review(team: Team) -> None:
 def test_exhausting_the_rounds_escalates_with_the_open_issues(team: Team) -> None:
     script = Script(test_reports=[report(issue(T_REF, "Still wrong."))] * 3)
     assert run(team, script) is None
-    assert team.rounds == 3
-    assert team.escalations[0] == "max rounds reached (3)"
-    assert f"[X-1] {T_REF}: Still wrong." in team.escalations
-    assert (team.issues_raised, team.issues_resolved) == (3, 2)
+    assert team.rounds == 2
+    assert team.escalations[0].startswith("no progress:")
+    assert any("Still wrong." in message.body for message in team.messages)
+    assert (team.issues_raised, team.issues_resolved) == (2, 0)
     summary = team.finish(TeamRunStatus.ESCALATED)
-    assert summary.rounds == 3
+    assert summary.rounds == 2
 
 
 def test_the_budget_is_checked_before_every_call(store: ProjectStore) -> None:

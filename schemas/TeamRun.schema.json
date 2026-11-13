@@ -18,7 +18,8 @@
       "enum": [
         "running",
         "done",
-        "escalated"
+        "escalated",
+        "waiting_for_input"
       ],
       "title": "TeamRunStatus",
       "type": "string"
@@ -71,6 +72,19 @@
     },
     "status": {
       "$ref": "#/$defs/TeamRunStatus"
+    },
+    "token_budget": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Token Budget"
     },
     "tokens_used": {
       "anyOf": [

@@ -69,6 +69,7 @@ class DesignTestResult(Generic[D, T]):
 
 class _Next(Enum):
     ESCALATED = "escalated"
+    WAITING_FOR_INPUT = "waiting_for_input"
     END_CYCLE = "end_cycle"
     READY = "ready"
 
@@ -87,6 +88,12 @@ class _Loop(Generic[D, T]):
         self.answered: set[str] = set()
         self.unresolved: list[str] = list(start.unresolved) if start else []
         self.last_task: str | None = None
+        self.input_questions: dict[str, list[QuestionDraft]] = {}
+        self.previous_blocking: dict[str, set[tuple[str, str | None]]] | None = (
+            {name: set(team.blocking_seen.get(name, set())) for name in ("design", "tests")}
+            if start and team.blocking_seen
+            else None
+        )
 
     def _checkpoint(self) -> None:
         self.team.save_checkpoint(
@@ -272,6 +279,8 @@ class _Loop(Generic[D, T]):
         self._done(task)
         blocking: list[QaIssue] = []
         issues, limited = team.settle(owner, outcome.report.issues)
+        if outcome.blocking_questions:
+            self.input_questions[owner] = list(outcome.blocking_questions)
         for issue in issues:
             team.post("qa", owner, MessageType.FEEDBACK, issue.ref, format_issue(issue))
             if issue.severity == "advisory":
@@ -283,6 +292,23 @@ class _Loop(Generic[D, T]):
         team.hold_objection(owner, blocking)
         return blocking
 
+    def _wait_for_input(self) -> _Next:
+        for owner, questions in self.input_questions.items():
+            feedback = [f"customer answer required: {question.text}" for question in questions]
+            if owner == "designer":
+                self.to_designer = feedback
+            else:
+                self.to_tester = feedback
+        self.team.waiting_for_input = True
+        self.team.escalate(
+            [
+                "waiting for customer input: "
+                + "; ".join(q.text for qs in self.input_questions.values() for q in qs)
+            ]
+        )
+        self._checkpoint()
+        return _Next.WAITING_FOR_INPUT
+
     def _review(self) -> _Next | None:
         """QA reviews design then tests; None means both passed."""
         team = self.team
@@ -293,11 +319,15 @@ class _Loop(Generic[D, T]):
         )
         if in_design is None:
             return _Next.ESCALATED
+        if self.input_questions:
+            return self._wait_for_input()
         in_tests = self._review_one(
             "tester", "Review tests", lambda: self.hooks.review_tests(design, tests)
         )
         if in_tests is None:
             return _Next.ESCALATED
+        if self.input_questions:
+            return self._wait_for_input()
         found = len(in_design) + len(in_tests)
         team.issues_raised += found
         self.open_blocking = found
@@ -307,6 +337,14 @@ class _Loop(Generic[D, T]):
         self.to_designer = [format_issue(i) for i in in_design]
         self.to_tester = [format_issue(i) for i in in_tests]
         self._checkpoint()
+        current_blocking = {
+            "design": {(issue.checklist_id, issue.ref) for issue in in_design},
+            "tests": {(issue.checklist_id, issue.ref) for issue in in_tests},
+        }
+        if self.previous_blocking == current_blocking and any(current_blocking.values()):
+            team.escalate(["no progress: the same QA blockers remained after a targeted revision"])
+            return _Next.ESCALATED
+        self.previous_blocking = current_blocking
         return _Next.END_CYCLE
 
     def run(self) -> DesignTestResult[D, T] | None:
@@ -325,7 +363,7 @@ class _Loop(Generic[D, T]):
                 continue
             self._checkpoint()
             verdict = self._review()
-            if verdict is _Next.ESCALATED:
+            if verdict in {_Next.ESCALATED, _Next.WAITING_FOR_INPUT}:
                 return None
             if verdict is None:
                 assert self.design is not None and self.tests is not None

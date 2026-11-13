@@ -46,6 +46,7 @@ def run_writer_review(
     feedback: list[str] = list(start_feedback)
     previous_task: str | None = None
     open_blocking = 0
+    previous_blocking: set[tuple[str, str | None]] | None = None
 
     def stop(reasons: list[str]) -> None:
         team.issues_resolved = max(team.issues_raised - open_blocking, 0)
@@ -128,8 +129,27 @@ def run_writer_review(
         team.hold_objection("writer", blocking)
         team.issues_raised += len(blocking)
         open_blocking = len(blocking)
+        if outcome.blocking_questions:
+            team.waiting_for_input = True
+            team.escalate(
+                [
+                    "waiting for customer input: "
+                    + "; ".join(question.text for question in outcome.blocking_questions)
+                ]
+            )
+            feedback = [
+                *(format_issue(issue) for issue in blocking),
+                "Revise the impacted requirements using the confirmed customer answers.",
+            ]
+            team.save_checkpoint({"draft": draft}, {"writer": feedback})
+            return None
         if not blocking:
             team.issues_resolved = team.issues_raised
             return draft
         feedback = [format_issue(i) for i in blocking]
         team.save_checkpoint({"draft": draft}, {"writer": feedback})
+        current_blocking = {(issue.checklist_id, issue.ref) for issue in blocking}
+        if previous_blocking == current_blocking:
+            team.escalate(["no progress: the same QA blockers remained after a targeted revision"])
+            return None
+        previous_blocking = current_blocking

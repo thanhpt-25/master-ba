@@ -58,6 +58,7 @@ const STATUS = {
   running: { icon: "◐", label: "Running", cls: "run" },
   done: { icon: "✓", label: "Done", cls: "ok" },
   escalated: { icon: "▲", label: "Escalated", cls: "warn" },
+  waiting_for_input: { icon: "●", label: "Waiting for input", cls: "warn" },
   failed: { icon: "✕", label: "Failed", cls: "bad" },
   draft: { icon: "✎", label: "Draft", cls: "idle" },
   proposed: { icon: "○", label: "Proposed", cls: "idle" },

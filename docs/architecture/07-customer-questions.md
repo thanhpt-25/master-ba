@@ -1,13 +1,13 @@
 # 7. Customer questions
 
-Some points cannot be settled by an agent: what a deadline counts from, whether deleting a record is in scope. Looping on them wastes rounds, and guessing breaks the rule that nothing is invented. The system therefore records them in a ledger and lets the run go on, and when a person answers, the answer is fixed as a Decision Record that every later run uses. The rules are in [spec 13](../../specs/13-customer-questions.md); this document follows the data.
+Some points cannot be settled by an agent: what a deadline counts from, whether deleting a record is in scope. Looping on them wastes rounds, and guessing breaks the rule that nothing is invented. The system records them in a ledger; QA blockers pause the run with its checkpoint, while other questions remain informational. When a person answers, the answer is fixed as a Decision Record that later runs use. The rules are in [spec 13](../../specs/13-customer-questions.md); this document follows the data.
 
 ## 7.1 The flow
 
 ```mermaid
 flowchart LR
     A["agents find a point<br/>only the customer can settle"] --> L[("ledger<br/>questions/Q-####.json")]
-    Q["QA objections still held<br/>when a run escalates"] --> L
+    Q["QA blocker<br/>pauses the run"] --> L
     L --> P["a person answers<br/>(CLI, API or dashboard)"]
     P --> D["clarification DR<br/>created and approved"]
     D --> F["confirmed facts"]
@@ -15,7 +15,8 @@ flowchart LR
     D -. optional .-> PR["dr propagate<br/>revises existing documents"]
 ```
 
-The run never waits. A stage ends `done` or `escalated` exactly as before; the questions are a side result of it.
+QA blocker questions pause a run as `waiting_for_input` until answered or withdrawn. Other agent
+questions remain a side result, and the stage continues.
 
 ## 7.2 Where questions come from
 
@@ -25,9 +26,10 @@ The run never waits. A stage ends `done` or `escalated` exactly as before; the q
 | SRS writer | its open questions, with the requirement ids they name |
 | QA | an issue it marked `customer_question` |
 | Tester | a question about an item the designer already answered |
-| QA, at escalation only | up to 10 blocking issues it still held, as `qa_blocker` questions (`Specify the missing detail or accept the draft as it is`) |
+| QA blocker | an issue marked `customer_question` that remains blocking after checklist severity is applied; recorded as `qa_blocker` and pauses the run |
+| QA, at other stops | up to 10 blocking issues still held, as `qa_blocker` questions |
 
-`Team` collects these as structured drafts while the loops run (the run record keeps its plain strings). After `team.finish`, `stage_result` records them. Gate errors are not recorded: they tell the writer what to fix, not a person what to decide.
+`Team` collects these as structured drafts while the loops run (the run record keeps its plain strings). After `team.finish`, `stage_result` records them. A waiting run checkpoints the draft and feedback first; Activity unlocks resume when all its QA blocker questions are answered or withdrawn. Gate errors are not recorded: they tell the writer what to fix, not a person what to decide.
 
 Two rules keep the ledger clean:
 

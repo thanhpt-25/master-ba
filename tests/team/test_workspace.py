@@ -10,6 +10,7 @@ from masterba.agents import BrdDraft, QaIssue, QaReport
 from masterba.llm import FakeLLM
 from masterba.models.enums import DocType, TeamRunStatus
 from masterba.team import (
+    PROGRESS,
     MessageType,
     RecordingLLM,
     SingleWriterError,
@@ -129,6 +130,18 @@ def test_budget_is_exhausted_at_or_above_the_limit_and_unlimited_by_default(
     assert not limited.budget_exhausted()
     limited.charge(1)
     assert limited.budget_exhausted()
+
+
+def test_token_budget_warning_is_emitted_once_at_80_percent(store: ProjectStore) -> None:
+    lines: list[str] = []
+    token = PROGRESS.set(lines.append)
+    try:
+        team = open_team(store, budget=100)
+        team.charge(80)
+        team.charge(1)
+        assert lines == ["token budget warning: 80/100 tokens used"]
+    finally:
+        PROGRESS.reset(token)
 
 
 def test_messages_before_the_first_round_still_get_round_one(store: ProjectStore) -> None:

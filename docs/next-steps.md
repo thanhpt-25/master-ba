@@ -1,6 +1,6 @@
 # Next steps: from a working system to production
 
-Status: proposal v0.3 (2026-11-10). Nothing here is implemented. Each phase below follows the repo's spec-driven process: a `specs/NN-*.md` is written and approved before any code. The previous plan (Phases 11 and 12) is implemented and kept in [archive/next-steps-phases-11-12.md](archive/next-steps-phases-11-12.md).
+Status: proposal v0.4 (2026-11-13). Phase 16 is implemented; later phases remain planned. Each phase follows the repo's spec-driven process: a `specs/NN-*.md` is written and approved before implementation. The previous plan (Phases 11 and 12) is implemented and kept in [archive/next-steps-phases-11-12.md](archive/next-steps-phases-11-12.md).
 
 Spec numbers continue at 16. The number 14 is taken by work on the unmerged branch `claude/bd-architecture-team-process-7690de` (patch revisions for the design-test loop, a DR that starts a stage that has not run yet); decision O4 below settles what happens to it.
 
@@ -24,7 +24,7 @@ In short, the machinery is proven and the product is not. Production readiness h
 
 A SIer delivery team uses MasterBA on a real engagement (the customer's own intake, the company's own templates, the model the company has a contract for) from intake to approved Detail Design and test specifications. The workbooks go to the customer after the usual human review and edits. Concretely, all of these hold:
 
-1. **Quality is measured.** On a fixed benchmark (Phase 16), an SIer reviewer scores each document with a written rubric, and the scores meet a threshold the owner sets. A prompt or model change is judged against the same benchmark.
+1. **Quality is measured.** On a fixed benchmark (Phase 17), an SIer reviewer scores each document with a written rubric, and the scores meet a threshold the owner sets. A prompt or model change is judged against the same benchmark.
 2. **Runs are reliable.** With the production model, each stage reaches `done` within its round limit in at least 4 of 5 runs per benchmark intake, including a large intake (300+ requirements). No run loses work: an escalated or interrupted run resumes.
 3. **The workbooks fit.** They match the company template, show Japanese labels, carry a filled cover sheet (表紙) and revision history (改訂履歴), and no sheet says "pending".
 4. **It operates like a service.** It installs from a runbook on the company's server behind TLS, has backups with a tested restore, upgrades without losing project data, and shows logs, job metrics and cost.
@@ -86,9 +86,20 @@ A SIer delivery team uses MasterBA on a real engagement (the customer's own inta
 
 ## 4. Phases
 
-Each phase has its own spec. Phase 16 comes first because every later change is judged by it.
+Each phase has its own spec. Phase 16 is implemented; Phase 17 establishes the benchmark used to judge later quality changes.
 
-### Phase 16: quality benchmark (`specs/16-quality-benchmark.md`)
+### Phase 16: blocker-aware stops and token limits (`specs/16-escalation-efficiency.md`)
+
+Fast-track the run-waste problem reported by the owner before starting the broader benchmark work.
+
+1. Wait for explicit customer input when QA marks a blocking issue as a customer question; checkpoint the draft and resume that same run after the answer.
+2. Stop after a targeted repair when the same blocker set remains; preserve the draft and report the reason.
+3. Set a default per-run token hard limit, warn before the limit, preserve cumulative usage on resume, and expose the limit to admins in the dashboard.
+4. Let a dashboard resume add one round by default; additional rounds and budget changes require an explicit operator action.
+
+Acceptance: missing input does not trigger another model round, unchanged blockers do not consume the remaining rounds, a resume never resets tokens, and the existing human QA gate remains mandatory.
+
+### Phase 17: quality benchmark (`specs/17-quality-benchmark.md`)
 
 Answers A1, B3, B4.
 
@@ -99,9 +110,9 @@ Answers A1, B3, B4.
 
 Acceptance: a baseline report for the current `main` on the production model, with done-rate, tokens and human scores, committed under `benchmarks/results/`.
 
-### Phase 17: convergence and scale (`specs/17-convergence-and-scale.md`)
+### Phase 18: convergence and scale (`specs/18-convergence-and-scale.md`)
 
-Answers B1, B2, and decision O4 on the spec 14 branch. Every change is measured on the Phase 16 benchmark against the baseline.
+Answers B1, B2, and decision O4 on the spec 14 branch. Every change is measured on the Phase 17 benchmark against the baseline.
 
 1. Chunked generation. Writers, the tester and the reviser work on one slice at a time (by item kind or by feature group from the BRD), with the slice's upstream items and the titles of the other slices' items for context. Gates run per slice and once over the whole document (coverage, unique titles, links). Ids stay stable because only code assigns them.
 2. Incremental test revision. The tester returns changes to its case list (add, update, remove, the `RevisionPatch` shape spec 07 already has) instead of a whole new list, so fixing one gate error cannot break another item. Take what the spec 14 branch proved useful; drop the rest.
@@ -110,9 +121,9 @@ Answers B1, B2, and decision O4 on the spec 14 branch. Every change is measured 
 
 Acceptance: on the production model, every benchmark intake, the large one included, reaches `done` in at least 4 of 5 runs per stage, and no stage needs a timeout above 600 s.
 
-### Phase 18: deliverable fit (`specs/18-deliverable-fit.md`)
+### Phase 19: deliverable fit (`specs/19-deliverable-fit.md`)
 
-Answers A2 to A7, B5, E1, E3. Can run in parallel with Phase 17; it does not touch the loops.
+Answers A2 to A7, B5, E1, E3. Can run in parallel with Phase 18; it does not touch the loops.
 
 1. Japanese value maps for every enum in the default templates (A3).
 2. 表紙 and 改訂履歴 sheets in every default template, filled by code from the document, its versions, reviews and DRs (A4). The calibration heuristic learns to map these sheets in company samples.
@@ -125,7 +136,7 @@ Answers A2 to A7, B5, E1, E3. Can run in parallel with Phase 17; it does not tou
 
 Acceptance: an SIer reviewer compares the workbooks of one benchmark intake, rendered into the pilot company's confirmed templates, with that company's own documents and records which differences remain; no default sheet shows a pending note.
 
-### Phase 19: operations (`specs/19-operations.md`)
+### Phase 20: operations (`specs/20-operations.md`)
 
 Answers C1 to C5 and C7.
 
@@ -139,7 +150,7 @@ Answers C1 to C5 and C7.
 
 Acceptance: a person who has not worked on the project installs it on a fresh server from the runbook, serves it over TLS, runs the benchmark chain, restores the project from the remote onto a second machine, and resumes an interrupted run there.
 
-### Phase 20: cost and data governance (`specs/20-governance.md`)
+### Phase 21: cost and data governance (`specs/21-governance.md`)
 
 Answers D1 to D3, C6, E4.
 
@@ -152,7 +163,7 @@ Answers D1 to D3, C6, E4.
 
 Acceptance: a benchmark run on the provider chosen in O1 shows its cost per stage in the dashboard and stops at a hard budget, and a person signs in through OIDC.
 
-### Phase 21: pilot on a real engagement
+### Phase 22: pilot on a real engagement
 
 Not a spec but a review record (`docs/pilot-001.md`). A partner SIer team runs one real engagement, or replays a finished past one, through MasterBA with its own templates and model, while delivering the usual way in parallel. Recorded: effort with and without MasterBA per document, the reviewer's rubric scores, every edit the team had to make after generation, the questions MasterBA raised against the questions the customer actually had to answer, and incidents. The edits become benchmark cases and the next round of prompt and checklist work.
 
@@ -168,27 +179,27 @@ Production ready is declared when the pilot meets the criteria of section 2 and 
 
 | Step | Size | Depends on |
 |---|---|---|
-| Owner decisions O1 to O4 | S | nothing; blocks the Phase 16 baseline and Phase 17 |
-| Phase 16: benchmark set, runner, rubric, baseline | M | O1, O2 |
-| Phase 17: convergence and scale | L | Phase 16 baseline, O4 |
-| Phase 18 items 1 to 4 and 6 to 8 (labels, cover, sections, derived sheets, edits, intake formats, Japanese UI) | M | nothing; in parallel with Phase 17 |
-| Phase 18 item 5 (renderer features, first real template) | M | O3 (a real sample) |
-| Phase 19: operations | M | nothing; in parallel with Phases 17 and 18 |
-| Phase 20: governance | M | O1, Phase 19 item 4 (metrics) |
-| Phase 21: pilot | L (calendar time) | Phases 16 to 20, O3 |
+| Owner decisions O1 to O4 | S | nothing; blocks the Phase 17 baseline and Phase 18 |
+| Phase 17: benchmark set, runner, rubric, baseline | M | O1, O2 |
+| Phase 18: convergence and scale | L | Phase 17 baseline, O4 |
+| Phase 19 items 1 to 4 and 6 to 8 (labels, cover, sections, derived sheets, edits, intake formats, Japanese UI) | M | nothing; in parallel with Phase 18 |
+| Phase 19 item 5 (renderer features, first real template) | M | O3 (a real sample) |
+| Phase 20: operations | M | nothing; in parallel with Phases 17 and 18 |
+| Phase 21: governance | M | O1, Phase 20 item 4 (metrics) |
+| Phase 22: pilot | L (calendar time) | Phases 16 to 20, O3 |
 
-Phase 18 items that need no real sample, and all of Phase 19, can start at once, alongside the Phase 16 spec.
+Phase 19 items that need no real sample, and all of Phase 20, can start at once, alongside the Phase 17 spec.
 
 ## 6. Decisions for the owner
 
 | # | Decision | Why it matters |
 |---|---|---|
-| O1 | The production model(s) and provider, and whether data must stay in Japan | fixes the benchmark model, Phase 17 tuning and the Phase 20 provider profiles |
+| O1 | The production model(s) and provider, and whether data must stay in Japan | fixes the benchmark model, Phase 18 tuning and the Phase 21 provider profiles |
 | O2 | Who scores the benchmark (an SIer reviewer), and the threshold score | without a human score, "good enough" stays undefined |
 | O3 | The pilot partner, one real anonymised intake and one real company template | the critical path; A2 and the pilot cannot start without them |
-| O4 | The spec 14 branch: merge parts into Phase 17, or close it | it holds 12 commits of convergence work and is 80 commits behind `main` |
+| O4 | The spec 14 branch: merge parts into Phase 18, or close it | it holds 12 commits of convergence work and is 80 commits behind `main` |
 | O5 | UAT in the first production release or after it | completes the V; size M |
-| O6 | A separate worker process (Phase 19 item 3), or runs kept in the web process for small installs | operational simplicity against robustness |
+| O6 | A separate worker process (Phase 20 item 3), or runs kept in the web process for small installs | operational simplicity against robustness |
 | O7 | OIDC in the first release, or local accounts only | depends on the pilot partner's IT rules |
 | O8 | Diagrams: generate Mermaid diagrams rendered as images in the workbook, or keep "attached separately" | Japanese reviewers expect 構成図, 業務フロー図 and ER図; generated diagrams are a new kind of output to check |
 | O9 | Masking of personal data in intakes: required, optional, or not needed | depends on O1 and the customers' contracts |
@@ -196,7 +207,7 @@ Phase 18 items that need no real sample, and all of Phase 19, can start at once,
 
 ## 7. Risks
 
-- **The benchmark shows the documents are not good enough.** That is the purpose of Phase 16; it is cheaper to learn before the pilot than during it. Phases 17 and 18 are sized for prompt, checklist and structure changes, not a redesign.
-- **The production model differs from the one the prompts were tuned on.** Phase 16 records results per model; the supported-models table lists only what was measured.
-- **No real template or intake arrives.** Phase 18 item 5 and the pilot wait; everything else proceeds. The synthetic benchmark keeps the work honest but cannot replace O3.
+- **The benchmark shows the documents are not good enough.** That is the purpose of Phase 17; it is cheaper to learn before the pilot than during it. Phases 17 and 18 are sized for prompt, checklist and structure changes, not a redesign.
+- **The production model differs from the one the prompts were tuned on.** Phase 17 records results per model; the supported-models table lists only what was measured.
+- **No real template or intake arrives.** Phase 19 item 5 and the pilot wait; everything else proceeds. The synthetic benchmark keeps the work honest but cannot replace O3.
 - **Chunked generation breaks consistency across items.** The whole-document gate and QA pass stay, and the benchmark scores catch regressions.

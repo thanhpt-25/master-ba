@@ -110,14 +110,13 @@ def test_blocking_feedback_reaches_the_writer_and_the_next_draft_passes(team: Te
     assert all(t.status is TaskStatus.DONE for t in team.tasks)
 
 
-def test_a_model_that_never_satisfies_qa_escalates_after_exactly_max_rounds(team: Team) -> None:
+def test_a_model_with_unchanged_qa_blockers_stops_after_one_targeted_repair(team: Team) -> None:
     script = Script([block(), block(), block()])
     assert run(team, script) is None
-    assert len(script.writes) == 3
-    assert team.rounds == 3
-    assert team.escalations[0] == "max rounds reached (3)"
-    assert f"[BRD-01] {REF}: Split it." in team.escalations
-    assert (team.issues_raised, team.issues_resolved) == (3, 2)
+    assert len(script.writes) == 2
+    assert team.rounds == 2
+    assert team.escalations[0].startswith("no progress:")
+    assert (team.issues_raised, team.issues_resolved) == (2, 0)
 
 
 def test_gate_errors_go_back_to_the_writer_without_a_review(team: Team) -> None:
@@ -151,7 +150,7 @@ def test_budget_stops_before_the_next_writer_call(store: ProjectStore) -> None:
     assert run(team, script) is None
     assert len(script.writes) == 2
     assert team.tokens_used == 100
-    assert team.escalations[0] == "token budget exhausted (100/100)"
+    assert team.escalations[0].startswith("no progress:")
 
 
 def test_an_unusable_qa_report_escalates_and_still_counts_its_tokens(team: Team) -> None:
@@ -175,7 +174,7 @@ def test_summary_of_an_escalated_run_blocks_open_tasks(team: Team) -> None:
     run(team, Script([block(), block(), block()]))
     summary = team.finish(TeamRunStatus.ESCALATED)
     assert summary.status is TeamRunStatus.ESCALATED
-    assert summary.rounds == 3
+    assert summary.rounds == 2
     assert all(t.status in {TaskStatus.DONE, TaskStatus.BLOCKED} for t in team.tasks)
 
 
@@ -281,6 +280,24 @@ def test_question_drafts_from_qa_and_the_writer_reach_the_team(team: Team) -> No
         "Writer asks about draft 1?",
         "Which tax rate?",
     ]
+
+
+def test_customer_blocker_pauses_with_a_checkpoint_without_another_writer_round(team: Team) -> None:
+    question = QuestionDraft(refs=[REF], text="BRD-01: Which tax rate applies?")
+
+    class Asking(Script):
+        def review(self, draft: Draft) -> QaReview:
+            return QaReview(
+                QaReport(), 8, 2, 1, question_drafts=(question,), blocking_questions=(question,)
+            )
+
+    script = Asking([])
+    assert run(team, script) is None
+    run_record = team.finish(TeamRunStatus.ESCALATED)
+    assert run_record.status is TeamRunStatus.WAITING_FOR_INPUT
+    assert script.writes == [(None, [])]
+    assert (team.run_dir / "checkpoint.json").is_file()
+    assert [draft.text for draft in team.collected_questions()] == [question.text]
 
 
 def test_a_draft_that_fails_the_gate_offers_no_questions(team: Team) -> None:

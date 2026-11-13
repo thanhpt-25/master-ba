@@ -33,6 +33,33 @@ BRD2 = "DOC-BRD-0001#item.2"
 EMPTY = RevisionPatch(operations=[], summary="nothing to change")
 
 
+def test_project_token_budget_defaults_to_100k_and_is_admin_editable(
+    empty_client: ClientFor,
+) -> None:
+    admin, approver, viewer = (
+        empty_client("admin"),
+        empty_client("approver"),
+        empty_client("viewer"),
+    )
+    created = admin.post("/api/projects", json={"project_id": "PRJ-001"})
+    assert created.status_code == 201
+    assert created.json()["team_token_budget"] == 100_000
+    assert (
+        viewer.post(f"{P}/settings/token-budget", json={"team_token_budget": 5000}).status_code
+        == 403
+    )
+    assert (
+        approver.post(f"{P}/settings/token-budget", json={"team_token_budget": 5000}).status_code
+        == 403
+    )
+    changed = admin.post(f"{P}/settings/token-budget", json={"team_token_budget": 5000})
+    assert changed.status_code == 200
+    assert changed.json()["team_token_budget"] == 5000
+    unlimited = admin.post(f"{P}/settings/token-budget", json={"team_token_budget": None})
+    assert unlimited.status_code == 200
+    assert unlimited.json()["team_token_budget"] is None
+
+
 def run_stage(
     app: FastAPI, client: TestClient, script: Script, stage: str, *answers: BaseModel, **body: Any
 ) -> dict[str, Any]:
@@ -52,6 +79,7 @@ def test_the_whole_pipeline_runs_through_the_api_alone(
     )
     created = admin.post("/api/projects", json={"project_id": "PRJ-001", "document_language": "en"})
     assert created.status_code == 201
+    assert created.json()["team_token_budget"] == 100_000
     assert [p["project_id"] for p in viewer.get("/api/projects").json()] == ["PRJ-001"]
     overview = viewer.get(P).json()
     assert [s["status"] for s in overview["stages"]] == ["not_started"] * 4

@@ -19,6 +19,7 @@ export function workflowSteps(stages, gates) {
     const info = stages.find((s) => s.stage === phase.key) || { status: "not_started", review: "not_started" };
     let state;
     if (info.status === "running") state = "running";
+    else if (info.status === "waiting_for_input") state = "waiting_for_input";
     else if (info.status === "escalated") state = "escalated";
     else if (info.review === "in_review") state = "in_review";
     else if (info.review === "approved") state = "approved";
@@ -44,6 +45,7 @@ function nextAction(step) {
   if (step.state === "in_review") return `Review the ${step.title} phase: approve it, or reject it with comments.`;
   if (step.state === "running") return `${step.title} is running.`;
   if (step.state === "escalated") return `${step.title} escalated: resume it, or raise a Decision Record from the run.`;
+  if (step.state === "waiting_for_input") return `${step.title} is paused. Answer or withdraw its blocker questions, then resume the run in Activity.`;
   if (step.state === "locked") return `${step.title} waits for the phase before it.`;
   return step.key === "brd" ? "Upload the customer's intake and run the BRD stage." : `Run the ${step.title} stage.`;
 }
@@ -149,6 +151,8 @@ function leftCard(stage, info, index, ctx) {
     action = h("button", { class: "primary", disabled: true, title: `Approve ${info.waiting_for} first` }, `Waiting for the ${info.waiting_for} review`);
   } else if (canRun && ctx.locked.has(stage.key)) {
     action = h("button", { class: "primary", disabled: true }, `Waiting for ${stage.needs}`);
+  } else if (info.status === "waiting_for_input") {
+    action = h("p", { class: "hint" }, "This run is waiting for customer input. ", h("a", { href: `#/p/${ctx.pid}/questions` }, "Answer its blocker questions"), " and resume it from Activity.");
   } else if (canRun && info.status === "done") {
     // A stage refuses to run over its own documents; changes go through a Decision Record.
     action = h("p", { class: "hint" }, "To change these documents, raise a ", h("a", { href: `#/p/${ctx.pid}/drs` }, "Decision Record"), ".");
@@ -197,7 +201,7 @@ function leftCard(stage, info, index, ctx) {
 function rightCard(card, index, stages) {
   const info = card.stage ? stages.find((s) => s.stage === card.stage) : null;
   const doc = info?.documents.find((d) => d.id === card.doc);
-  const status = card.doc === null ? "planned" : doc ? "done" : info?.status === "escalated" ? "escalated" : "not_started";
+  const status = card.doc === null ? "planned" : doc ? "done" : ["escalated", "waiting_for_input"].includes(info?.status) ? info.status : "not_started";
   return h(
     "section",
     { class: `vcard right ${status}`, style: `--i:${index}` },
@@ -269,6 +273,7 @@ export async function render(context) {
         h("div", {}, h("dt", {}, "Open decisions"), h("dd", {}, overview.counts.open_drs)),
         h("div", {}, h("dt", {}, "Phases complete"), h("dd", {}, `${flow.steps.filter((step) => ["approved", "done"].includes(step.state)).length} / 4`)),
       ),
+      overview.project ? budgetPanel(overview.project, context) : null,
       workflowStrip(overview, pid),
       h(
         "div",
@@ -295,6 +300,29 @@ export async function render(context) {
     toast(`Started ${stage}`);
     shown = started.id;
     await refresh();
+  }
+
+  function budgetPanel(project, ctx) {
+    if (ctx.me?.role !== "admin") return null;
+    const input = h("input", {
+      type: "number", min: "1", value: project.team_token_budget ?? "", placeholder: "No cap",
+      "aria-label": "Token budget per run",
+    });
+    return h("form", {
+      class: "panel form-grid",
+      onSubmit: async (event) => {
+        event.preventDefault();
+        try {
+          await api.post(`/projects/${pid}/settings/token-budget`, {
+            team_token_budget: input.value.trim() ? Number(input.value) : null,
+          });
+          toast("Project token budget updated");
+          await refresh();
+        } catch (error) { toast(error.message, "error"); }
+      },
+    }, h("h2", {}, "Run token budget"),
+    h("p", { class: "muted" }, "Applies to future runs and resumes. Existing run usage is retained."),
+    input, h("button", { class: "primary", type: "submit" }, "Save budget"));
   }
 
   async function approve(stage) {

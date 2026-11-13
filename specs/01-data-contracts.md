@@ -28,8 +28,8 @@ Kiểu dùng chung: `ProjectId` (`PRJ-###`), `ReqId` (`REQ-####`), `DocId` (`DOC
 | `TraceLink` | `from_id: ReqId\|DocId\|ItemRef\|TcId`, `to_id: (cùng tập)`, `link_type: realizes\|verifies\|derives_from\|tests\|implements` | `from_id != to_id`; hai đầu phải tồn tại khi `add_trace_link` |
 | `DecisionRecord` | `id: DrId`, `date`, `trigger: requirement_change\|design_change\|defect\|clarification`, `description`, `decision?`, `rationale?`, `impacted_items: list[ReqId\|ItemRef]`, `affected_documents: list[DocId]`, `status: proposed\|approved\|propagated\|closed`, `approver?` | `approved` trở đi bắt buộc có `approver` và `decision` |
 | `TemplateDefinition` | `company_id`, `doc_type`, `source: baseline\|calibrated_from_sample`, `sheet_map`, `cell_bindings`, `validation_rules` | Cấu trúc chi tiết chốt ở spec 02; Phase 1 chỉ định nghĩa vỏ (field khai báo, nội dung `dict`) |
-| `ProjectConfig` | `project_id`, `company_id`, `propagation_mode: manual_gate\|auto_low_risk` (mặc định `manual_gate`), `team_max_rounds: int ≥1` (3), `team_token_budget?: int`, `document_language: ja\|en` (mặc định `ja`, thêm ở v0.3), `dashboard_roles` | Lưu tại `projects/<id>/project.json` |
-| `TeamRun` | `run_id: RunId`, `stage: DocType`, `trigger: "initial"\|DrId`, `status: running\|done\|escalated`, `rounds`, `issues_raised`, `issues_resolved`, `escalations: list[str]`, `tokens_used?` | Chỉ định nghĩa model; chạy team ở Phase 4 |
+| `ProjectConfig` | `project_id`, `company_id`, `propagation_mode: manual_gate\|auto_low_risk` (mặc định `manual_gate`), `team_max_rounds: int ≥1` (3), `team_token_budget?: int` (mặc định 100.000 cho project mới; project cũ thiếu field giữ `null`), `document_language: ja\|en` (mặc định `ja`, thêm ở v0.3), `dashboard_roles` | Lưu tại `projects/<id>/project.json` |
+| `TeamRun` | `run_id: RunId`, `stage: DocType`, `trigger: "initial"\|DrId`, `status: running\|done\|escalated\|waiting_for_input`, `rounds`, `issues_raised`, `issues_resolved`, `escalations: list[str]`, `tokens_used?`, `token_budget?` | Chỉ định nghĩa model; chạy team ở Phase 4 |
 
 ### 2.1 Content payload (mỗi loại tài liệu)
 

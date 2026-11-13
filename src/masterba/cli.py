@@ -108,7 +108,10 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="STAGE=N",
         help="round limit of one stage (brd, srs, basic, detail); repeatable",
     )
-    init.add_argument("--team-token-budget", type=int, default=None)
+    init.add_argument("--team-token-budget", type=int, default=100_000)
+    init.add_argument(
+        "--unlimited-token-budget", action="store_true", help="disable the default token cap"
+    )
     init.add_argument(
         "--no-review-gates",
         action="store_true",
@@ -435,7 +438,7 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
                 document_language=args.language,
                 team_max_rounds=args.team_max_rounds,
                 team_max_rounds_by_stage=dict(args.rounds),
-                team_token_budget=args.team_token_budget,
+                team_token_budget=None if args.unlimited_token_budget else args.team_token_budget,
                 review_gates=not args.no_review_gates,
             ),
         )

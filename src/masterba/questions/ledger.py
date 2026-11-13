@@ -60,6 +60,8 @@ def record_questions(
 
 
 def record_run_questions(team: Team, run: TeamRun) -> Recorded:
-    """Record what a finished run left open; an escalated run adds QA's objections."""
-    drafts = team.collected_questions(escalated=run.status is TeamRunStatus.ESCALATED)
+    """Record what a finished run left open; stopped runs also include QA objections."""
+    drafts = team.collected_questions(
+        escalated=run.status in {TeamRunStatus.ESCALATED, TeamRunStatus.WAITING_FOR_INPUT}
+    )
     return record_questions(team.store, run.run_id, run.stage, drafts)

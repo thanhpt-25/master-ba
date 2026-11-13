@@ -108,7 +108,7 @@ masterba run basic --project PRJ-001 --resume RUN-0004 [--rounds N]
 3. reopens the same `Team` (same run id), restores drafts, feedback, customer questions and token count, and runs up to `N` more rounds (default: the stage's round limit), with the token budget counting from the restored total;
 4. on finish rewrites the summary and commits `run(<project>): RUN-#### <status> (resumed)`. `TeamRun` gains `resumed: int` (number of resumes, default 0).
 
-The dashboard shows a "Resume" button on an escalated run that has a checkpoint, calling the same function as a background job.
+The dashboard shows a "Resume" button on an escalated or waiting run that has a checkpoint. Waiting runs unlock only after every QA blocker question is answered or withdrawn. Dashboard resume adds one round by default; token usage remains cumulative.
 
 ## 4. Continuous integration
 

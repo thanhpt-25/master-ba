@@ -40,7 +40,7 @@ class CreateProjectBody(Body):
     company_id: str = Field(default="default", pattern=COMPANY_ID_PATTERN)
     document_language: DocLanguage = DocLanguage.JA
     team_max_rounds: int = Field(default=3, ge=1, le=20)
-    team_token_budget: int | None = Field(default=None, ge=1)
+    team_token_budget: int | None = Field(default=100_000, ge=1)
     review_gates: bool = True  # spec 15: on for new projects
 
 
@@ -53,6 +53,10 @@ class RunStageBody(Body):
     reuse_intake: bool = False
     resume: str | None = Field(default=None, pattern=r"^RUN-\d{4}$")
     rounds: int | None = Field(default=None, ge=1, le=20)
+
+
+class ProjectBudgetBody(Body):
+    team_token_budget: int | None = Field(ge=1)
 
 
 class NewDrBody(Body):

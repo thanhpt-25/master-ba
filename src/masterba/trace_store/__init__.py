@@ -40,6 +40,7 @@ from masterba.trace_store.store import (
     save_decision_record,
     save_question,
     save_review,
+    set_config,
     set_document_status,
     update_requirement,
     write_dr_extra,
@@ -87,6 +88,7 @@ __all__ = [
     "save_question",
     "save_review",
     "set_document_status",
+    "set_config",
     "update_requirement",
     "write_dr_extra",
 ]

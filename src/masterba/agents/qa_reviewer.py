@@ -16,7 +16,7 @@ from masterba.agents.requirements_analyst import REPO_ROOT, load_system_prompt
 from masterba.llm import LLM, LLMOutputError
 from masterba.models import QuestionDraft
 from masterba.models.base import FrozenModel
-from masterba.models.enums import DocLanguage, DocType
+from masterba.models.enums import DocLanguage, DocType, QuestionOrigin
 from masterba.models.ids import ChunkRef, ItemRef
 
 PROMPT_PATH = REPO_ROOT / "agents" / "qa-reviewer.md"
@@ -87,6 +87,7 @@ class QaReview:
     notes: tuple[str, ...] = ()
     customer_questions: tuple[str, ...] = ()
     question_drafts: tuple[QuestionDraft, ...] = ()
+    blocking_questions: tuple[QuestionDraft, ...] = ()
 
 
 def checklist_path(stage: DocType | str) -> Path:
@@ -248,15 +249,38 @@ def review(
         tokens_out += result.output_tokens
         errors = validate_report(result.value, checklist, item_counts)
         if not errors:
-            report, notes, questions = normalise_report(cap_severity(result.value, checklist))
+            capped = cap_severity(result.value, checklist)
+            blocking_questions = tuple(
+                QuestionDraft(
+                    origin=QuestionOrigin.QA_BLOCKER,
+                    refs=[issue.ref] if issue.ref else [],
+                    text=f"{issue.checklist_id}: {issue.message}",
+                )
+                for issue in capped.issues
+                if issue.customer_question and issue.severity == "blocking"
+            )
+            report, notes, questions = normalise_report(capped)
             report, kb_notes = normalise_contradictions(report, kb_checks, reference_refs)
             notes = [*notes, *kb_notes]
             drafts = tuple(
-                QuestionDraft(refs=[i.ref] if i.ref else [], text=i.message)
-                for i in report.issues
+                QuestionDraft(
+                    origin=QuestionOrigin.QA_BLOCKER
+                    if i.customer_question and i.severity == "blocking"
+                    else QuestionOrigin.AGENT,
+                    refs=[i.ref] if i.ref else [],
+                    text=f"{i.checklist_id}: {i.message}" if i.customer_question else i.message,
+                )
+                for i in capped.issues
                 if i.customer_question
             )
             return QaReview(
-                report, tokens_in, tokens_out, attempt, tuple(notes), tuple(questions), drafts
+                report,
+                tokens_in,
+                tokens_out,
+                attempt,
+                tuple(notes),
+                tuple(questions),
+                drafts,
+                blocking_questions,
             )
     raise QaOutputInvalidError(errors, tokens_in, tokens_out)

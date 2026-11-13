@@ -59,6 +59,7 @@ export async function render({ main, api, me, go, toast }) {
   const company = h("input", { type: "text", name: "company_id", value: "default", required: true });
   const language = h("select", { name: "document_language" }, h("option", { value: "ja" }, "Japanese"), h("option", { value: "en" }, "English"));
   const rounds = h("input", { type: "number", name: "team_max_rounds", min: "1", max: "20", value: "3" });
+  const budget = h("input", { type: "number", name: "team_token_budget", min: "1", value: "100000" });
   const idField = field("Project id", id, "Format PRJ-001");
   const setIdError = (msg) => {
     idField.classList.toggle("invalid", Boolean(msg));
@@ -90,6 +91,7 @@ export async function render({ main, api, me, go, toast }) {
               company_id: company.value,
               document_language: language.value,
               team_max_rounds: Number(rounds.value),
+              team_token_budget: budget.value ? Number(budget.value) : null,
             });
             toast(`Created ${created.project_id}`);
             go(`#/p/${created.project_id}/overview`);
@@ -103,6 +105,7 @@ export async function render({ main, api, me, go, toast }) {
       field("Company", company, "Selects the template set; “default” uses the baseline."),
       field("Document language", language, "The language of everything the agents write."),
       field("Max team rounds", rounds, "How many drafts a team may make before it escalates."),
+      field("Token budget per run", budget, "100,000 tokens by default; leave blank for no cap."),
       h("button", { type: "submit", class: "primary" }, "Create project"),
     ),
   );
