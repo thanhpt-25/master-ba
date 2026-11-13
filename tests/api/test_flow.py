@@ -169,6 +169,23 @@ def test_an_escalated_stage_ends_the_job_escalated_and_writes_no_document(
     assert overview["stages"][0]["last_run"]["status"] == "escalated"
 
 
+def test_latest_escalation_is_not_hidden_by_existing_documents(
+    seeded_app: FastAPI, seeded_client: ClientFor
+) -> None:
+    from pathlib import Path
+
+    root = Path(seeded_app.state.masterba.settings.projects) / "PRJ-001" / "runs" / "RUN-9999"
+    root.mkdir(parents=True)
+    (root / "team-summary.json").write_text(
+        '{"run_id":"RUN-9999","stage":"BRD","trigger":"initial","status":"escalated"}',
+        encoding="utf-8",
+    )
+
+    stages = seeded_client("viewer").get(P).json()["stages"]
+    assert stages[0]["documents"]
+    assert stages[0]["status"] == "escalated"
+
+
 class BlockingLLM:
     """A model that waits until released, to keep a job running."""
 

@@ -17,11 +17,12 @@ from masterba.calibration.suggest import suggest_mapping
 from masterba.calibration.validate import advisory_warnings, validate_mapping
 from masterba.llm import LLM
 from masterba.models.enums import DocType
+from masterba.models.ids import COMPANY_ID_PATTERN
 from masterba.rendering import InvalidTemplateError, load_template
 from masterba.trace_store import NotFoundError, ProjectStore, get_document
 from masterba.trace_store.git import commit_paths, ensure_ready
 
-COMPANY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")
+COMPANY = COMPANY_ID_PATTERN
 Clock = Callable[[], datetime]
 
 
@@ -76,7 +77,7 @@ class PreviewResult:
 
 
 def valid_company(company: str) -> str:
-    if not COMPANY.match(company) or company == "default":
+    if not re.fullmatch(COMPANY, company) or company == "default":
         raise CalibrationError(
             "a company id has 1 to 40 letters, digits, dots, dashes or underscores; "
             "'default' is the baseline and cannot be calibrated"

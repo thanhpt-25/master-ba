@@ -84,3 +84,11 @@ def test_only_an_admin_can_create_a_project(seeded_client: ClientFor) -> None:
     assert created.status_code == 201
     assert created.json()["project_id"] == "PRJ-002"
     assert seeded_client("admin").post("/api/projects", json=NEW_PROJECT).status_code == 400
+
+
+@pytest.mark.parametrize("company_id", ["../outside", "a/b", "a\\b", "", "x" * 41])
+def test_project_creation_rejects_invalid_company_ids(
+    seeded_client: ClientFor, company_id: str
+) -> None:
+    payload = {**NEW_PROJECT, "project_id": "PRJ-002", "company_id": company_id}
+    assert seeded_client("admin").post("/api/projects", json=payload).status_code == 422

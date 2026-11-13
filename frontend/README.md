@@ -17,7 +17,7 @@ Any static file server works; `npm run serve` is just a convenience. In producti
 
 ```
 index.html          Shell: skip link, #app mount, #toasts live region.
-app.js              Boot, hash router, top chrome, global error boundary, "?" help.
+app.js              Boot, hash router, workspace shell, page metadata, error boundary, "?" help.
 api.js              JSON client for /api (CSRF header, ApiError with .status).
 dom.js              All DOM + UI primitives. No view touches the DOM directly.
 app.css             Token-driven styles (light/dark, reduced-motion, forced-colors).
@@ -59,6 +59,12 @@ Everything is built from a tiny `h(tag, attrs, ...children)` helper that inserts
 - Light and dark themes (`prefers-color-scheme`).
 - `prefers-reduced-motion` and `forced-colors` support.
 - No hard-coded colours in component rules — everything references a token.
+- Theme control cycles System, Light, and Dark and remembers the selection locally.
+- Workspace navigation stays in a compact sidebar on desktop and moves into the top bar on small screens.
+
+The Projects screen supports search by project ID or company and filtering by document language. Project overview surfaces the four key counts before the workflow and V-model detail.
+
+Page titles and descriptions update with the active route so browser tabs and shared links identify the current screen.
 
 ### Accessibility conventions
 

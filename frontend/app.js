@@ -13,6 +13,29 @@ const SHORTCUTS = [
 
 const app = document.getElementById("app");
 const state = { me: null, cleanup: null, seq: 0 };
+const THEMES = ["system", "light", "dark"];
+let theme = "system";
+try {
+  const savedTheme = localStorage.getItem("masterba-theme");
+  if (THEMES.includes(savedTheme)) theme = savedTheme;
+} catch { /* Storage can be disabled; keep the system theme for this session. */ }
+
+function applyTheme() {
+  if (theme === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem("masterba-theme", theme); } catch { /* Theme still applies for this session. */ }
+}
+
+function cycleTheme() {
+  theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+  applyTheme();
+  const button = document.getElementById("theme-toggle");
+  if (button) {
+    button.textContent = `Theme: ${theme[0].toUpperCase()}${theme.slice(1)}`;
+    button.setAttribute("aria-label", `Color theme: ${theme}. Activate to change theme.`);
+  }
+}
+applyTheme();
 
 const VIEWS = {
   login: () => import("./views/login.js"),
@@ -36,6 +59,19 @@ const TABS = [
   ["knowledge", "Knowledge"],
   ["drs", "Decision Records"],
 ];
+
+const PAGE_META = {
+  login: ["Sign in", "Sign in to your MasterBA project workspace."],
+  projects: ["Projects", "Manage MasterBA projects, requirements, documents, and decisions."],
+  overview: ["Project overview", "Follow requirements, document stages, reviews, and decisions in the MasterBA V-model."],
+  documents: ["Documents", "Browse versioned project documents and compare changes."],
+  trace: ["Traceability", "Explore requirement, design, and test trace links."],
+  activity: ["Activity", "Review project tasks, team activity, and audit history."],
+  questions: ["Customer questions", "Track open questions and confirmed customer answers."],
+  knowledge: ["Knowledge base", "Manage reference sources used by MasterBA writers."],
+  drs: ["Decision records", "Review project decisions, impacts, and change propagation."],
+  templates: ["Templates", "Manage company document template mappings."],
+};
 
 export function go(hash) {
   if (location.hash === hash) route();
@@ -74,21 +110,30 @@ function shell(params, content) {
       )
     : null;
   return [
-    h(
-      "header",
-      { class: "top" },
-      h("a", { class: "brand", href: "#/projects" }, h("span", { class: "seal", "aria-hidden": "true" }, "要"), "MasterBA"),
-      state.me.role === "admin" ? h("a", { class: "toplink", href: "#/templates" }, "Templates") : null,
-      params.pid ? h("span", { class: "crumb" }, h("a", { href: "#/projects" }, "Projects"), " / ", h("code", {}, params.pid)) : null,
-      h(
-        "div",
-        { class: "who" },
-        h("span", {}, state.me.name, " ", h("span", { class: "role" }, state.me.role)),
-        h("button", { class: "link", onClick: logout }, "Sign out"),
+    h("div", { class: "app-shell" },
+      h("aside", { class: "sidebar" },
+        h("a", { class: "brand", href: "#/projects" }, h("span", { class: "seal", "aria-hidden": "true" }, "要"), "MasterBA", h("span", { class: "brand-dot", "aria-hidden": "true" }, ".")),
+        h("p", { class: "sidebar-label" }, "Workspace"),
+        h("nav", { class: "workspace-nav", "aria-label": "Workspace" },
+          h("a", { href: "#/projects", "aria-current": params.pid ? null : params.name === "projects" ? "page" : null }, h("span", { "aria-hidden": "true" }, "▦"), "Projects"),
+          state.me.role === "admin" ? h("a", { href: "#/templates", "aria-current": params.name === "templates" ? "page" : null }, h("span", { "aria-hidden": "true" }, "▤"), "Templates") : null,
+        ),
+        h("div", { class: "sidebar-foot" }, h("span", { class: "sidebar-live", "aria-hidden": "true" }), "V-model workspace"),
+      ),
+      h("div", { class: "workspace" },
+        h("header", { class: "top" },
+          h("span", { class: "crumb" }, params.pid ? [h("a", { href: "#/projects" }, "Projects"), h("span", { "aria-hidden": "true" }, "/"), h("code", {}, params.pid)] : "Workspace / Projects"),
+          h("div", { class: "who" },
+            h("span", { class: "avatar", "aria-hidden": "true" }, state.me.name.slice(0, 1).toUpperCase()),
+            h("span", { class: "user-name" }, state.me.name, h("span", { class: "role" }, state.me.role)),
+            h("button", { id: "theme-toggle", class: "link theme-toggle", type: "button", onClick: cycleTheme, "aria-label": `Color theme: ${theme}. Activate to change theme.` }, `Theme: ${theme[0].toUpperCase()}${theme.slice(1)}`),
+            h("button", { class: "link", onClick: logout }, "Sign out"),
+          ),
+        ),
+        nav,
+        h("main", { id: "main", tabindex: "-1" }, content),
       ),
     ),
-    nav,
-    h("main", { id: "main", tabindex: "-1" }, content),
   ];
 }
 
@@ -125,7 +170,10 @@ async function route() {
   } else {
     app.append(...shell(params, main).filter(Boolean));
   }
-  document.title = `MasterBA — ${params.name}`;
+  const [pageTitle, description] = PAGE_META[params.name] ?? PAGE_META.projects;
+  document.title = `${params.pid ? `${pageTitle} · ${params.pid}` : pageTitle} | MasterBA`;
+  const metaDescription = document.querySelector('meta[name="description"]');
+  if (metaDescription) metaDescription.content = description;
   document.getElementById("main")?.focus({ preventScroll: true });
 
   // Show a skeleton while the view module loads and runs its first fetch, so the

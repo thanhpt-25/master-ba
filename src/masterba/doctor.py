@@ -15,6 +15,7 @@ from masterba.trace_store.errors import GitError
 from masterba.trace_store.git import ensure_ready
 
 SOURCE_TEMPLATES = Path(__file__).resolve().parents[2] / "templates" / "default"
+SOURCE_COMPANY_TEMPLATES = Path(__file__).resolve().parents[2] / "templates" / "companies"
 WORK_TREE_GITIGNORE = "".join(f"{line}\n" for line in (".masterba/", *KNOWLEDGE_IGNORES))
 
 
@@ -35,7 +36,7 @@ def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
 
 
 def init_root(root: Path) -> None:
-    """Prepare an empty folder: git init, one empty commit and the default templates."""
+    """Prepare an empty folder: git init, one empty commit and the bundled templates."""
     if root.exists() and any(root.iterdir()):
         raise ValueError(f"{root} is not empty; --init only prepares an empty folder")
     root.mkdir(parents=True, exist_ok=True)
@@ -49,6 +50,8 @@ def init_root(root: Path) -> None:
             raise ValueError(done.stderr.strip() or f"git {args[0]} failed")
     if SOURCE_TEMPLATES.is_dir():
         shutil.copytree(SOURCE_TEMPLATES, root / "templates" / "default")
+    if SOURCE_COMPANY_TEMPLATES.is_dir():
+        shutil.copytree(SOURCE_COMPANY_TEMPLATES, root / "templates" / "companies")
 
 
 def _check_git(root: Path) -> list[Check]:

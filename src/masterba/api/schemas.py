@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from masterba.models import ReviewComment
 from masterba.models.enums import DocLanguage, DrTrigger
 from masterba.models.ids import (
+    COMPANY_ID_PATTERN,
     DOC_ID_PATTERN,
     DR_ID_PATTERN,
     PROJECT_ID_PATTERN,
@@ -36,7 +37,7 @@ class LoginBody(Body):
 
 class CreateProjectBody(Body):
     project_id: str = Field(pattern=PROJECT_ID_PATTERN)
-    company_id: str = Field(default="default", min_length=1, max_length=40)
+    company_id: str = Field(default="default", pattern=COMPANY_ID_PATTERN)
     document_language: DocLanguage = DocLanguage.JA
     team_max_rounds: int = Field(default=3, ge=1, le=20)
     team_token_budget: int | None = Field(default=None, ge=1)

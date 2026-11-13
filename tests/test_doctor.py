@@ -8,6 +8,8 @@ import pytest
 
 from masterba.api.auth import UserStore
 from masterba.cli import main
+from masterba.models.enums import DocType
+from masterba.rendering.template import resolve_template
 
 REPO = Path(__file__).parents[1]
 
@@ -86,6 +88,10 @@ def test_a_folder_outside_git_fails_and_init_prepares_it(
     assert doctor(folder, "--init") == 0
     out = capsys.readouterr().out
     assert "ok   templates" in out
+    assert (folder / "templates" / "companies" / "sample-sier" / "BRD.template.json").is_file()
+    assert (folder / "templates" / "companies" / "sample-sier" / "BRD.confirmed").is_file()
+    template = resolve_template(folder / "templates", "sample-sier", DocType.BRD)
+    assert template.definition.company_id == "sample-sier"
     assert (folder / ".gitignore").read_text(encoding="utf-8") == (
         ".masterba/\n"
         "projects/*/knowledge/sources/\n"

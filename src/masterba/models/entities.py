@@ -23,6 +23,7 @@ from masterba.models.enums import (
     TemplateSource,
 )
 from masterba.models.ids import (
+    COMPANY_ID_PATTERN,
     DocId,
     DrId,
     NodeId,
@@ -152,7 +153,7 @@ class TemplateDefinition(FrozenModel):
 
 class ProjectConfig(FrozenModel):
     project_id: ProjectId
-    company_id: str = Field(min_length=1)
+    company_id: str = Field(pattern=COMPANY_ID_PATTERN)
     document_language: DocLanguage = DocLanguage.JA
     propagation_mode: PropagationMode = PropagationMode.MANUAL_GATE
     team_max_rounds: int = Field(default=3, ge=1)

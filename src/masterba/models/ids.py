@@ -21,6 +21,7 @@ _TYPE_ALT = "|".join(DOC_TYPES)
 _LEVEL_ALT = "|".join(LEVELS)
 
 PROJECT_ID_PATTERN = r"^PRJ-\d{3}$"
+COMPANY_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$"
 REQ_ID_PATTERN = r"^REQ-\d{4}$"
 DOC_ID_PATTERN = rf"^DOC-(?:{_TYPE_ALT})-\d{{4}}$"
 ITEM_REF_PATTERN = rf"^DOC-(?:{_TYPE_ALT})-\d{{4}}#item\.\d+$"

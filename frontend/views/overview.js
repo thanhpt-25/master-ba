@@ -19,9 +19,9 @@ export function workflowSteps(stages, gates) {
     const info = stages.find((s) => s.stage === phase.key) || { status: "not_started", review: "not_started" };
     let state;
     if (info.status === "running") state = "running";
+    else if (info.status === "escalated") state = "escalated";
     else if (info.review === "in_review") state = "in_review";
     else if (info.review === "approved") state = "approved";
-    else if (info.status === "escalated") state = "escalated";
     else if (info.status === "done") state = "done";
     else state = "ready";
     return { key: phase.key, title: phase.title, sub: phase.sub, state, waiting: info.waiting_for || null };
@@ -259,11 +259,15 @@ export async function render(context) {
     draw.last = () => draw(overview, job);
     // dom.js append skips empty sections; the native one would print "null".
     append(clear(main), [
-      h("div", { class: "vcard-head" }, h("h1", {}, pid), liveBar(lastActive)),
-      h(
-        "p",
-        { class: "muted" },
-        `${overview.counts.requirements} requirements · ${overview.counts.links} trace links · ${overview.counts.open_drs} open decision record(s) · ${overview.counts.open_questions} open question(s) · documents in ${overview.project.document_language === "ja" ? "Japanese" : "English"}`,
+      h("div", { class: "page-heading" },
+        h("div", {}, h("p", { class: "eyebrow" }, "Project overview"), h("h1", {}, pid), h("p", { class: "muted" }, `${overview.project.document_language === "ja" ? "Japanese" : "English"} documents · Review gates ${overview.project.review_gates ? "on" : "off"}`)),
+        liveBar(lastActive),
+      ),
+      h("dl", { class: "overview-stats", "aria-label": "Project summary" },
+        h("div", {}, h("dt", {}, "Requirements"), h("dd", {}, overview.counts.requirements)),
+        h("div", {}, h("dt", {}, "Trace links"), h("dd", {}, overview.counts.links)),
+        h("div", {}, h("dt", {}, "Open decisions"), h("dd", {}, overview.counts.open_drs)),
+        h("div", {}, h("dt", {}, "Phases complete"), h("dd", {}, `${flow.steps.filter((step) => ["approved", "done"].includes(step.state)).length} / 4`)),
       ),
       workflowStrip(overview, pid),
       h(

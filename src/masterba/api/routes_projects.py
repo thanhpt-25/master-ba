@@ -140,10 +140,10 @@ def _stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, A
     last = runs[0] if runs else None
     if running:
         status = "running"
-    elif len(docs) == len(STAGE_DOCS[stage]):
-        status = "done"
     elif last is not None and last["status"] == "escalated":
         status = "escalated"
+    elif len(docs) == len(STAGE_DOCS[stage]):
+        status = "done"
     else:
         status = "not_started"
     review = phase_state(store, ReviewStage(stage))
