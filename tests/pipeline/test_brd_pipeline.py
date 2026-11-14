@@ -175,7 +175,9 @@ def test_repeating_the_same_qa_blocker_escalates_without_writing_the_draft(
     result = run_brd(store, TEMPLATES, llm, intake_path(LOGIN))
     assert result.status is TeamRunStatus.ESCALATED
     assert result.rounds == 2
-    assert result.escalations[0] == "no progress: the same QA blockers remained after a targeted revision"
+    assert result.escalations[0] == (
+        "no progress: the same QA blockers remained after a targeted revision"
+    )
     assert result.document_id is None
     # Besides its record, an escalated run writes only questions (spec 13 section 3): the
     # draft's open question and QA's objection.
