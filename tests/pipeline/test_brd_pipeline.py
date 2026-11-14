@@ -166,7 +166,7 @@ def test_a_separate_qa_model_receives_only_the_review_calls(store: ProjectStore)
     assert "BRD-01" in reviewer.calls[0].system
 
 
-def test_exhausting_the_rounds_escalates_and_leaves_only_the_intake_and_the_run(
+def test_repeating_the_same_qa_blocker_escalates_without_writing_the_draft(
     projects_root: Path, commit_log: Callable[[], list[str]]
 ) -> None:
     store = create_project(projects_root, make_config(max_rounds=2))
@@ -175,7 +175,7 @@ def test_exhausting_the_rounds_escalates_and_leaves_only_the_intake_and_the_run(
     result = run_brd(store, TEMPLATES, llm, intake_path(LOGIN))
     assert result.status is TeamRunStatus.ESCALATED
     assert result.rounds == 2
-    assert result.escalations[0] == "max rounds reached (2)"
+    assert result.escalations[0] == "no progress: the same QA blockers remained after a targeted revision"
     assert result.document_id is None
     # Besides its record, an escalated run writes only questions (spec 13 section 3): the
     # draft's open question and QA's objection.
