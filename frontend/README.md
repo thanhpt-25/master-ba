@@ -13,6 +13,10 @@ npm run serve        # python3 -m http.server 8000
 
 Any static file server works; `npm run serve` is just a convenience. In production the same files are served behind the app's own `/api` backend (the frontend expects `/api/*` on the same origin, with a session cookie).
 
+## Vercel
+
+The repository-root `vercel.json` selects the **Other** framework preset and publishes this directory as static output. This prevents Vercel from treating the repository's `pyproject.toml` as a FastAPI deployment. The SPA can be built and served as static files, but its `/api/*` requests still require a MasterBA backend at the same origin or a Vercel rewrite to a separately deployed backend. Static frontend hosting alone does not provide the API, project data, or session authentication.
+
 ## Architecture
 
 ```
