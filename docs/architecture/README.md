@@ -1,8 +1,8 @@
 # MasterBA architecture documents
 
-These documents explain how MasterBA works as built: what the parts are, where data lives, how a
-document travels from a customer's text to Excel workbooks, and which part of the system decides
-what. They describe the code as it is today (specs 11, 12, 13 and 15 included); the planned work is in
+These documents explain how MasterBA works as built: the parts, where data lives, how a document
+travels from a customer's text to Excel workbooks, and which part decides what. They describe the
+code as it is today (specs 11, 12, 13 and 15 included); planned work is in
 [../next-steps.md](../next-steps.md).
 
 | # | Document | Read it to learn |

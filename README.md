@@ -1,6 +1,6 @@
 # MasterBA
 
-MasterBA is a multi-agent system that turns customer requirements into the deliverables of a Japanese SIer V-Waterfall project (the IPA model): BRD, SRS, basic design and detail design, plus the test specifications that go with them. The output is Excel in the layout a company already uses. Every document is versioned, every item is traceable to the requirement it came from, and a change to a requirement can be pushed through the documents that depend on it.
+MasterBA is a multi-agent system that generates and maintains Japanese SIer V-Waterfall (IPA model) deliverables — BRD, SRS, basic design, detail design, and their test specifications — as Excel in a company's own layout. Every document is versioned, every item traces to the requirement it came from, and a requirement change can be pushed through its dependent documents.
 
 ```
 Customer requirements
@@ -32,7 +32,7 @@ intake ─▶ BRD ─▶ [review] ─▶ SRS ─▶ [review] ─▶ Basic design
 
 ### Why the work is split into content and layout
 
-A language model is good at drafting text and poor at reproducing a spreadsheet cell by cell. So the agents never touch Excel. They return structured JSON, a deterministic renderer fills the workbook, and the two layers share only a schema. This has three consequences:
+A language model drafts text well but reproduces a spreadsheet cell by cell poorly, so agents never touch Excel: they return structured JSON, a deterministic renderer fills the workbook, and the two layers share only a schema. Consequences:
 
 - A company's template can change, or be replaced with one calibrated from its own sample, without regenerating any content.
 - Rendering the same JSON twice gives byte-identical files, so a re-render of unchanged content is not a git change.
@@ -40,7 +40,7 @@ A language model is good at drafting text and poor at reproducing a spreadsheet 
 
 ### Identifiers and stability
 
-Models do not invent identifiers. Code assigns them after a stage has passed its gates.
+Models never invent identifiers; code assigns them once a stage passes its gates.
 
 | Kind | Form | Example |
 |---|---|---|
@@ -55,46 +55,46 @@ Models do not invent identifiers. Code assigns them after a stage has passed its
 | Knowledge source and chunk | `KB-####`, and `KB-####` + `#chunk.<n>` | `KB-0001#chunk.3` |
 | Phase review | `REV-####` | `REV-0002` |
 
-Documents are versioned with integers and a version is never overwritten. The ID stability rule says that a new version may not drop an item id or bring a dropped one back. Impact analysis relies on it: a link from `REQ-0002` to `DOC-SRS-0001#item.4` must still mean the same thing after the fourth revision.
+Documents version with integers and a version is never overwritten. The ID stability rule: a new version may not drop an item id or bring a dropped one back. Impact analysis relies on it — a link from `REQ-0002` to `DOC-SRS-0001#item.4` must still mean the same thing after the fourth revision.
 
 ### Traceability
 
-Trace links point from upstream to downstream and have a type: `realizes` (requirement to design item), `tests` (item to test case), and `derives_from`, `verifies` and `implements`. A change request is answered by walking these edges, so the system can list the documents and items a requirement touches and the requirements an item or test case verifies, without asking a model.
+Trace links point upstream to downstream and carry a type: `realizes` (requirement to design item), `tests` (item to test case), and `derives_from`, `verifies` and `implements`. A change request is answered by walking these edges — listing the documents and items a requirement touches, or the requirements an item/test case verifies — without asking a model.
 
 ### Teams, gates and escalation
 
-Each stage is run by a small team rather than a single call. The shape is the same for every stage:
+Each stage runs as a small team, not a single call, in the same shape every time:
 
-1. The writer returns a draft through a forced tool call, so the output is structured and validated against a schema.
-2. A deterministic gate checks what code can check: citations point into the intake text and the quoted text is a substring of the cited lines, titles are unique, every upstream item is covered. Errors go straight back to the writer and cost no QA call.
-3. A QA reviewer works from a checklist in `skills/qa-review/checklists/<stage>.toml`. The model only reports issues; code computes the verdict, and the checklist caps how severe an issue can be.
+1. The writer returns a draft through a forced tool call, so output is structured and schema-validated.
+2. A deterministic gate checks what code can check — citations land in the intake text with the quote a substring of the cited lines, titles are unique, every upstream item is covered. Errors go straight back to the writer, no QA call spent.
+3. A QA reviewer works from a checklist in `skills/qa-review/checklists/<stage>.toml`: the model only reports issues, code computes the verdict, and the checklist caps how severe an issue can be.
 4. The loop repeats until the draft passes or a limit is reached (`team_max_rounds`, `team_token_budget` in the project config).
 
-When a limit is reached the run is escalated: the command exits with code 3 and nothing business-related is written. A model request that fails (timeout, connection or gateway error) escalates the run the same way, so it can be resumed. The design stages add a tester. A tester can put questions to the designer through a mailbox, at most two exchanges per cycle, and a question about an item that was already answered is reported as an open question for the customer instead of blocking the loop.
+Hitting the limit escalates the run: it exits with code 3 and nothing business-related is written. A failed model request (timeout, connection, gateway) escalates the same way so the run can be resumed. Design stages add a tester, who may question the designer through a mailbox (at most two exchanges per cycle); a question about an already-answered item is reported as an open question for the customer instead of blocking the loop.
 
 ### Review gates between phases
 
-A finished stage stores its documents `in_review`, and the next stage refuses to start until a person approves the phase. The reviewer either approves (the documents become `approved`, a review record `reviews/REV-####.json` is committed) or rejects with comments. A rejection becomes a `review_feedback` Decision Record: the reviser writes version n+1 for another review and the rejected version is marked `superseded`. Basic design is reviewed together with its IT and ST specifications, detail design with its UT specification. The gate is a project setting, on for new projects (`init-project --no-review-gates` turns it off for scripted runs).
+A finished stage stores its documents `in_review`; the next stage refuses to start until a person approves the phase. The reviewer approves (documents become `approved`, a review record `reviews/REV-####.json` is committed) or rejects with comments, which becomes a `review_feedback` Decision Record: the reviser writes version n+1 for another review and marks the rejected version `superseded`. Basic design is reviewed with its IT/ST specs, detail design with its UT spec. The gate is a project setting, on by default (`init-project --no-review-gates` turns it off for scripted runs).
 
 ### Customer questions
 
-What only the customer can settle is not guessed. The writers, the tester and QA raise questions, which go into a ledger (`questions/Q-####.json`). An answer is recorded as an approved clarification Decision Record, and every later model call gets the answered points as `<confirmed>` facts and the unanswered ones as `<open_questions>`. No stage may state an answer to an open question, even when the intake or a knowledge passage contains one.
+What only the customer can settle is never guessed. Writers, the tester and QA raise questions into a ledger (`questions/Q-####.json`). An answer becomes an approved clarification Decision Record; every later model call gets answered points as `<confirmed>` facts and unanswered ones as `<open_questions>`, and no stage may state an answer to an open question even if the intake or a knowledge passage contains one.
 
 ### Knowledge base
 
-A project can hold reference files (glossaries, standards, earlier specifications in `.md`, `.txt`, `.xlsx`, `.docx` or `.pdf`). They are split into chunks and indexed locally: always a keyword index, and with the optional `rag` extra also vectors from a local embedding model. Each writer gets the passages that match its input in an escaped `<knowledge>` block, may cite them by chunk, and code checks every citation before QA sees the draft. QA gets the same block and may block a draft that contradicts it. Citations become trace links, so replacing or removing a cited source proposes a Decision Record.
+A project can hold reference files (glossaries, standards, earlier specs — `.md`, `.txt`, `.xlsx`, `.docx`, `.pdf`), split into chunks and indexed locally: always a keyword index, plus local-embedding vectors with the optional `rag` extra. Each writer gets matching passages in an escaped `<knowledge>` block, may cite them by chunk, and code checks every citation before QA sees the draft; QA gets the same block and may block a draft that contradicts it. Citations become trace links, so replacing or removing a cited source proposes a Decision Record.
 
 ### Change management
 
-A decision record (DR) is how a change enters the system. It moves through proposed, approved, propagated and closed, and a rejected record is closed immediately. The default is a manual gate: nothing is revised until a person approves the record.
+A decision record (DR) is how a change enters the system: proposed, approved, propagated, closed (a rejected record closes immediately). The default is a manual gate — nothing is revised until a person approves the record.
 
-On approval the system computes the impact from the trace graph and orders the affected documents along the V (BRD, SRS, basic design, IT, ST, detail design, UT). Propagation then runs one writer and QA team per document. The reviser agent does not rewrite a document. It returns a patch of `update`, `add` and `remove` operations, and a pure function applies it, so items the patch does not mention stay byte-identical and keep their ids. Each result is stored as version n+1 with a before and after diff. A rerun resumes from the documents that are not yet done.
+On approval, the system computes impact from the trace graph and orders the affected documents along the V (BRD, SRS, basic design, IT, ST, detail design, UT), then runs one writer+QA team per document to propagate. The reviser agent never rewrites a document — it returns a patch of `update`/`add`/`remove` operations that a pure function applies, so items the patch doesn't mention stay byte-identical with stable ids. Each result lands as version n+1 with a before/after diff; a rerun resumes from documents not yet done.
 
-The diff has two levels: a structural comparison by item id, and a classification of each changed item as reworded or structural. The classification uses text similarity only, and any change to a number counts as structural.
+The diff itself has two levels: a structural comparison by item id, and a reworded-vs-structural classification by text similarity (any numeric change always counts as structural).
 
 ### Company templates
 
-The defaults follow common SIer layouts and live in `templates/default/`. A company can override them. Given a sample workbook, calibration reads the sheets, finds the header row, matches the column labels against a table of Japanese and English synonyms, optionally asks a model to refine the mapping, and writes a draft template. A validation gate checks every sheet, cell and field in the draft. The renderer ignores the draft until an administrator confirms it, and any later edit removes the confirmation.
+Defaults follow common SIer layouts in `templates/default/`; a company can override them. Given a sample workbook, calibration reads the sheets, finds the header row, matches column labels against Japanese/English synonyms, optionally asks a model to refine the mapping, and writes a draft template. A validation gate checks every sheet, cell and field; the renderer ignores the draft until an administrator confirms it, and any later edit removes the confirmation.
 
 ## Architecture
 
@@ -148,11 +148,11 @@ The defaults follow common SIer layouts and live in `templates/default/`. A comp
 
 Taking `masterba run srs` as the example:
 
-1. The CLI opens the project and loads the latest BRD from the store. With review gates on, it refuses to start while the BRD phase is still in review.
-2. The SRS writer produces a draft from the BRD, the confirmed facts, the open questions and the matching knowledge passages; the coverage gate checks that every BRD requirement is addressed, and the citation gate checks every knowledge citation.
-3. The QA reviewer checks the draft against `srs.toml`; the loop repeats within its limits.
-4. On success the pipeline assigns ids in code, writes `json/srs/DOC-SRS-0001.v1.json` (status `in_review` with gates), writes the trace links, renders `xlsx/srs/DOC-SRS-0001.v1.xlsx` with the company template, and commits. New customer questions go into the ledger.
-5. The run record (summary, tasks and mailbox) is committed once at the end. Raw transcripts stay local and are git-ignored.
+1. The CLI opens the project and loads the latest BRD; with review gates on, it refuses to start while the BRD phase is still in review.
+2. The SRS writer drafts from the BRD, confirmed facts, open questions and matching knowledge passages; the coverage gate checks every BRD requirement is addressed, the citation gate checks every knowledge citation.
+3. QA checks the draft against `srs.toml`; the loop repeats within its limits.
+4. On success the pipeline assigns ids, writes `json/srs/DOC-SRS-0001.v1.json` (`in_review` with gates on), writes trace links, renders `xlsx/srs/DOC-SRS-0001.v1.xlsx` with the company template, and commits. New customer questions go into the ledger.
+5. The run record (summary, tasks, mailbox) is committed once at the end; raw transcripts stay local and git-ignored.
 
 ### Project layout on disk
 
@@ -175,7 +175,7 @@ Commit subjects follow `<scope>(<project>): <action> <id>`, so `git log` reads a
 
 ### The dashboard
 
-`masterba serve` runs the API and the web app in one process. Users are local accounts with PBKDF2 hashes and a signed session cookie; the three roles (viewer, approver, admin) are read from the users file on every request. State-changing calls need an `X-MasterBA` header, and the content security policy allows no inline script or style. Stage runs and propagation are background jobs, one per project. The server calls the same library functions as the CLI, which is why the git history is identical either way. Model keys come from the server environment and never reach the browser.
+`masterba serve` runs the API and web app in one process. Users are local accounts (PBKDF2 hashes, signed session cookie); the three roles (viewer, approver, admin) are read from the users file on every request. State-changing calls need an `X-MasterBA` header, and the CSP allows no inline script or style. Stage runs and propagation are background jobs, one per project. The server calls the same library functions as the CLI, so git history is identical either way, and model keys come from the server environment and never reach the browser.
 
 ## Status
 
