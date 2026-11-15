@@ -29,6 +29,11 @@ The model returns only issues. `QaReport.passed` is true when no issue is `block
 does not state a verdict. An issue with an unknown `checklist_id` or a `ref` that is not an item of
 the draft makes the report unusable: it is retried once, then the run escalates.
 
+Before the verdict is used, `normalise_report` downgrades a blocking issue to `advisory` when it
+names no `action_required` or is a `customer_question`: blocking must mean "change this." Every
+issue marked `customer_question` also becomes a draft for the project's question ledger
+(`questions/`), and a blocking one is kept separately so an escalated run still surfaces it.
+
 ## What is not here
 
 Whether the SRS covers every in-scope BRD requirement is decided by the deterministic gate in

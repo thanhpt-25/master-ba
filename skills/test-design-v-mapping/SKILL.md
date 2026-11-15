@@ -24,7 +24,7 @@ Trace links (upstream to downstream): `design item -> TC-IT` and `SRS item -> TC
 | IT cases cite design items, ST cases cite active SRS items | `validate_test_draft` |
 | Every design item has an IT case or an exclusion; every SRS item an ST case or an exclusion | `validate_test_draft`; an item cannot be both tested and excluded |
 | Steps are real | `DraftTestCase` rejects blank steps; `expected` must be non-empty |
-| Nothing is guessed | The tester raises a `question` about a design item instead; questions are posted to the designer (mailbox `question`) and QA does not run while they are open |
+| Nothing is guessed | The tester raises a `question` about a design item instead (mailbox `question`, at most 2 exchanges per cycle); QA does not run while a fresh question is open; a repeated question about an already-answered item stops blocking and is reported as a customer question |
 | The model never chooses ids | `pipeline.basic.assign_basic_ids` assigns `TC-` ids and item refs in draft order |
 | Good cases (boundary, error, observable result) | QA checklist `skills/qa-review/checklists/tests.toml` |
 
