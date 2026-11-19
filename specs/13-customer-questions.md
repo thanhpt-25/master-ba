@@ -19,7 +19,7 @@ What this does and does not change: it gives open points a place to be answered,
 - No answers written by a model. Only a signed-in person (or the CLI `--by`) answers.
 - No threads, comments or editing of a question's text.
 - Existing checklist severity and human review gates remain mandatory; see [16-escalation-efficiency.md](16-escalation-efficiency.md).
-- DR propagation runs ([07-change-management.md](07-change-management.md)) are not covered: the questions their reviewers raise stay in the run record.
+- (Superseded) DR propagation runs used to be outside this spec; section 3.1 now records the questions their reviewers raise.
 
 ## 1. Problem
 
@@ -69,6 +69,10 @@ After `team.finish` of a BRD, SRS, basic design or detail design run (done, esca
 
 **Result.** `StageResult` gains `question_ids` (the questions of this run, new or existing) and `reasked`.
 
+### 3.1 Questions raised during propagation
+
+A propagation team run ([07-change-management.md](07-change-management.md) section 5) records its questions exactly like a stage run: after `team.finish` of an `escalated` or `waiting_for_input` run, `record_run_questions` writes them to the ledger. References are kept because a propagation only touches stored documents. When a document ends `waiting_for_input`, `DocOutcome.outcome` is `waiting_for_input`, `question_ids` lists the questions, the job ends `waiting_for_input`, and propagation stops there with the DR still `approved`. After the questions are answered or withdrawn, pressing Propagate (or `dr propagate`) retries only the unfinished documents; the answers reach the model as confirmed facts (section 5).
+
 **Escalated runs too.** The rule that nothing business-related is written on escalation keeps its meaning: a question is not a requirement, a document or a link, and it explains the escalation.
 
 ## 4. Answering: the answer becomes a Decision Record
@@ -76,13 +80,13 @@ After `team.finish` of a BRD, SRS, basic design or detail design run (done, esca
 `answer_question(store, question_id, answer, by, source=None)`:
 
 1. The question must be `open`; `answer` and `by` must be non-empty and the answer must pass the checks of section 5.
-2. A `clarification` DR is created. Its description is `Q-0007: <question text>`; its impacted items are the question's `refs` that are trace nodes (intake lines are dropped; a clarification may have none). If an earlier attempt already left a `proposed` or `approved` clarification DR whose description starts with `Q-0007:`, it is reused instead of creating another.
+2. A `clarification` DR is created. Its description is `Q-0007: <question text>`; its impacted items are the question's `refs` that are trace nodes, plus, for an intake line `intake/<file>#Lx-Ly`, the requirements whose `source_ref` is in the same file and overlaps those lines (`questions.answer.impact_items`). A ref that names nothing stored is dropped, and a clarification may have no impacted items; it is then only a confirmed fact for later runs. If an earlier attempt already left a `proposed` or `approved` clarification DR whose description starts with `Q-0007:`, it is reused instead of creating another.
 3. The DR is approved with `approver = by`, `decision = answer` and `rationale = source`. The impact analysis is stored as for any DR.
 4. The question is saved as `answered` with the answer, the name, the source, the date and the DR id.
 
 The steps are separate commits, so a failure between them leaves the DR in the state reached and the question `open`; running the same answer again resumes from there and creates no second DR.
 
-`dr propagate` stays a separate, explicit step (`manual_gate`, spec 07): it revises the documents the DR reaches, if any exist. When the stage escalated and no document exists yet, the DR has no affected documents and simply records the decision; the next run uses it (section 5).
+`dr propagate` stays a separate, explicit step (`manual_gate`, spec 07) unless the project's `propagation_mode` is `auto` (spec 07 section 5.1), in which case answering starts it: it revises the documents the DR reaches, if any exist. When the stage escalated and no document exists yet, the DR has no affected documents and simply records the decision; the next run uses it (section 5).
 
 `withdraw_question(store, question_id)` moves an `open` question to `withdrawn` without a DR, for a question that no longer applies. It takes no name: the question has no field for who withdrew it, and the git history of the commit is the record.
 
@@ -206,7 +210,7 @@ Read side by side: the `<confirmed>` block is in the writer's and QA's prompts o
 | 7 | Typed answers entering a prompt | section 5: data not instructions, a length limit, bracket neutralising |
 | 8 | A withdrawn question could be re-added; references on a match were undefined | section 3: withdrawn matches too; references are not merged |
 | 9 | The BRD gate needs intake lines | section 5 says facts only clarify the BRD |
-| 10 | DR propagation questions had no home | non-goal |
+| 10 | DR propagation questions had no home | section 3.1 |
 | 11 | Answering is three commits and can fail between them | section 4: a retry reuses the DR |
 | 12 | Spec 01 and the architecture documents also change | section 9 |
 | 13 | The date field `answered` shared its name with a status | `asked_on`, `answered_on` |

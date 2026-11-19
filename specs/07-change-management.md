@@ -107,11 +107,20 @@ on done: empty patch   -> no new version; recorded as "unchanged"
 
 - The run is recorded like every team run (`RUN-####`, `trigger` = the DR id, `stage` = the document type); the QA checklist per type: BRD `brd`, SRS `srs`, Basic Design `basic_design`, IT and ST `tests`, Detail Design `detail_design`, UT `unit_tests`.
 - Progress is stored in `decision-records/DR-####.propagation.json` (`{doc_id: {"outcome": "revised" | "unchanged", "version": n | null, "run_id": ...}}`), committed after each document as `dr(P): propagate DR-#### <DOC_ID>`. `dr propagate` skips documents already recorded, so after an escalation the command can simply be run again (the escalated document is retried, as a new run).
-- If a document's team escalates, propagation stops there; the DR stays `approved`; the exit code is 3 and the reasons are printed. Documents already revised keep their new versions (each is a complete, QA-passed change).
+- If a document's team escalates, propagation stops there; the DR stays `approved`; the exit code is 3 and the reasons are printed. The questions the team raised are recorded in the ledger (spec 13 section 3.1); when the team was waiting for customer input the document's outcome is `waiting_for_input` and the job ends `waiting_for_input`. Documents already revised keep their new versions (each is a complete, QA-passed change).
 - When every affected document is recorded, the DR becomes `propagated` (`dr(P): propagate DR-####`).
 - Model options: `--model` (reviser), `--qa-model` (reviewer).
 
 The new document versions are what the dashboard and `dr diff` compare with the previous ones.
+
+### 5.1 Automatic propagation (`propagation_mode: auto`)
+
+`ProjectConfig.propagation_mode` accepts `auto` besides `manual_gate` (default) and `auto_low_risk`. In `auto` mode, `change.propagate.auto_propagates(store, dr)` is true right after a DR becomes `approved` when the DR has at least one affected document and its trigger is not `review_feedback` (`reject_phase` already propagates those itself). The approval paths then start `propagate_dr` without a second human action:
+
+- `dr approve` and `question answer` (CLI) run it inline and print `propagation`; exit code 3 if a document escalated.
+- `POST /drs/{id}/approve` and `POST /questions/{id}/answer` (API) submit the usual `propagate:<dr>` job and return it as `job`. If another job is running, the approval still succeeds and the response carries `propagation_note`; the person presses Propagate later.
+- A failed or escalated propagation never undoes the approval or the answer: the DR stays `approved` and `dr propagate` resumes from its progress file.
+- Projects without the field, or set to `manual_gate`, behave as before. Admins change the mode with `POST /projects/{pid}/settings/propagation-mode`; `init-project --propagation-mode` sets it at creation.
 
 ## 6. Showing the difference (`dr diff`, `dr show`)
 
