@@ -21,6 +21,7 @@ from masterba.api.schemas import (
     CreateProjectBody,
     LoginBody,
     ProjectBudgetBody,
+    PropagationModeBody,
     RunStageBody,
 )
 from masterba.api.settings import MAX_UPLOAD_CHARS, Settings
@@ -131,6 +132,13 @@ def new_project(request: Request, body: CreateProjectBody) -> dict[str, Any]:
 def update_token_budget(store: Store, body: ProjectBudgetBody) -> dict[str, Any]:
     current = get_config(store)
     updated = current.model_copy(update={"team_token_budget": body.team_token_budget})
+    set_config(store, ProjectConfig.model_validate(updated.model_dump()))
+    return get_config(store).model_dump(mode="json")
+
+
+@router.post("/projects/{pid}/settings/propagation-mode", dependencies=[Admin])
+def update_propagation_mode(store: Store, body: PropagationModeBody) -> dict[str, Any]:
+    updated = get_config(store).model_copy(update={"propagation_mode": body.propagation_mode})
     set_config(store, ProjectConfig.model_validate(updated.model_dump()))
     return get_config(store).model_dump(mode="json")
 

@@ -13,7 +13,7 @@ stateDiagram-v2
     proposed --> approved: dr approve (impact stored)
     proposed --> closed: dr reject
     approved --> propagated: dr propagate (all documents done)
-    approved --> approved: dr propagate (a document escalated, rerun later)
+    approved --> approved: dr propagate (a document escalated or is waiting for an answer, rerun later)
     propagated --> closed: dr close
     closed --> [*]
 ```
@@ -26,7 +26,7 @@ stateDiagram-v2
 | `closed` | Finished, or rejected | `dr close` after propagation, or `dr reject` before approval |
 
 The project setting `propagation_mode` is `manual_gate`: no document changes until a person has
-approved. (`auto_low_risk` exists in the model but no code uses it yet.)
+approved. In `auto` mode, approving a DR (or answering a question) starts propagation right away when the DR has affected documents (spec 07 section 5.1). (`auto_low_risk` exists in the model but no code uses it yet.)
 
 Each transition is one commit of the DR file, for example `dr(PRJ-001): approve DR-0001`.
 

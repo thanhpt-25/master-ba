@@ -76,6 +76,7 @@ class DocLanguage(StrEnum):
 class PropagationMode(StrEnum):
     MANUAL_GATE = "manual_gate"
     AUTO_LOW_RISK = "auto_low_risk"
+    AUTO = "auto"
 
 
 class Role(StrEnum):

@@ -191,3 +191,36 @@ def test_the_open_block_is_capped_newest_first_and_neutralises_brackets(
     block = open_questions_block(found)
     assert block.count("<open_questions>") == 1 and block.count("</open_questions>") == 1
     assert "‹x›" in block
+
+
+def cite(store: ProjectStore, n: int, lines: str) -> None:
+    add_requirement(
+        store, make_requirement(n).model_copy(update={"source_ref": f"intake/x.txt#{lines}"})
+    )
+
+
+@pytest.mark.parametrize(
+    ("asked", "reached"),
+    [
+        ("L4-L4", ["REQ-0001"]),  # inside the cited range
+        ("L3-L3", ["REQ-0001"]),  # first cited line
+        ("L5-L7", ["REQ-0001", "REQ-0002"]),  # overlaps both citations
+        ("L2-L2", []),  # just before any citation
+        ("L9-L9", []),  # an uncited line stays a plain fact
+    ],
+)
+def test_an_intake_line_reaches_the_requirements_that_cite_it(
+    store: ProjectStore, asked: str, reached: list[str]
+) -> None:
+    cite(store, 1, "L3-L5")
+    cite(store, 2, "L6-L7")
+    ask(store, "What is fast?", f"intake/x.txt#{asked}")
+    answer(store)
+    assert get_decision_record(store, "DR-0001").impacted_items == reached
+
+
+def test_an_intake_line_of_another_file_reaches_nothing(store: ProjectStore) -> None:
+    cite(store, 1, "L3-L5")
+    ask(store, "What is fast?", "intake/other.txt#L4-L4")
+    answer(store)
+    assert get_decision_record(store, "DR-0001").impacted_items == []

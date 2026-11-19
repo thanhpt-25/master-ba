@@ -15,7 +15,7 @@ from masterba.agents.requirements_analyst import (
     language_problem,
     load_system_prompt,
 )
-from masterba.agents.test_writer import DesignQuestion, DraftExclusion, DraftTestCase
+from masterba.agents.test_writer import DesignQuestion, DraftExclusion, DraftTestCase, also_tested
 from masterba.llm import LLM, LLMResult
 from masterba.models import BasicDesignItem
 from masterba.models.base import FrozenModel
@@ -65,12 +65,12 @@ def validate_unit_test_draft(
     """Deterministic gate: refs resolve, steps are real, every detail item is tested or excluded."""
     detail_set = set(detail_refs(detail, detail_doc_id))
     errors: list[str] = []
-    tested: set[str] = set()
+    tested: dict[str, list[str]] = {}
     for index, case in enumerate(draft.ut_cases, start=1):
         for ref in case.verifies:
             if ref not in detail_set:
                 errors.append(f"UT case {index}: {ref} is not a detail design item")
-            tested.add(ref)
+            tested.setdefault(ref, []).append(f"UT case {index}")
         if language is not None:
             for text in (case.precondition, case.input, case.expected, *case.steps):
                 if text and (problem := language_problem(text, language)):
@@ -80,15 +80,15 @@ def validate_unit_test_draft(
     for index, exclusion in enumerate(draft.exclusions, start=1):
         if exclusion.item_ref not in detail_set:
             errors.append(f"exclusion {index}: {exclusion.item_ref} is not a detail design item")
-        if exclusion.item_ref in tested:
-            errors.append(f"exclusion {index}: {exclusion.item_ref} is also tested")
+        if covered := tested.get(exclusion.item_ref):
+            errors.append(also_tested(index, exclusion.item_ref, covered))
         if language is not None and (problem := language_problem(exclusion.reason, language)):
             errors.append(f"exclusion {index}: reason {problem}")
         excluded.add(exclusion.item_ref)
     for index, question in enumerate(draft.questions, start=1):
         if question.ref not in detail_set:
             errors.append(f"question {index}: {question.ref} is not a detail design item")
-    untested = sorted(detail_set - tested - excluded)
+    untested = sorted(detail_set - tested.keys() - excluded)
     if untested:
         errors.append(f"detail items with no UT case and no exclusion: {', '.join(untested)}")
     return errors

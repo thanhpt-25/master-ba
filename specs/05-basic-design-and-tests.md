@@ -32,6 +32,8 @@ Trace links written when the team is `done` (direction: upstream to downstream, 
 
 Consequently `rtm(REQ-####)` reaches test cases through both the IT and the ST route. (`verifies` as a link type stays reserved for UAT.) The `verifies` field of a stored `TestCaseItem` holds the same targets as the links.
 
+**Gate message:** an item that is both tested and excluded is reported with the case numbers that test it and both ways to fix it, so the writer can act on one round of feedback.
+
 **Coverage rule (checked by code, section 4.2):** every active design item has at least one IT case or an exclusion with a reason; every active SRS item has at least one ST case or an exclusion with a reason; every active SRS item is realised by at least one design item.
 
 ## 2. Roles and artifacts

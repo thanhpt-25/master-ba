@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from masterba.api.auth import User
 from masterba.api.deps import checked, project_store, require_role, state_of
-from masterba.api.jobs import JobBusyError
+from masterba.api.jobs import Job, JobBusyError
 from masterba.api.schemas import DecisionBody, FromRunBody, NewDrBody
 from masterba.change import (
     approve_dr,
+    auto_propagates,
     close_dr,
     dr_diff,
     dr_from_run,
@@ -59,10 +60,16 @@ def read_dr(store: Store, dr_id: str) -> dict[str, Any]:
 
 
 @router.post("/{dr_id}/approve")
-def approve(store: Store, dr_id: str, body: DecisionBody, user: Signed) -> dict[str, Any]:
+def approve(
+    request: Request, store: Store, dr_id: str, body: DecisionBody, user: Signed
+) -> dict[str, Any]:
     checked("dr", dr_id)
     dr, impact = approve_dr(store, dr_id, user.name, body.decision, body.rationale)
-    return {"dr": dr.model_dump(mode="json"), "impact": impact.to_json()}
+    return {
+        "dr": dr.model_dump(mode="json"),
+        "impact": impact.to_json(),
+        **auto_propagation(request, store, dr_id),
+    }
 
 
 @router.post("/{dr_id}/reject")
@@ -77,10 +84,8 @@ def close(store: Store, dr_id: str) -> dict[str, Any]:
     return close_dr(store, dr_id).model_dump(mode="json")
 
 
-@router.post("/{dr_id}/propagate", status_code=202, dependencies=[Approver])
-def propagate(request: Request, store: Store, dr_id: str) -> dict[str, Any]:
-    checked("dr", dr_id)
-    get_decision_record(store, dr_id)
+def submit_propagation(request: Request, store: ProjectStore, dr_id: str) -> Job:
+    """Queue the `propagate:<dr>` job; raises JobBusyError when another job runs."""
     app = state_of(request)
     settings = app.settings
 
@@ -90,11 +95,30 @@ def propagate(request: Request, store: Store, dr_id: str) -> dict[str, Any]:
         result = propagate_dr(store, settings.templates, dr_id, reviser, qa_llm=qa)
         payload = result.to_json()
         payload["dr_status"] = payload["status"]
-        payload["status"] = "escalated" if result.escalated else "done"
+        payload["status"] = (
+            "waiting_for_input" if result.waiting else "escalated" if result.escalated else "done"
+        )
         return payload
 
+    return app.jobs.submit(store.project_id, f"propagate:{dr_id}", work)
+
+
+def auto_propagation(request: Request, store: ProjectStore, dr_id: str) -> dict[str, Any]:
+    """Extra response fields after an approval: the job, or why none was started (spec 07 5.1)."""
+    if not auto_propagates(store, get_decision_record(store, dr_id)):
+        return {}
     try:
-        job = app.jobs.submit(store.project_id, f"propagate:{dr_id}", work)
+        return {"job": submit_propagation(request, store, dr_id).to_json()}
+    except JobBusyError as exc:
+        return {"propagation_note": f"{exc}; press Propagate when it ends"}
+
+
+@router.post("/{dr_id}/propagate", status_code=202, dependencies=[Approver])
+def propagate(request: Request, store: Store, dr_id: str) -> dict[str, Any]:
+    checked("dr", dr_id)
+    get_decision_record(store, dr_id)
+    try:
+        job = submit_propagation(request, store, dr_id)
     except JobBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return job.to_json()

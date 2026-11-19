@@ -20,7 +20,7 @@ from masterba.change.patch import (
     apply_patch,
     validate_patch,
 )
-from masterba.change.propagate import DocOutcome, PropagationResult, propagate_dr
+from masterba.change.propagate import DocOutcome, PropagationResult, auto_propagates, propagate_dr
 
 __all__ = [
     "V_ORDER",
@@ -37,6 +37,7 @@ __all__ = [
     "RevisionPatch",
     "analyse_impact",
     "apply_patch",
+    "auto_propagates",
     "approve_dr",
     "close_dr",
     "dr_diff",

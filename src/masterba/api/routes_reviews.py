@@ -68,7 +68,13 @@ def reject(
         return {
             "review": review.model_dump(mode="json"),
             "revision": result.to_json(),
-            "status": "escalated" if result.escalated else "done",
+            "status": (
+                "waiting_for_input"
+                if result.waiting
+                else "escalated"
+                if result.escalated
+                else "done"
+            ),
         }
 
     try:

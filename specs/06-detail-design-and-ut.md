@@ -29,7 +29,7 @@ Trace links written when the team is `done` (upstream to downstream):
 
 So `rtm(REQ-####)` now reaches IT, ST and UT cases.
 
-**Coverage rule (code):** every active Basic Design item is refined by at least one detail item; every active detail item has at least one UT case or an exclusion with a reason; an item may not be both tested and excluded.
+**Coverage rule (code):** every active Basic Design item is refined by at least one detail item; every active detail item has at least one UT case or an exclusion with a reason; an item may not be both tested and excluded (the gate message names the UT cases that verify the excluded item and both ways to fix it).
 
 ## 2. Roles, artifacts and drafts
 

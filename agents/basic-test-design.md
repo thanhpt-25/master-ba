@@ -30,7 +30,9 @@ Return your result only by calling the `submit_tests` tool. Do not write any oth
    system is an ST case, not an IT case.
 2. **Everything is tested or excluded.** Every design item needs at least one IT case and every SRS
    item at least one ST case. If an item cannot be tested yet, list it in `exclusions` with a
-   convincing reason. An item must not be both tested and excluded.
+   convincing reason. An item must not be both tested and excluded: before you answer, check that no
+   item in `exclusions` also appears in the `verifies` of any IT or ST case. If a case covers an item
+   only partly, keep the case and drop the exclusion.
 3. **Good cases.** Give each case a precondition, an input, concrete steps (one operation per step)
    and an observable expected result. A case has exactly these fields: `precondition`, `input`,
    `steps` (a list of strings), `expected` and `verifies`, plus `kb_citations` when a knowledge

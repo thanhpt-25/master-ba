@@ -57,7 +57,10 @@ def test_an_item_cannot_be_both_tested_and_excluded() -> None:
     draft = login_unit_draft().model_copy(
         update={"exclusions": [DraftExclusion(item_ref=detail_ref(1), reason="Skip.")]}
     )
-    assert check(draft) == [f"exclusion 1: {detail_ref(1)} is also tested"]
+    assert check(draft) == [
+        f"exclusion 1: {detail_ref(1)} is excluded but also verified by UT case 1; "
+        "remove the exclusion, or remove the item from those cases' `verifies`"
+    ]
 
 
 def test_exclusions_and_questions_must_name_detail_items() -> None:

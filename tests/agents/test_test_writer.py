@@ -74,7 +74,10 @@ def test_an_item_cannot_be_both_tested_and_excluded() -> None:
     draft = login_test_draft().model_copy(
         update={"exclusions": [DraftExclusion(item_ref=design_ref(1), reason="Skip it.")]}
     )
-    assert check(draft) == [f"exclusion 1: {design_ref(1)} is also tested"]
+    assert check(draft) == [
+        f"exclusion 1: {design_ref(1)} is excluded but also verified by IT case 1; "
+        "remove the exclusion, or remove the item from those cases' `verifies`"
+    ]
 
 
 def test_an_exclusion_must_name_a_known_item() -> None:

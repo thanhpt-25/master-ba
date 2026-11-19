@@ -8,6 +8,7 @@ from openpyxl import load_workbook
 from pydantic import BaseModel
 
 from factories import qa_block, qa_pass
+from masterba.agents import QaIssue, QaReport
 from masterba.change import (
     LifecycleError,
     PatchOp,
@@ -22,7 +23,8 @@ from masterba.change import (
 )
 from masterba.llm import FakeLLM
 from masterba.models import BrdContent, DecisionRecord
-from masterba.models.enums import DrStatus, DrTrigger
+from masterba.models.enums import DrStatus, DrTrigger, QuestionStatus
+from masterba.questions.answer import answer_question
 from masterba.trace_store import (
     ProjectStore,
     get_decision_record,
@@ -30,6 +32,7 @@ from masterba.trace_store import (
     get_dr_extra,
     get_requirement,
     get_trace_links,
+    list_questions,
 )
 
 TEMPLATES = Path(__file__).parents[2] / "templates"
@@ -327,3 +330,40 @@ def test_a_propagated_dr_cannot_be_propagated_again_and_can_then_be_closed(
     with pytest.raises(LifecycleError, match="is propagated"):
         propagate_dr(chain, TEMPLATES, dr.id, FakeLLM([]))
     assert close_dr(chain, dr.id).status is DrStatus.CLOSED
+
+
+def test_a_question_raised_during_propagation_reaches_the_ledger_and_can_be_answered(
+    chain: ProjectStore,
+) -> None:
+    dr = approved(chain)
+    asking = QaReport(
+        issues=[
+            QaIssue(
+                checklist_id="BRD-01",
+                severity="blocking",
+                ref=BRD2,
+                message="Which channel sends the SMS?",
+                action_required="Name the channel.",
+                customer_question=True,
+            )
+        ]
+    )
+    waiting = propagate_dr(
+        chain, TEMPLATES, dr.id, FakeLLM([patch(update(BRD2, description=SMS)), asking])
+    )
+
+    assert waiting.waiting and waiting.stopped and not waiting.escalated
+    [outcome] = waiting.documents
+    assert (outcome.doc_id, outcome.outcome, outcome.version) == (
+        DOCS[0],
+        "waiting_for_input",
+        None,
+    )
+    [question] = [q for q in list_questions(chain) if q.id in outcome.question_ids]
+    assert question.status is QuestionStatus.OPEN and BRD2 in question.refs
+    assert get_decision_record(chain, dr.id).status is DrStatus.APPROVED
+    assert get_document(chain, DOCS[0])[0].version == 1
+
+    answer_question(chain, question.id, "By the SMS gateway of the existing portal.", "Ms. Sato")
+    done = propagate_dr(chain, TEMPLATES, dr.id, FakeLLM(full_script()))
+    assert done.status is DrStatus.PROPAGATED and not done.stopped

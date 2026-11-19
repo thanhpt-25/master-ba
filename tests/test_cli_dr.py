@@ -9,9 +9,9 @@ from factories import build_chain, qa_pass
 from masterba.change import PatchOp, RevisionPatch
 from masterba.cli import main
 from masterba.llm import LLM, FakeLLM
-from masterba.models.enums import DocType, TeamRunStatus
+from masterba.models.enums import DocType, PropagationMode, TeamRunStatus
 from masterba.team import Team
-from masterba.trace_store import open_project
+from masterba.trace_store import get_config, open_project, set_config
 
 REPO = Path(__file__).parents[1]
 BRD2 = "DOC-BRD-0001#item.2"
@@ -171,3 +171,25 @@ def test_an_escalation_during_propagation_exits_with_3(
     out = json.loads(capsys.readouterr().out)
     assert out["status"] == "approved"
     assert out["documents"][0]["outcome"] == "escalated"
+
+
+def test_approve_propagates_at_once_in_auto_mode(
+    root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store = open_project(root / "projects", "PRJ-001")
+    config = get_config(store).model_copy(update={"propagation_mode": PropagationMode.AUTO})
+    set_config(store, config)
+    dr_id = propose(root, capsys)
+    brd_patch = RevisionPatch(
+        operations=[
+            PatchOp(op="update", item_id=BRD2, fields={"description": "By SMS."}, reason=dr_id)
+        ],
+        summary="SMS",
+    )
+    llm = FakeLLM([brd_patch, qa_pass(), *[EMPTY] * 6])
+    out = run_json(
+        root, capsys, "dr", "approve", dr_id, "--project", "PRJ-001",
+        "--approver", "Ms. Sato", "--decision", "Go", llm=llm,
+    )  # fmt: skip
+    assert out["dr"]["status"] == "approved"
+    assert out["propagation"]["status"] == "propagated"
