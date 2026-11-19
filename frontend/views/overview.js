@@ -255,6 +255,24 @@ export async function render(context) {
     return h("div", { class: "live-bar" }, liveDot(active && !paused, paused ? "Paused" : "Live"), toggle);
   };
 
+  const modeToggle = (overview) => {
+    if (context.me.role !== "admin") return null;
+    const auto = overview.project.propagation_mode === "auto";
+    return h("button", {
+      class: "link",
+      type: "button",
+      onClick: async () => {
+        try {
+          await api.post(`/projects/${pid}/settings/propagation-mode`, { propagation_mode: auto ? "manual_gate" : "auto" });
+          toast(auto ? "Document updates are now manual" : "Document updates are now automatic");
+          await refresh();
+        } catch (error) {
+          toast(error.message, "error");
+        }
+      },
+    }, auto ? "Switch to manual updates" : "Switch to automatic updates");
+  };
+
   const draw = (overview, job) => {
     const stages = overview.stages;
     const flow = workflowSteps(stages, overview.project.review_gates);
@@ -264,7 +282,7 @@ export async function render(context) {
     // dom.js append skips empty sections; the native one would print "null".
     append(clear(main), [
       h("div", { class: "page-heading" },
-        h("div", {}, h("p", { class: "eyebrow" }, "Project overview"), h("h1", {}, pid), h("p", { class: "muted" }, `${overview.project.document_language === "ja" ? "Japanese" : "English"} documents · Review gates ${overview.project.review_gates ? "on" : "off"}`)),
+        h("div", {}, h("p", { class: "eyebrow" }, "Project overview"), h("h1", {}, pid), h("p", { class: "muted" }, `${overview.project.document_language === "ja" ? "Japanese" : "English"} documents · Review gates ${overview.project.review_gates ? "on" : "off"} · Document updates ${overview.project.propagation_mode === "auto" ? "automatic" : "manual"}`), modeToggle(overview)),
         liveBar(lastActive),
       ),
       h("dl", { class: "overview-stats", "aria-label": "Project summary" },

@@ -20,9 +20,17 @@ from masterba.change.patch import (
 from masterba.change.reviser import CHECKLIST_STEM, dr_text, patch_view, write_patch
 from masterba.llm import LLM
 from masterba.models import DecisionRecord, RequirementItem, payload_items
-from masterba.models.enums import DocStatus, DrStatus, DrTrigger, ItemStatus, TeamRunStatus
+from masterba.models.enums import (
+    DocStatus,
+    DrStatus,
+    DrTrigger,
+    ItemStatus,
+    PropagationMode,
+    TeamRunStatus,
+)
 from masterba.pipeline.brd import next_requirement_number
 from masterba.questions.facts import attach_facts
+from masterba.questions.ledger import record_run_questions
 from masterba.rendering import render_to_project
 from masterba.team import RecordingLLM, Team, run_writer_review
 from masterba.trace_store import (
@@ -51,6 +59,10 @@ class DocOutcome:
     version: int | None
     run_id: str
     escalations: tuple[str, ...] = ()
+    question_ids: tuple[str, ...] = ()
+
+
+_STOPPED = ("escalated", "waiting_for_input")
 
 
 @dataclass(frozen=True)
@@ -63,6 +75,15 @@ class PropagationResult:
     def escalated(self) -> bool:
         return any(d.outcome == "escalated" for d in self.documents)
 
+    @property
+    def stopped(self) -> bool:
+        """A document escalated or is waiting for an answer, so propagation stopped there."""
+        return self.escalated or self.waiting
+
+    @property
+    def waiting(self) -> bool:
+        return any(d.outcome == "waiting_for_input" for d in self.documents)
+
     def to_json(self) -> dict[str, Any]:
         return {
             "dr_id": self.dr_id,
@@ -74,10 +95,21 @@ class PropagationResult:
                     "version": d.version,
                     "run_id": d.run_id,
                     "escalations": list(d.escalations),
+                    "question_ids": list(d.question_ids),
                 }
                 for d in self.documents
             ],
         }
+
+
+def auto_propagates(store: ProjectStore, dr: DecisionRecord) -> bool:
+    """True when an approved DR should be propagated without a second human action (spec 07 5.1)."""
+    return (
+        get_config(store).propagation_mode is PropagationMode.AUTO
+        and dr.status is DrStatus.APPROVED
+        and bool(dr.affected_documents)
+        and dr.trigger is not DrTrigger.REVIEW_FEEDBACK
+    )
 
 
 def active_node_ids(store: ProjectStore) -> frozenset[str]:
@@ -164,7 +196,12 @@ def _revise(
     )
     if patch is None:
         run = team.finish(TeamRunStatus.ESCALATED)
-        return DocOutcome(doc_id, "escalated", None, run.run_id, tuple(run.escalations))
+        # The questions a reviewer raised get a home in the ledger (spec 13 section 3.1).
+        recorded = record_run_questions(team, run)
+        outcome = (
+            "waiting_for_input" if run.status is TeamRunStatus.WAITING_FOR_INPUT else "escalated"
+        )
+        return DocOutcome(doc_id, outcome, None, run.run_id, tuple(run.escalations), recorded.ids)
     if not patch.operations:
         run = team.finish(TeamRunStatus.DONE)
         return DocOutcome(doc_id, "unchanged", None, run.run_id)
@@ -249,7 +286,7 @@ def propagate_dr(
             continue
         outcome = _revise(store, templates_root, dr, impact, doc_id, upstream, llm, qa_llm)
         outcomes.append(outcome)
-        if outcome.outcome == "escalated":
+        if outcome.outcome in _STOPPED:
             return PropagationResult(dr_id, dr.status, tuple(outcomes))
         done[doc_id] = {
             "outcome": outcome.outcome,

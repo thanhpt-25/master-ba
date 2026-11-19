@@ -150,12 +150,12 @@ def _description(review_id: str, stage: ReviewStage, comments: Sequence[ReviewCo
 
 def record_revision(store: ProjectStore, review: Review, result: PropagationResult) -> Review:
     """Name the run of the revision: the escalated one, else the last document revised."""
-    runs = [d.run_id for d in result.documents if d.outcome == "escalated"] or [
-        d.run_id for d in result.documents
-    ]
+    runs = [
+        d.run_id for d in result.documents if d.outcome in ("escalated", "waiting_for_input")
+    ] or [d.run_id for d in result.documents]
     if not runs:
         return review
-    updated = review.model_copy(update={"revision_run": runs[0] if result.escalated else runs[-1]})
+    updated = review.model_copy(update={"revision_run": runs[0] if result.stopped else runs[-1]})
     save_review(store, updated, "update")
     return updated
 

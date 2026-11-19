@@ -121,8 +121,10 @@ export async function render({ main, api, params, me, toast, go }) {
     };
     const act = async (path, body) => {
       try {
-        await api.post(`/projects/${pid}/drs/${drId}/${path}`, body);
+        const done = await api.post(`/projects/${pid}/drs/${drId}/${path}`, body);
+        if (done?.propagation_note) toast(done.propagation_note, "error");
         await draw();
+        if (done?.job) poll().catch((e) => toast(e.message, "error"));
       } catch (error) {
         toast(error.message, "error");
       }
@@ -240,6 +242,7 @@ export async function render({ main, api, params, me, toast, go }) {
       lastJob = null;
       await draw();
       if (job?.status === "escalated") toast("A document could not be revised: see the run in Activity.", "error");
+      if (job?.status === "waiting_for_input") toast("A reviewer needs a customer answer: answer the new questions in Questions, then press Propagate again.", "error");
       if (job?.status === "failed") toast(job.error, "error");
     }
   }

@@ -25,7 +25,8 @@
     "PropagationMode": {
       "enum": [
         "manual_gate",
-        "auto_low_risk"
+        "auto_low_risk",
+        "auto"
       ],
       "title": "PropagationMode",
       "type": "string"

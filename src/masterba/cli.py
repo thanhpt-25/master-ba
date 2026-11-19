@@ -17,7 +17,9 @@ from masterba.api.auth import ROLES, AuthError, UserStore
 from masterba.calibration import CalibrationError
 from masterba.change import (
     LifecycleError,
+    PropagationResult,
     approve_dr,
+    auto_propagates,
     close_dr,
     dr_diff,
     dr_from_run,
@@ -35,6 +37,7 @@ from masterba.models.enums import (
     DocLanguage,
     DocType,
     DrTrigger,
+    PropagationMode,
     QuestionStatus,
     TeamRunStatus,
 )
@@ -116,6 +119,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-review-gates",
         action="store_true",
         help="run stages back to back without a review between them (spec 15)",
+    )
+    init.add_argument(
+        "--propagation-mode",
+        type=PropagationMode,
+        choices=[PropagationMode.MANUAL_GATE, PropagationMode.AUTO],
+        default=PropagationMode.MANUAL_GATE,
+        help="auto revises the affected documents as soon as a DR is approved (spec 07 5.1)",
     )
 
     run = commands.add_parser("run", help="run one stage")
@@ -272,10 +282,46 @@ def _add_question_parsers(commands: Any) -> None:
     answer.add_argument("--by", required=True, help="who records the answer")
     answer.add_argument("--text", required=True, help="the answer")
     answer.add_argument("--source", default=None, help="who gave it and where, outside the system")
+    answer.add_argument("--model", default=None, help="reviser model when the project is auto")
+    answer.add_argument("--qa-model", default=None)
     with_project(subs.add_parser("withdraw")).add_argument("question_id")
 
 
-def _dispatch_question(args: argparse.Namespace, store: ProjectStore) -> int:
+def _auto_propagate(
+    args: argparse.Namespace,
+    store: ProjectStore,
+    root: Path,
+    llm_factory: LLMFactory,
+    dr_id: str,
+) -> dict[str, Any] | None:
+    """Propagate an approved DR now when the project is `auto` (spec 07 section 5.1)."""
+    if not auto_propagates(store, get_decision_record(store, dr_id)):
+        return None
+    result = _propagate(args, store, root, llm_factory, dr_id)
+    return result.to_json()
+
+
+def _propagate(
+    args: argparse.Namespace,
+    store: ProjectStore,
+    root: Path,
+    llm_factory: LLMFactory,
+    dr_id: str,
+) -> PropagationResult:
+    model = args.model or os.environ.get("MASTERBA_MODEL") or DEFAULT_MODEL
+    reviewer = llm_factory(args.qa_model) if args.qa_model else None
+    return propagate_dr(store, root / "templates", dr_id, llm_factory(model), qa_llm=reviewer)
+
+
+def _escalated(propagation: dict[str, Any] | None) -> bool:
+    return propagation is not None and any(
+        d["outcome"] in ("escalated", "waiting_for_input") for d in propagation["documents"]
+    )
+
+
+def _dispatch_question(
+    args: argparse.Namespace, store: ProjectStore, root: Path, llm_factory: LLMFactory
+) -> int:
     command: str = args.question_command
     if command == "list":
         found = [q for q in list_questions(store) if args.status in (None, q.status)]
@@ -290,8 +336,15 @@ def _dispatch_question(args: argparse.Namespace, store: ProjectStore) -> int:
     data: dict[str, object] = {"question": question.model_dump(mode="json")}
     if question.dr_id:
         data["dr"] = get_decision_record(store, question.dr_id).model_dump(mode="json")
+    propagation = (
+        _auto_propagate(args, store, root, llm_factory, question.dr_id)
+        if command == "answer" and question.dr_id
+        else None
+    )
+    if propagation is not None:
+        data["propagation"] = propagation
     _emit(data)
-    return 0
+    return 3 if _escalated(propagation) else 0
 
 
 def _add_dr_parsers(commands: Any) -> None:
@@ -314,6 +367,9 @@ def _add_dr_parsers(commands: Any) -> None:
         signed.add_argument("--approver", required=True)
         signed.add_argument("--decision", required=True)
         signed.add_argument("--rationale", default=None)
+        if name == "approve":
+            signed.add_argument("--model", default=None, help="reviser model when auto")
+            signed.add_argument("--qa-model", default=None)
     propagate = with_project(drs.add_parser("propagate", help="revise the affected documents"))
     propagate.add_argument("dr_id")
     propagate.add_argument("--model", default=None)
@@ -336,7 +392,13 @@ def _dispatch_dr(
         _emit(dr_from_run(store, args.run).model_dump(mode="json"))
     elif command == "approve":
         dr, impact = approve_dr(store, args.dr_id, args.approver, args.decision, args.rationale)
-        _emit({"dr": dr.model_dump(mode="json"), "impact": impact.to_json()})
+        data: dict[str, Any] = {"dr": dr.model_dump(mode="json"), "impact": impact.to_json()}
+        propagation = _auto_propagate(args, store, root, llm_factory, dr.id)
+        if propagation is not None:
+            data["propagation"] = propagation
+        _emit(data)
+        if _escalated(propagation):
+            return 3
     elif command == "reject":
         dr = reject_dr(store, args.dr_id, args.approver, args.decision, args.rationale)
         _emit(dr.model_dump(mode="json"))
@@ -371,12 +433,9 @@ def _dispatch_dr(
             }
         )
     else:
-        model = args.model or os.environ.get("MASTERBA_MODEL") or DEFAULT_MODEL
-        reviser = llm_factory(model)
-        reviewer = llm_factory(args.qa_model) if args.qa_model else None
-        result = propagate_dr(store, root / "templates", args.dr_id, reviser, qa_llm=reviewer)
+        result = _propagate(args, store, root, llm_factory, args.dr_id)
         _emit(result.to_json())
-        return 3 if result.escalated else 0
+        return 3 if result.stopped else 0
     return 0
 
 
@@ -440,13 +499,14 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
                 team_max_rounds_by_stage=dict(args.rounds),
                 team_token_budget=None if args.unlimited_token_budget else args.team_token_budget,
                 review_gates=not args.no_review_gates,
+                propagation_mode=args.propagation_mode,
             ),
         )
         _emit({"project_id": store.project_id, "path": str(store.path)})
         return 0
     store = open_project(projects, args.project)
     if args.command == "question":
-        return _dispatch_question(args, store)
+        return _dispatch_question(args, store, root, llm_factory)
     if args.command == "review":
         return dispatch_review(args, root, llm_factory)
     if args.command == "dr":

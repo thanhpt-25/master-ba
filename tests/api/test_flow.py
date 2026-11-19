@@ -1,4 +1,3 @@
-import threading
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -8,7 +7,7 @@ from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 from pydantic import BaseModel
 
-from api_support import ClientFor, Script, clients, make_app, wait_for
+from api_support import BlockingLLM, ClientFor, Script, clients, make_app, wait_for
 from factories import (
     bad_draft,
     draft_for,
@@ -21,8 +20,7 @@ from factories import (
     qa_pass,
 )
 from masterba.change import PatchOp, RevisionPatch
-from masterba.llm import LLM, LLMResult
-from masterba.llm.base import T
+from masterba.llm import LLM
 from masterba.models.enums import DocType, TeamRunStatus
 from masterba.team import Team
 from masterba.trace_store import open_project
@@ -212,19 +210,6 @@ def test_latest_escalation_is_not_hidden_by_existing_documents(
     stages = seeded_client("viewer").get(P).json()["stages"]
     assert stages[0]["documents"]
     assert stages[0]["status"] == "escalated"
-
-
-class BlockingLLM:
-    """A model that waits until released, to keep a job running."""
-
-    def __init__(self) -> None:
-        self.started = threading.Event()
-        self.release = threading.Event()
-
-    def generate(self, *, system: str, user: str, output: type[T], tool_name: str) -> LLMResult[T]:
-        self.started.set()
-        self.release.wait(10)
-        raise RuntimeError("released")
 
 
 def approved_dr(client: TestClient) -> str:

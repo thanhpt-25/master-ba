@@ -16,7 +16,10 @@ export async function render({ main, api, params, me, toast }) {
   async function act(path, body) {
     try {
       const done = await api.post(`/projects/${pid}/questions/${path}`, body);
-      toast(done.dr ? `Recorded as ${done.dr.id}` : "Withdrawn");
+      const affected = done.dr?.affected_documents?.length ?? 0;
+      const note = done.job ? ": updating the affected documents" : affected ? "" : ": a fact for later runs, no stored document is affected";
+      toast(done.dr ? `Recorded as ${done.dr.id}${note}` : "Withdrawn");
+      if (done.propagation_note) toast(done.propagation_note, "error");
       await draw();
     } catch (error) {
       toast(error.message, "error");
@@ -26,7 +29,7 @@ export async function render({ main, api, params, me, toast }) {
   function form(q) {
     const answer = h("textarea", { id: `answer-${q.id}`, rows: "3", maxlength: "2000", spellcheck: "false", required: true });
     const source = h("input", { type: "text", id: `source-${q.id}`, name: "source", maxlength: "500", autocomplete: "off", placeholder: "Tanaka, meeting 2026-11-02…" });
-    const answerField = field("Answer", answer, "Recorded as an approved decision record that every later run uses.");
+    const answerField = field("Answer", answer, "Recorded as an approved decision record that every later run uses. When it reaches a stored document, that document is updated (automatically in projects set to automatic updates).");
     const setError = (msg) => {
       answerField.classList.toggle("invalid", Boolean(msg));
       answerField.querySelector(".field-error")?.remove();

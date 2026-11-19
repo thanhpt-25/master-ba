@@ -2,10 +2,11 @@
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from masterba.api.auth import User
 from masterba.api.deps import checked, project_store, require_role
+from masterba.api.routes_drs import auto_propagation
 from masterba.api.schemas import AnswerBody
 from masterba.models import Question
 from masterba.models.enums import QuestionStatus
@@ -40,10 +41,14 @@ def read(store: Store, question_id: str) -> dict[str, Any]:
 
 
 @router.post("/{question_id}/answer")
-def answer(store: Store, question_id: str, body: AnswerBody, user: Signed) -> dict[str, Any]:
+def answer(
+    request: Request, store: Store, question_id: str, body: AnswerBody, user: Signed
+) -> dict[str, Any]:
     checked("question", question_id)
     # The recorded name is the signed-in user, never a field the client sends.
-    return _view(store, answer_question(store, question_id, body.answer, user.name, body.source))
+    answered = answer_question(store, question_id, body.answer, user.name, body.source)
+    extra = auto_propagation(request, store, answered.dr_id) if answered.dr_id else {}
+    return {**_view(store, answered), **extra}
 
 
 @router.post("/{question_id}/withdraw", dependencies=[Approver])

@@ -60,6 +60,7 @@ export async function render({ main, api, me, go, toast }) {
   const language = h("select", { name: "document_language" }, h("option", { value: "ja" }, "Japanese"), h("option", { value: "en" }, "English"));
   const rounds = h("input", { type: "number", name: "team_max_rounds", min: "1", max: "20", value: "3" });
   const budget = h("input", { type: "number", name: "team_token_budget", min: "1", value: "100000" });
+  const mode = h("select", { name: "propagation_mode" }, h("option", { value: "manual_gate" }, "Manual: press Propagate"), h("option", { value: "auto" }, "Automatic: update documents when a decision is made"));
   const idField = field("Project id", id, "Format PRJ-001");
   const setIdError = (msg) => {
     idField.classList.toggle("invalid", Boolean(msg));
@@ -92,6 +93,7 @@ export async function render({ main, api, me, go, toast }) {
               document_language: language.value,
               team_max_rounds: Number(rounds.value),
               team_token_budget: budget.value ? Number(budget.value) : null,
+              propagation_mode: mode.value,
             });
             toast(`Created ${created.project_id}`);
             go(`#/p/${created.project_id}/overview`);
@@ -106,6 +108,7 @@ export async function render({ main, api, me, go, toast }) {
       field("Document language", language, "The language of everything the agents write."),
       field("Max team rounds", rounds, "How many drafts a team may make before it escalates."),
       field("Token budget per run", budget, "100,000 tokens by default; leave blank for no cap."),
+      field("Document updates after a decision", mode, "Applies when a Decision Record is approved or a customer question is answered."),
       h("button", { type: "submit", class: "primary" }, "Create project"),
     ),
   );

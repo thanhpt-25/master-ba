@@ -99,4 +99,4 @@ def dispatch_review(args: argparse.Namespace, root: Path, llm_factory: LLMFactor
         store, templates, args.stage, args.by, comments, reviser, qa_llm=qa
     )
     _emit({"review": review.model_dump(mode="json"), "revision": result.to_json()})
-    return 3 if result.escalated else 0
+    return 3 if result.stopped else 0

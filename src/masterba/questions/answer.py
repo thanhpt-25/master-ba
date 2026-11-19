@@ -6,19 +6,21 @@ import unicodedata
 
 from masterba.change.lifecycle import LifecycleError, approve_dr, new_dr
 from masterba.models import Question
-from masterba.models.enums import DrStatus, DrTrigger, QuestionStatus
+from masterba.models.enums import DrStatus, DrTrigger, ItemStatus, QuestionStatus
 from masterba.questions.ledger import Clock
 from masterba.trace_store import (
     ProjectStore,
     get_question,
     known_nodes,
     list_decision_records,
+    list_requirements,
     save_question,
 )
 
 MAX_ANSWER = 2000
 _CLOSING_TAG = re.compile(r"<\s*/\s*confirmed", re.IGNORECASE)
 _TRACE_REF = re.compile(r"^(REQ-\d{4}|DOC-[A-Z_]+-\d{4}#item\.\d+)$")
+_LINES = re.compile(r"^(intake/[^#/]+)#L(\d+)-L(\d+)$")
 
 
 class QuestionError(LifecycleError):
@@ -37,6 +39,31 @@ def check_answer(text: str) -> str:
     if _CLOSING_TAG.search(answer):
         raise QuestionError("an answer may not contain the closing tag of the confirmed block")
     return answer
+
+
+def _lines(ref: str) -> tuple[str, int, int] | None:
+    found = _LINES.match(ref)
+    return (found[1], int(found[2]), int(found[3])) if found else None
+
+
+def impact_items(store: ProjectStore, question: Question) -> list[str]:
+    """The trace nodes an answer reaches: stored refs, and requirements citing the intake lines.
+
+    A ref that names nothing stored (an unstored draft item) is dropped; the answer is then only a
+    confirmed fact for later runs (spec 13 section 4).
+    """
+    nodes = known_nodes(store)
+    items = [r for r in question.refs if _TRACE_REF.match(r) and r in nodes]
+    asked = [a for ref in question.refs if (a := _lines(ref))]
+    for requirement in list_requirements(store):
+        cited = _lines(requirement.source_ref)
+        if (
+            requirement.status is ItemStatus.ACTIVE
+            and cited
+            and any(cited[0] == a[0] and cited[1] <= a[2] and a[1] <= cited[2] for a in asked)
+        ):
+            items.append(requirement.id)
+    return list(dict.fromkeys(items))
 
 
 def _open(store: ProjectStore, question_id: str, action: str) -> Question:
@@ -73,8 +100,7 @@ def answer_question(
         None,
     )
     if dr is None:
-        nodes = known_nodes(store)
-        items = [r for r in question.refs if _TRACE_REF.match(r) and r in nodes]
+        items = impact_items(store, question)
         dr = new_dr(store, DrTrigger.CLARIFICATION, f"{question_id}: {question.text}", items, today)
     if dr.status is DrStatus.PROPOSED:
         dr, _ = approve_dr(store, dr.id, by.strip(), text, note)

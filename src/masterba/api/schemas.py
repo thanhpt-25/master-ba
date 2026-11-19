@@ -5,7 +5,7 @@ import re
 from pydantic import BaseModel, ConfigDict, Field
 
 from masterba.models import ReviewComment
-from masterba.models.enums import DocLanguage, DrTrigger
+from masterba.models.enums import DocLanguage, DrTrigger, PropagationMode
 from masterba.models.ids import (
     COMPANY_ID_PATTERN,
     DOC_ID_PATTERN,
@@ -42,6 +42,7 @@ class CreateProjectBody(Body):
     team_max_rounds: int = Field(default=3, ge=1, le=20)
     team_token_budget: int | None = Field(default=100_000, ge=1)
     review_gates: bool = True  # spec 15: on for new projects
+    propagation_mode: PropagationMode = PropagationMode.MANUAL_GATE
 
 
 class RejectBody(Body):
@@ -53,6 +54,10 @@ class RunStageBody(Body):
     reuse_intake: bool = False
     resume: str | None = Field(default=None, pattern=r"^RUN-\d{4}$")
     rounds: int | None = Field(default=None, ge=1, le=20)
+
+
+class PropagationModeBody(Body):
+    propagation_mode: PropagationMode
 
 
 class ProjectBudgetBody(Body):

@@ -1,5 +1,6 @@
 """Shared helpers for the dashboard API tests (kept out of conftest so tests can import them)."""
 
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,8 @@ from pydantic import BaseModel
 
 from masterba.api import Settings, create_app
 from masterba.api.deps import AppState
-from masterba.llm import LLM, FakeLLM
+from masterba.llm import LLM, FakeLLM, LLMResult
+from masterba.llm.base import T
 
 REPO = Path(__file__).parents[1]
 PASSWORD = "correct horse battery"
@@ -60,3 +62,16 @@ def wait_for(app: FastAPI, client: TestClient, job_id: str) -> dict[str, Any]:
     assert reply.status_code == 200
     job: dict[str, Any] = reply.json()
     return job
+
+
+class BlockingLLM:
+    """A model that waits until released, to keep a job running."""
+
+    def __init__(self) -> None:
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def generate(self, *, system: str, user: str, output: type[T], tool_name: str) -> LLMResult[T]:
+        self.started.set()
+        self.release.wait(10)
+        raise RuntimeError("released")
