@@ -90,6 +90,14 @@ def cases_view(draft: TestDraft, it_doc_id: str, st_doc_id: str) -> str:
     return "\n".join(lines)
 
 
+def also_tested(index: int, item_ref: str, cases: list[str]) -> str:
+    """Gate error for an item both excluded and tested: names the cases and both fixes."""
+    return (
+        f"exclusion {index}: {item_ref} is excluded but also verified by {', '.join(cases)}; "
+        "remove the exclusion, or remove the item from those cases' `verifies`"
+    )
+
+
 def validate_test_draft(
     draft: TestDraft,
     design: BasicDesignDraft,
@@ -101,8 +109,8 @@ def validate_test_draft(
     design_set = set(design_refs(design, design_doc_id))
     srs_set = {i.item_id for i in srs_items}
     errors: list[str] = []
-    it_tested: set[str] = set()
-    st_tested: set[str] = set()
+    it_tested: dict[str, list[str]] = {}
+    st_tested: dict[str, list[str]] = {}
     for level, cases, valid, tested in (
         ("IT", draft.it_cases, design_set, it_tested),
         ("ST", draft.st_cases, srs_set, st_tested),
@@ -112,7 +120,7 @@ def validate_test_draft(
                 if ref not in valid:
                     kind = "a design item" if level == "IT" else "an active SRS item"
                     errors.append(f"{level} case {index}: {ref} is not {kind}")
-                tested.add(ref)
+                tested.setdefault(ref, []).append(f"{level} case {index}")
             if language is not None:
                 for text in (case.precondition, case.input, case.expected, *case.steps):
                     if text and (problem := language_problem(text, language)):
@@ -122,20 +130,23 @@ def validate_test_draft(
     for index, exclusion in enumerate(draft.exclusions, start=1):
         if exclusion.item_ref not in design_set | srs_set:
             errors.append(f"exclusion {index}: {exclusion.item_ref} is not a design or SRS item")
-        if exclusion.item_ref in it_tested | st_tested:
-            errors.append(f"exclusion {index}: {exclusion.item_ref} is also tested")
+        if covered := [
+            *it_tested.get(exclusion.item_ref, []),
+            *st_tested.get(exclusion.item_ref, []),
+        ]:
+            errors.append(also_tested(index, exclusion.item_ref, covered))
         if language is not None and (problem := language_problem(exclusion.reason, language)):
             errors.append(f"exclusion {index}: reason {problem}")
         excluded.add(exclusion.item_ref)
     for index, question in enumerate(draft.questions, start=1):
         if question.ref not in design_set:
             errors.append(f"question {index}: {question.ref} is not a design item")
-    untested_design = sorted(design_set - it_tested - excluded)
+    untested_design = sorted(design_set - it_tested.keys() - excluded)
     if untested_design:
         errors.append(
             f"design items with no IT case and no exclusion: {', '.join(untested_design)}"
         )
-    untested_srs = sorted(srs_set - st_tested - excluded)
+    untested_srs = sorted(srs_set - st_tested.keys() - excluded)
     if untested_srs:
         errors.append(f"SRS items with no ST case and no exclusion: {', '.join(untested_srs)}")
     return errors
