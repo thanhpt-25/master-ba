@@ -1,6 +1,6 @@
 # Spec 19 — Deliverable fit: SIer-quality templates and content
 
-Status: v0.3 (2026-11-21), parts 1 and 2 implemented, part 3 specified. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
+Status: v0.3 (2026-11-21), parts 1, 2 and 3 implemented. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
 
 ## Goal
 
@@ -192,7 +192,7 @@ No model call, store format or library function changes. The dashboard keeps cal
 | Situation | Next step | Action |
 |---|---|---|
 | A job is running | 「<phase> を実行中です」 | none, the job panel shows progress |
-| An approved DR waits for propagation (manual mode) | Propagate `DR-####` | link to the DR |
+| An approved DR with affected documents waits for propagation | Propagate `DR-####` | link to the DR |
 | The current phase's run waits for input | Answer the `n` blocker questions | link to Questions |
 | The current phase escalated | Resume the run (one round) | button: resume `last_run` |
 | The current phase is `in_review` | Review `<document>` | link to the document preview, where approve and reject are |
@@ -202,7 +202,7 @@ No model call, store format or library function changes. The dashboard keeps cal
 
 The step shows as one panel at the top of the Overview with a single primary button; a viewer sees the same text with no button ("an approver does this"). The V-model cards stay below it.
 
-Blockers are shown where they block: a stage card names its open customer questions (`n` 件の未回答の質問) with a link, and the overview response gains, per stage, `open_questions` (open questions whose stage is one of the stage's document types) and, per project, `pending_drs` (approved DRs whose propagation has not finished, `{id, title}`).
+Blockers are shown where they block: a stage card names its open customer questions (`n` 件の未回答の質問) with a link, and the overview response gains, per stage, `open_questions` (open questions whose stage is one of the stage's document types) and, per project, `pending_drs` (approved DRs with affected documents whose propagation has not finished, `{id, description}`; a clarification that affects no stored document is only a fact for later runs).
 
 ## 14. Document preview
 
@@ -220,20 +220,20 @@ Blockers are shown where they block: a stage card names its open customer questi
 
 - Table rows hold the same text the workbook cells hold (value maps applied, lists joined by new lines, numbered steps); columns without a field (判定, 実施日, ...) are left out of the preview.
 - The Documents view shows the sheets as tabs in workbook order, with the version selector, the Excel download and the version comparison kept.
-- When the document's phase is `in_review` and the user is an approver, the preview carries the review box: approve, or reject with one comment per line (an item ref at the start of a line ties the comment to that item, as on the Overview).
+- When the document's phase is `in_review` and the user is an approver, a note at the top says so and the review box sits below the sheets, so the reviewer reads first: approve, or reject with one comment per line (an item ref at the start of a line ties the comment to that item, as on the Overview). After either the dashboard returns to the Overview, where the next step shows.
 
 ## 15. Japanese UI
 
-- `frontend/i18n.js` holds one catalog per language (`ja`, `en`) and `t(key, vars)`; every view takes its words from it. A key missing in `ja` falls back to `en`, and a test fails when the two catalogs do not have the same keys.
+- `frontend/i18n.js` holds `t(text, vars)`; the English text is the key and `frontend/i18n-ja.js` maps it to Japanese, so English needs no second catalog. Every view takes its words from `t()` (or marks a static label with `N_()`). A missing entry falls back to English, and a test fails when a string passed to `t()` has no Japanese entry or an entry is unused.
 - The language is chosen in the header (日本語 / English) and kept per user in the browser (`masterba-lang:<user>`); the default is Japanese. `<html lang>` follows the choice.
 - Status words (badges) and phase names come from the catalog; ids, enum values in code and API error texts are not translated.
 - Dates use `Intl` with the chosen language.
 
 ## 16. Acceptance criteria (part 3)
 
-- [ ] For each situation in section 13 `nextStep` returns the listed step (unit tests in `frontend/test`).
-- [ ] A stage card with open questions links to them; an approved, unpropagated DR shows as the next step in manual mode.
-- [ ] The preview endpoint returns every sheet of the default layout in order with the workbook's cell text, including revision history, sections and traceability; it writes nothing.
-- [ ] A reviewer can approve or reject an `in_review` phase from the document preview.
-- [ ] With the default language every view shows Japanese labels; switching to English and back needs no reload of data; both catalogs have the same keys.
-- [ ] `uv run pytest`, `ruff`, `mypy --strict` and `npm test` in `frontend/` pass.
+- [x] For each situation in section 13 `nextStep` returns the listed step (unit tests in `frontend/test`).
+- [x] A stage card with open questions links to them; an approved, unpropagated DR with affected documents shows as the next step.
+- [x] The preview endpoint returns every sheet of the default layout in order with the workbook's cell text, including revision history, sections and traceability; it writes nothing.
+- [x] A reviewer can approve or reject an `in_review` phase from the document preview.
+- [x] With the default language every view shows Japanese labels; switching to English and back needs no page reload; every string passed to `t()` has a Japanese entry and the catalog has no unused entry.
+- [x] `uv run pytest`, `ruff`, `mypy --strict` and `npm test` in `frontend/` pass.
