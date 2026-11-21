@@ -20,20 +20,23 @@ Part 1 changes only rendering. No model call is added, the payload models do not
 
 ```python
 @dataclass(frozen=True)
-class Revision:      # one row of 改訂履歴
+class Revision:  # one row of 改訂履歴
     version: int
-    date: str | None          # YYYY/MM/DD
-    summary: str              # 改訂内容
-    reason: str               # 改訂理由
-    author: str               # 作成者
-    approver: str | None      # 承認者
+    date: str | None  # YYYY/MM/DD
+    summary: str  # 改訂内容
+    reason: str  # 改訂理由
+    author: str  # 作成者
+    approver: str | None  # 承認者
+    approved_on: str | None  # 承認日
+
 
 @dataclass(frozen=True)
-class TraceRow:      # one row of トレーサビリティ
-    item: str                 # REQ id or item ref of this document
-    name: str                 # title, statement or name of the item
+class TraceRow:  # one row of トレーサビリティ
+    item: str  # REQ id or item ref of this document
+    name: str  # title, statement or name of the item
     upstream: tuple[str, ...]
     downstream: tuple[str, ...]
+
 
 @dataclass(frozen=True)
 class RenderContext:
