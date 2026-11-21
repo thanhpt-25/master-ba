@@ -1,4 +1,4 @@
-"""Baseline layout of the 8 default templates (spec 02 section 4).
+"""Baseline layout of the 8 default templates (spec 02 section 4, spec 19 section 3).
 
 Single source for both the committed `.xlsx` shells and the `.template.json` bindings, so the
 two cannot drift apart.
@@ -6,25 +6,63 @@ two cannot drift apart.
 
 from dataclasses import dataclass
 
-from masterba.models.enums import DocType
+from masterba.models.enums import DocType, SectionKey
 
 NUMBER_COL = "A"
 HEADER_ROW = 7
 FIRST_ROW = 8
 NOTE_ROW = 6
 
-VALUE_MAPS: dict[str, dict[str, str]] = {"scope": {"in": "対象", "out": "対象外"}}
+VALUE_MAPS: dict[str, dict[str, str]] = {
+    "doc_status": {
+        "draft": "作成中",
+        "in_review": "レビュー中",
+        "approved": "承認済",
+        "superseded": "旧版",
+    },
+    "level": {"UT": "単体テスト", "IT": "結合テスト", "ST": "総合テスト", "UAT": "受入テスト"},
+    "scope": {"in": "対象", "out": "対象外"},
+}
 
-HEADER_BLOCK: tuple[tuple[str, str], ...] = (
-    ("文書ID", "$document.id"),
-    ("版", "$document.version"),
-    ("プロジェクト", "$project.id"),
-    ("状態", "$document.status"),
+# (label, header source, value map) printed at rows 2 to 5 of every sheet but the cover.
+HEADER_BLOCK: tuple[tuple[str, str, str | None], ...] = (
+    ("文書ID", "$document.id", None),
+    ("版", "$document.version", None),
+    ("プロジェクト", "$project.id", None),
+    ("状態", "$document.status", "doc_status"),
 )
+
+# The cover (表紙): title cell, then label/value rows from COVER_FIRST_ROW in columns B and C.
+COVER_TITLE_CELL = "B4"
+COVER_FIRST_ROW = 8
+COVER_ROWS: tuple[tuple[str, str, str | None], ...] = (
+    ("プロジェクト", "$project.id", None),
+    ("会社名", "$project.company", None),
+    ("文書ID", "$document.id", None),
+    ("版数", "$document.version", None),
+    ("状態", "$document.status", "doc_status"),
+    ("作成日", "$document.created_on", None),
+    ("最終更新日", "$document.updated_on", None),
+    ("作成者", "$document.author", None),
+    ("承認者", "$document.approver", None),
+    ("承認日", "$document.approved_on", None),
+)
+COVER_STAMPS = ("承認", "確認", "作成")
+COVER_NOTE = (
+    "本書は MasterBA が登録済みの要件・設計データから生成しています。"
+    "版ごとの変更内容は改訂履歴を参照してください。"
+)
+JUDGEMENT_HEADER = "判定"
+JUDGEMENT_CHOICES = ("OK", "NG", "保留", "対象外")
 
 EXECUTION_NOTE = "判定・実施日・実施者・不具合IDは手入力欄です（再出力すると消えます）。"
 DIAGRAM_NOTE = "（図は別途添付）"
-PENDING_NOTE = "（本版ではデータ未対応の項目です）"
+SECTION_EMPTY = "（入力資料に記載がないため、本版では記載していません。）"
+SECTION_BODY_HEADER = "記載内容"
+SECTION_SOURCES_HEADER = "出典"
+SECTION_BODY_CELL = "A8"
+SECTION_SOURCES_HEADER_ROW = 10
+SECTION_SOURCES_CELL = "A11"
 
 
 @dataclass(frozen=True)
@@ -42,10 +80,13 @@ class SheetSpec:
     columns: tuple[Col, ...] = ()
     where: tuple[tuple[str, str], ...] = ()
     note: str | None = None
+    source: str | None = None  # a `ListBinding` source; None means `content.items`
+    is_cover: bool = False
+    section: SectionKey | None = None  # a prose section of the payload (spec 19 part 2)
 
     @property
     def is_placeholder(self) -> bool:
-        return not self.columns
+        return not self.columns and not self.is_cover and self.section is None
 
 
 @dataclass(frozen=True)
@@ -87,7 +128,7 @@ _DETAIL_COLS = (
 _TEST_COLS = (
     Col("テストケースID", "test_id", 16),
     _ITEM_ID,
-    Col("レベル", "level", 8),
+    Col("レベル", "level", 12, "level"),
     Col("前提条件", "precondition", 30),
     Col("入力値", "input", 30),
     Col("操作手順", "steps", 40),
@@ -99,56 +140,76 @@ _TEST_COLS = (
     Col("不具合ID", None, 14),
 )
 
+_HISTORY_COLS = (
+    Col("版", "version", 8),
+    Col("改訂日", "date", 12),
+    Col("改訂内容", "summary", 30),
+    Col("改訂理由", "reason", 60),
+    Col("作成者", "author", 14),
+    Col("承認者", "approver", 14),
+)
+_TRACE_COLS = (
+    Col("項目ID", "item", 24),
+    Col("名称", "name", 48),
+    Col("上流", "upstream", 28),
+    Col("下流", "downstream", 28),
+)
+_EXCLUSION_COLS = (
+    Col("対象項目", "item_ref", 28),
+    Col("除外理由", "reason", 70),
+)
+TRACE_NOTE = "上流・下流はトレースリンクから自動作成しています。"
+
 _ACTIVE = (("status", "active"),)
+
+COVER = SheetSpec("cover", "表紙", is_cover=True)
+HISTORY = SheetSpec("history", "改訂履歴", _HISTORY_COLS, source="$revisions")
+TRACE = SheetSpec("trace", "トレーサビリティ", _TRACE_COLS, note=TRACE_NOTE, source="$trace")
+EXCLUSIONS = SheetSpec("exclusions", "除外項目", _EXCLUSION_COLS, source="$exclusions")
+
+
+def _doc(doc_type: DocType, *sheets: SheetSpec, tail: SheetSpec = TRACE) -> DocSpec:
+    """Cover and revision history first, then the content sheets, then `tail`."""
+    return DocSpec(doc_type, (COVER, HISTORY, *sheets, tail))
 
 
 def _test_spec(doc_type: DocType) -> DocSpec:
     sheet = SheetSpec("cases", "テストケース", _TEST_COLS, _ACTIVE, EXECUTION_NOTE)
-    return DocSpec(doc_type, (sheet,))
+    return _doc(doc_type, sheet, tail=EXCLUSIONS)
 
 
 CATALOG: tuple[DocSpec, ...] = (
-    DocSpec(
+    _doc(
         DocType.BRD,
-        (
-            SheetSpec("background", "背景・目的", note=PENDING_NOTE),
-            SheetSpec("requirements", "業務要件", _BRD_COLS, _ACTIVE),
-            SheetSpec("scope", "システム化の範囲", _BRD_COLS, (*_ACTIVE, ("scope", "in"))),
-            SheetSpec("out_of_scope", "対象外", _BRD_COLS, (*_ACTIVE, ("scope", "out"))),
-            SheetSpec("constraints", "制約事項", note=PENDING_NOTE),
-        ),
+        SheetSpec("background", "背景・目的", section=SectionKey.BACKGROUND),
+        SheetSpec("requirements", "業務要件", _BRD_COLS, _ACTIVE),
+        SheetSpec("scope", "システム化の範囲", _BRD_COLS, (*_ACTIVE, ("scope", "in"))),
+        SheetSpec("out_of_scope", "対象外", _BRD_COLS, (*_ACTIVE, ("scope", "out"))),
+        SheetSpec("constraints", "制約事項", section=SectionKey.CONSTRAINTS),
     ),
-    DocSpec(
+    _doc(
         DocType.SRS,
-        (
-            SheetSpec("background", "背景・目的", note=PENDING_NOTE),
-            SheetSpec("functional", "機能要件", _SRS_COLS, (*_ACTIVE, ("kind", "functional"))),
-            SheetSpec(
-                "nonfunctional", "非機能要件", _SRS_COLS, (*_ACTIVE, ("kind", "non_functional"))
-            ),
-            SheetSpec("constraints", "制約事項", note=PENDING_NOTE),
-        ),
+        SheetSpec("background", "背景・目的", section=SectionKey.BACKGROUND),
+        SheetSpec("functional", "機能要件", _SRS_COLS, (*_ACTIVE, ("kind", "functional"))),
+        SheetSpec("nonfunctional", "非機能要件", _SRS_COLS, (*_ACTIVE, ("kind", "non_functional"))),
+        SheetSpec("constraints", "制約事項", section=SectionKey.CONSTRAINTS),
     ),
-    DocSpec(
+    _doc(
         DocType.BASIC_DESIGN,
-        (
-            SheetSpec("functions", "機能一覧表", _BASIC_COLS, (*_ACTIVE, ("kind", "function"))),
-            SheetSpec("screens", "画面一覧表", _BASIC_COLS, (*_ACTIVE, ("kind", "screen"))),
-            SheetSpec("interfaces", "IF設計", _BASIC_COLS, (*_ACTIVE, ("kind", "interface"))),
-            SheetSpec("tables", "テーブル定義書", _BASIC_COLS, (*_ACTIVE, ("kind", "data_entity"))),
-            SheetSpec("diagrams", "構成図・フロー図・ER図", note=DIAGRAM_NOTE),
-            SheetSpec("it_viewpoints", "結合テスト観点", note=PENDING_NOTE),
-        ),
+        SheetSpec("functions", "機能一覧表", _BASIC_COLS, (*_ACTIVE, ("kind", "function"))),
+        SheetSpec("screens", "画面一覧表", _BASIC_COLS, (*_ACTIVE, ("kind", "screen"))),
+        SheetSpec("interfaces", "IF設計", _BASIC_COLS, (*_ACTIVE, ("kind", "interface"))),
+        SheetSpec("tables", "テーブル定義書", _BASIC_COLS, (*_ACTIVE, ("kind", "data_entity"))),
+        SheetSpec("diagrams", "構成図・フロー図・ER図", note=DIAGRAM_NOTE),
+        SheetSpec("it_viewpoints", "結合テスト観点", section=SectionKey.IT_VIEWPOINTS),
     ),
-    DocSpec(
+    _doc(
         DocType.DETAIL_DESIGN,
-        (
-            SheetSpec("overview", "システム概要", note=PENDING_NOTE),
-            SheetSpec("modules", "機能仕様", _DETAIL_COLS, (*_ACTIVE, ("kind", "module"))),
-            SheetSpec("steps", "処理フロー", _DETAIL_COLS, (*_ACTIVE, ("kind", "processing_step"))),
-            SheetSpec("db", "データベース設計", _DETAIL_COLS, (*_ACTIVE, ("kind", "db_table"))),
-            SheetSpec("api", "インターフェース設計", _DETAIL_COLS, (*_ACTIVE, ("kind", "api"))),
-        ),
+        SheetSpec("overview", "システム概要", section=SectionKey.SYSTEM_OVERVIEW),
+        SheetSpec("modules", "機能仕様", _DETAIL_COLS, (*_ACTIVE, ("kind", "module"))),
+        SheetSpec("steps", "処理フロー", _DETAIL_COLS, (*_ACTIVE, ("kind", "processing_step"))),
+        SheetSpec("db", "データベース設計", _DETAIL_COLS, (*_ACTIVE, ("kind", "db_table"))),
+        SheetSpec("api", "インターフェース設計", _DETAIL_COLS, (*_ACTIVE, ("kind", "api"))),
     ),
     _test_spec(DocType.TEST_IT),
     _test_spec(DocType.TEST_ST),

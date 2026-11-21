@@ -183,3 +183,7 @@ Tất cả hàm nhận `ProjectStore` (gốc `projects/` + `project_id`), **khô
     | `set_document_status(store, doc_id, version, status, message)` | Chỉ đổi `document.status` của một version; phần `content` giữ nguyên từng byte | `message` do caller đưa |
 
     Một phase bị `rejected` giữ version đang review ở `in_review` cho đến khi version mới của nó được lưu; lúc đó version cũ thành `superseded` và version mới vào `in_review`. Quy tắc nghiệp vụ (cổng, approve, reject) nằm trong gói `review/`, không thuộc `trace_store` (chi tiết ở spec 15).
+
+## Bổ sung 2026-11-21 (spec 19 phần 2: đoạn văn cấp tài liệu)
+
+16. **`DocumentSection`** (module `models/payloads.py`): `{key: SectionKey, body: str, sources: list[str]}` với `SectionKey = background | constraints | system_overview | it_viewpoints` (背景・目的, 制約事項, システム概要, 結合テスト観点). `BrdContent`, `SrsContent`, `BasicDesignContent`, `DetailDesignContent` có thêm `sections: list[DocumentSection]` (mặc định rỗng; tài liệu cũ vẫn nạp được). Section không phải item: không có id, không có trace link, không chịu ID Stability Rule. `sources` là trích dẫn intake (`intake/<file>#L<a>-L<b>`) trong BRD, hoặc REQ id / item ref / ref section phía trên (`DOC-BRD-0001#background`) ở các tài liệu sau. Key hợp lệ cho từng loại tài liệu: `SECTIONS_BY_TYPE`. Chi tiết ở spec 19 mục 7.

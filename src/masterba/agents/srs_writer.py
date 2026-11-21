@@ -10,6 +10,7 @@ from masterba.agents.requirements_analyst import (
     language_problem,
     load_system_prompt,
 )
+from masterba.agents.sections import DraftSection, sections_view
 from masterba.llm import LLM, LLMResult
 from masterba.models import BrdContent, RequirementItem
 from masterba.models.base import FrozenModel
@@ -20,9 +21,10 @@ from masterba.models.knowledge import KbCitation
 PROMPT_PATH = REPO_ROOT / "agents" / "srs-writer.md"
 TOOL_NAME = "submit_srs"
 _LANGUAGE_INSTRUCTION = {
-    DocLanguage.JA: "Write every `statement` and `acceptance_hint` in Japanese (日本語). "
-    "Use 「〜すること」 style obligations.",
-    DocLanguage.EN: "Write every `statement` and `acceptance_hint` in English, using 'shall'.",
+    DocLanguage.JA: "Write every `statement`, `acceptance_hint` and section body in Japanese "
+    "(日本語), in the plain である style. Use 「〜すること」 style obligations.",
+    DocLanguage.EN: "Write every `statement`, `acceptance_hint` and section body in English, "
+    "using 'shall'.",
 }
 
 
@@ -42,6 +44,7 @@ class SrsOpenQuestion(FrozenModel):
 class SrsDraft(FrozenModel):
     items: list[DraftSrsItem] = Field(min_length=1)
     open_questions: list[SrsOpenQuestion] = Field(default_factory=list)
+    sections: list[DraftSection] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -79,6 +82,8 @@ def draft_view(draft: SrsDraft, doc_id: str) -> str:
     if draft.open_questions:
         lines.append("Open questions the writer raised for the customer (not requirements):")
         lines.extend(f"- {', '.join(q.req_ids)}: {q.question}" for q in draft.open_questions)
+    if draft.sections:
+        lines.append(sections_view(draft.sections))
     return "\n".join(lines)
 
 
@@ -130,9 +135,12 @@ def write_srs(
     system_prompt: str | None = None,
     *,
     references: str = "",
+    upstream_sections: str = "",
 ) -> LLMResult[SrsDraft]:
     """One writer call: a first draft, or a revision when `previous` and `feedback` are given."""
     user = f"<brd>\n{brd_view(brd)}\n</brd>"
+    if upstream_sections:  # the BRD's 背景・目的 and 制約事項 (spec 19 part 2)
+        user += f"\n\n{upstream_sections}"
     if references:  # the Reference_Block (spec 12); empty keeps the prompt unchanged
         user += f"\n\n{references}"
     if previous is not None:

@@ -142,6 +142,8 @@ Sheets come from concept-design section 8. A sheet marked *placeholder* has head
 
 Every sheet starts with a header block (document id, version, project id, status) at the top rows, then the table.
 
+Since spec 19 (2026-11-21) every workbook also starts with 表紙 and 改訂履歴 and ends with トレーサビリティ or 除外項目; see [19-deliverable-fit.md](19-deliverable-fit.md) section 3. The placeholder sheets 背景・目的, 制約事項, システム概要 and 結合テスト観点 became section sheets filled from `content.sections` (spec 19 section 7); only the diagrams sheet is still a placeholder.
+
 Test-spec sheets also contain execution columns that the payload does not carry yet: 判定 (OK/NG), 実施日, 実施者, 不具合ID. They are rendered **empty** with the header and the cell style intended for hand entry. Because Excel is derived, anything typed there is lost on re-render; capturing results is a Phase 10 concern (concept-design section 12) and is called out in the shell's note row.
 
 Diagrams (system configuration, ER, screen transitions, CRUD matrix) are not representable in the Phase 1 payload and are not rendered. Their sheets are placeholders with a note row `（図は別途添付）`.

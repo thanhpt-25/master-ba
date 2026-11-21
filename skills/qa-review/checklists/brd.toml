@@ -31,6 +31,11 @@ severity = "blocking"
 text = "No two items duplicate or contradict each other, and nothing is invented that the intake does not support."
 
 [[checks]]
+id = "BRD-07"
+severity = "blocking"
+text = "A document section (background 背景・目的, constraints 制約事項) restates only what its cited intake lines say. It adds no requirement, figure or fact the intake does not support. Leave ref empty for a section."
+
+[[checks]]
 id = "BRD-KB"
 severity = "blocking"
 requires_reference = true

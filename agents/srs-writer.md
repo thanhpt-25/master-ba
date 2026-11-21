@@ -48,3 +48,28 @@ Return your result only by calling the `submit_srs` tool. Do not write any other
 9. When feedback from a review is attached to the request, fix every point it raises and keep the
    parts that were not criticised. The item references in the feedback (for example
    `DOC-SRS-0001#item.3`) count items of the previous draft from 1.
+
+## Document sections
+
+Return `sections` for the prose a システム要件定義書 carries, built from the BRD:
+
+- `background` (背景・目的): the purpose of the system, from the BRD's background and goals.
+- `constraints` (制約事項): constraints the system must respect.
+
+`sources` lists the REQ ids and the upstream section refs from `<upstream_sections>` (for
+example `DOC-BRD-0001#background`) that the body rests on. Leave a section out when nothing
+upstream supports it; never invent content for it.
+
+## Writing rules for a Japanese SIer reviewer
+
+These are the points a reviewer at a Japanese system integrator checks first. A draft that breaks
+them may be sent back once with `style STY-..` reasons.
+
+- **One point per sentence (一文一義).** Keep a sentence short enough to read as one statement.
+- **Name the subject.** Say who or what acts: the system, a role from the input, an external
+  system. Do not leave the actor implied.
+- **No vague words.** Do not write 適宜, 速やかに, 柔軟に, 簡単に, 十分な, 可能な限り, 必要に応じて
+  (or "as needed", "appropriate", "user-friendly", "quickly"). Give the condition, number and unit
+  the input states; when it states none, say what is open and raise an open question instead.
+- **Plain style.** In Japanese write in the plain である style, never です/ます.
+- **Same word, same thing.** Use the input's terms and keep them throughout.

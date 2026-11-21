@@ -50,6 +50,7 @@ from masterba.pipeline import (
     run_srs,
     stage_summary,
 )
+from masterba.quality.report import project_quality, to_markdown
 from masterba.questions.answer import answer_question, withdraw_question
 from masterba.rendering import RenderError
 from masterba.team import ResumeError
@@ -169,6 +170,9 @@ def build_parser() -> argparse.ArgumentParser:
         )
     _add_dr_parsers(commands)
     _add_question_parsers(commands)
+    quality = commands.add_parser("quality", help="quality report of the latest documents")
+    quality.add_argument("--project", type=_project_id, required=True)
+    quality.add_argument("--out", type=Path, default=None, help="write Markdown here")
     _add_template_parsers(commands)
     add_kb_parsers(commands, _project_id)
     add_review_parsers(commands, _project_id)
@@ -511,6 +515,14 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
         return dispatch_review(args, root, llm_factory)
     if args.command == "dr":
         return _dispatch_dr(args, store, root, llm_factory)
+    if args.command == "quality":
+        text = to_markdown(store.project_id, project_quality(store))
+        if args.out is None:
+            sys.stdout.write(text)
+        else:
+            args.out.write_text(text, encoding="utf-8")
+            _emit({"report": str(args.out)})
+        return 0
     model = args.model or os.environ.get("MASTERBA_MODEL") or DEFAULT_MODEL
     writer = llm_factory(model)
     reviewer = llm_factory(args.qa_model) if args.qa_model else None

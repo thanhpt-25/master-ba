@@ -15,6 +15,8 @@ from masterba.agents import (
     validate_draft,
     write_brd,
 )
+from masterba.agents.requirements_analyst import intake_lines
+from masterba.agents.sections import line_range, to_content, validate_sections
 from masterba.knowledge import open_session
 from masterba.llm import LLM
 from masterba.models import (
@@ -43,6 +45,7 @@ from masterba.pipeline.stage import (
     stage_result,
     store_document,
 )
+from masterba.quality import StyleFeedback, lint_brd_draft
 from masterba.rendering import render_to_project
 from masterba.team import RecordingLLM, run_writer_review
 from masterba.trace_store import (
@@ -118,7 +121,17 @@ def assign_ids(
         content_ref=f"json/brd/{BRD_DOC_ID}.v1.json",
         project_id=project_id,
     )
-    return BrdArtifacts(tuple(requirements), document, BrdContent(items=items), tuple(links))
+    content = BrdContent(
+        items=items, sections=to_content(draft.sections, lambda s: _intake_source(intake_ref, s))
+    )
+    return BrdArtifacts(tuple(requirements), document, content, tuple(links))
+
+
+def _intake_source(intake_ref: str, source: str) -> str:
+    lines = line_range(source)
+    if lines is None:  # the gate refuses such a draft; keep the text rather than guess
+        return source
+    return citation(intake_ref, *lines)
 
 
 def _brd_exists(store: ProjectStore) -> bool:
@@ -172,6 +185,7 @@ def run_brd(
     attach_knowledge(team, session)
     writer = RecordingLLM(llm, team)
     reviewer = RecordingLLM(qa_llm or llm, team)
+    style = StyleFeedback()
 
     draft = run_writer_review(
         team,
@@ -187,6 +201,10 @@ def run_brd(
         # The intake-citation rule stays; Chunk_Refs only add to it (Requirement 10.8).
         gate=lambda d: [
             *validate_draft(d, stored, language),
+            *validate_sections(
+                d.sections, DocType.BRD, language=language, line_count=len(intake_lines(stored))
+            ),
+            *style.feedback(team, lint_brd_draft(d, language)),
             *kb_gate(session, "writer", kb_citations(BRD_DOC_ID, d.requirements)),
         ],
         review=lambda d: review(

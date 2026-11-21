@@ -26,6 +26,11 @@ severity = "advisory"
 text = "Cases are not duplicated and do not test several unrelated things at once."
 
 [[checks]]
+id = "UT-06"
+severity = "advisory"
+text = "An expected result names the returned value, state change or error raised, not phrases such as 正常に終了すること or 'works correctly'."
+
+[[checks]]
 id = "UT-KB"
 severity = "blocking"
 requires_reference = true

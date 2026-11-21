@@ -36,6 +36,11 @@ severity = "advisory"
 text = "Vague wording such as 'fast', 'user-friendly' or 'as needed' is not left undefined in a statement."
 
 [[checks]]
+id = "SRS-08"
+severity = "blocking"
+text = "A document section (background, constraints) rests on the BRD requirements and BRD sections it cites and adds nothing they do not support. Leave ref empty for a section."
+
+[[checks]]
 id = "SRS-KB"
 severity = "blocking"
 requires_reference = true

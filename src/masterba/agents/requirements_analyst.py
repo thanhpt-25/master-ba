@@ -11,6 +11,7 @@ from typing import Self
 
 from pydantic import Field, model_validator
 
+from masterba.agents.sections import DraftSection, sections_view
 from masterba.llm import LLM, LLMResult
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DocLanguage, ReqCategory, Scope
@@ -22,9 +23,10 @@ TOOL_NAME = "submit_brd"
 MAX_CJK_SHARE_IN_ENGLISH = 0.3
 _CJK = re.compile("[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff66-\uff9f]")
 _LANGUAGE_INSTRUCTION = {
-    DocLanguage.JA: "Write `title`, `description` and the text of every open question in "
-    "Japanese (日本語).",
-    DocLanguage.EN: "Write `title`, `description` and the text of every open question in English.",
+    DocLanguage.JA: "Write `title`, `description`, every section body and the text of every open "
+    "question in Japanese (日本語), in the plain である style.",
+    DocLanguage.EN: "Write `title`, `description`, every section body and the text of every open "
+    "question in English.",
 }
 
 
@@ -60,6 +62,7 @@ class OpenQuestion(FrozenModel):
 class BrdDraft(FrozenModel):
     requirements: list[DraftRequirement] = Field(min_length=1)
     open_questions: list[OpenQuestion] = Field(default_factory=list)
+    sections: list[DraftSection] = Field(default_factory=list)
 
 
 def load_system_prompt(path: Path = PROMPT_PATH) -> str:
@@ -162,6 +165,8 @@ def brd_draft_view(draft: BrdDraft, doc_id: str) -> str:
     if draft.open_questions:
         lines.append("Open questions the writer raised for the customer (not requirements):")
         lines.extend(f"- L{q.start_line}-L{q.end_line}: {q.question}" for q in draft.open_questions)
+    if draft.sections:
+        lines.append(sections_view(draft.sections))
     return "\n".join(lines)
 
 

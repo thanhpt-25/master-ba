@@ -82,9 +82,18 @@ def detail_content() -> DetailDesignContent:
 def test_brd_golden_values_header_and_scope_split() -> None:
     out_item = make_brd_item(BRD, 2, req="REQ-0002").model_copy(update={"scope": Scope.OUT})
     wb = render(DocType.BRD, make_brd(make_brd_item(BRD, 1), out_item))
-    assert wb.sheetnames == ["背景・目的", "業務要件", "システム化の範囲", "対象外", "制約事項"]
+    assert wb.sheetnames == [
+        "表紙",
+        "改訂履歴",
+        "背景・目的",
+        "業務要件",
+        "システム化の範囲",
+        "対象外",
+        "制約事項",
+        "トレーサビリティ",
+    ]
     ws = wb["業務要件"]
-    assert [ws[f"B{r}"].value for r in range(2, 6)] == [BRD, 1, "PRJ-001", "draft"]
+    assert [ws[f"B{r}"].value for r in range(2, 6)] == [BRD, 1, "PRJ-001", "作成中"]
     assert table_rows(ws, 7) == [
         (
             1,
@@ -149,6 +158,7 @@ def test_detail_design_fills_one_sheet_per_kind() -> None:
     ],
 )
 def test_every_test_level_renders_the_same_columns(doc_type: DocType, level: Level) -> None:
+    labels = {"UT": "単体テスト", "IT": "結合テスト", "ST": "総合テスト", "UAT": "受入テスト"}
     did = doc_id(doc_type)
     case = make_test_item(did, 1, f"TC-{level.value}-0001", level)
     wb = render(doc_type, make_test_spec(case))
@@ -157,7 +167,7 @@ def test_every_test_level_renders_the_same_columns(doc_type: DocType, level: Lev
             1,
             f"TC-{level.value}-0001",
             f"{did}#item.1",
-            level.value,
+            labels[level.value],
             "A registered user exists.",
             "valid email and password",
             "1. Open the login screen\n2. Submit the form",

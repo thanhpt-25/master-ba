@@ -109,6 +109,15 @@ class BasicDesignKind(StrEnum):
     DATA_ENTITY = "data_entity"
 
 
+class SectionKey(StrEnum):
+    """A prose section of a document (spec 19 part 2)."""
+
+    BACKGROUND = "background"  # 背景・目的
+    CONSTRAINTS = "constraints"  # 制約事項
+    SYSTEM_OVERVIEW = "system_overview"  # システム概要
+    IT_VIEWPOINTS = "it_viewpoints"  # 結合テスト観点
+
+
 class DetailDesignKind(StrEnum):
     MODULE = "module"
     PROCESSING_STEP = "processing_step"

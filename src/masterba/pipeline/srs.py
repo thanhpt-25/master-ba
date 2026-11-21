@@ -13,6 +13,12 @@ from masterba.agents import (
     validate_srs_draft,
     write_srs,
 )
+from masterba.agents.sections import (
+    section_ref,
+    to_content,
+    upstream_sections_block,
+    validate_sections,
+)
 from masterba.agents.srs_writer import brd_view, draft_view
 from masterba.knowledge import open_session
 from masterba.llm import LLM
@@ -44,6 +50,7 @@ from masterba.pipeline.stage import (
     stage_result,
     store_document,
 )
+from masterba.quality import StyleFeedback, lint_srs_draft
 from masterba.rendering import render_to_project
 from masterba.review import require_reviewed
 from masterba.team import RecordingLLM, run_writer_review
@@ -99,7 +106,9 @@ def assign_srs_ids(draft: SrsDraft, *, project_id: str) -> SrsArtifacts:
         content_ref=f"json/srs/{SRS_DOC_ID}.v1.json",
         project_id=project_id,
     )
-    return SrsArtifacts(document, SrsContent(items=items), tuple(links))
+    return SrsArtifacts(
+        document, SrsContent(items=items, sections=to_content(draft.sections)), tuple(links)
+    )
 
 
 def _exists(store: ProjectStore, doc_id: str) -> bool:
@@ -110,7 +119,7 @@ def _exists(store: ProjectStore, doc_id: str) -> bool:
     return True
 
 
-def _load_brd(store: ProjectStore) -> list[BrdRequirement]:
+def _load_brd(store: ProjectStore) -> tuple[list[BrdRequirement], BrdContent]:
     if not _exists(store, BRD_DOC_ID):
         raise NotFoundError(f"{BRD_DOC_ID} does not exist; run the brd stage first")
     _, content = get_document(store, BRD_DOC_ID)
@@ -118,7 +127,7 @@ def _load_brd(store: ProjectStore) -> list[BrdRequirement]:
     brd = brd_requirements(content, list_requirements(store))
     if not brd:
         raise InvalidDocumentError("the BRD has no in-scope requirements to specify")
-    return brd
+    return brd, content
 
 
 def run_srs(
@@ -135,7 +144,12 @@ def run_srs(
         raise DuplicateIdError(
             f"{SRS_DOC_ID} already exists; changing an SRS goes through a Decision Record"
         )
-    brd = _load_brd(store)
+    brd, brd_content = _load_brd(store)
+    brd_sections = upstream_sections_block(BRD_DOC_ID, brd_content.sections)
+    section_sources = {
+        *(r.req_id for r in brd),
+        *(section_ref(BRD_DOC_ID, s.key) for s in brd_content.sections),
+    }
     require_reviewed(store, ReviewStage.SRS)  # before the team opens (spec 15 3.2)
     language = get_config(store).document_language
     checklist = load_checklist(checklist_path(DocType.SRS))
@@ -147,6 +161,7 @@ def run_srs(
     attach_knowledge(team, session)
     writer = RecordingLLM(llm, team)
     reviewer = RecordingLLM(qa_llm or llm, team)
+    style = StyleFeedback()
 
     draft = run_writer_review(
         team,
@@ -158,16 +173,21 @@ def run_srs(
             feedback,
             SRS_DOC_ID,
             references=kb_block(session, "writer", brd_text),
+            upstream_sections=brd_sections,
         ),
         gate=lambda d: [
             *validate_srs_draft(d, brd, language),
+            *validate_sections(
+                d.sections, DocType.SRS, language=language, known_sources=section_sources
+            ),
+            *style.feedback(team, lint_srs_draft(d, language)),
             *kb_gate(session, "writer", kb_citations(SRS_DOC_ID, d.items)),
         ],
         review=lambda d: review(
             reviewer,
             checklist=checklist,
             item_counts={SRS_DOC_ID: len(d.items)},
-            upstream=brd_text,
+            upstream="\n\n".join(filter(None, (brd_text, brd_sections))),
             draft_view=draft_view(d, SRS_DOC_ID),
             language=language,
             references=kb_text(session, "writer"),

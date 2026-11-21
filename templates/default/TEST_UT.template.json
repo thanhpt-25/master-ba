@@ -2,26 +2,207 @@
   "cell_bindings": {
     "header": [
       {
+        "cell": "B4",
+        "sheet": "cover",
+        "source": "$document.title",
+        "value_map": null
+      },
+      {
+        "cell": "C8",
+        "sheet": "cover",
+        "source": "$project.id",
+        "value_map": null
+      },
+      {
+        "cell": "C9",
+        "sheet": "cover",
+        "source": "$project.company",
+        "value_map": null
+      },
+      {
+        "cell": "C10",
+        "sheet": "cover",
+        "source": "$document.id",
+        "value_map": null
+      },
+      {
+        "cell": "C11",
+        "sheet": "cover",
+        "source": "$document.version",
+        "value_map": null
+      },
+      {
+        "cell": "C12",
+        "sheet": "cover",
+        "source": "$document.status",
+        "value_map": "doc_status"
+      },
+      {
+        "cell": "C13",
+        "sheet": "cover",
+        "source": "$document.created_on",
+        "value_map": null
+      },
+      {
+        "cell": "C14",
+        "sheet": "cover",
+        "source": "$document.updated_on",
+        "value_map": null
+      },
+      {
+        "cell": "C15",
+        "sheet": "cover",
+        "source": "$document.author",
+        "value_map": null
+      },
+      {
+        "cell": "C16",
+        "sheet": "cover",
+        "source": "$document.approver",
+        "value_map": null
+      },
+      {
+        "cell": "C17",
+        "sheet": "cover",
+        "source": "$document.approved_on",
+        "value_map": null
+      },
+      {
+        "cell": "B2",
+        "sheet": "history",
+        "source": "$document.id",
+        "value_map": null
+      },
+      {
+        "cell": "B3",
+        "sheet": "history",
+        "source": "$document.version",
+        "value_map": null
+      },
+      {
+        "cell": "B4",
+        "sheet": "history",
+        "source": "$project.id",
+        "value_map": null
+      },
+      {
+        "cell": "B5",
+        "sheet": "history",
+        "source": "$document.status",
+        "value_map": "doc_status"
+      },
+      {
         "cell": "B2",
         "sheet": "cases",
-        "source": "$document.id"
+        "source": "$document.id",
+        "value_map": null
       },
       {
         "cell": "B3",
         "sheet": "cases",
-        "source": "$document.version"
+        "source": "$document.version",
+        "value_map": null
       },
       {
         "cell": "B4",
         "sheet": "cases",
-        "source": "$project.id"
+        "source": "$project.id",
+        "value_map": null
       },
       {
         "cell": "B5",
         "sheet": "cases",
-        "source": "$document.status"
+        "source": "$document.status",
+        "value_map": "doc_status"
+      },
+      {
+        "cell": "B2",
+        "sheet": "exclusions",
+        "source": "$document.id",
+        "value_map": null
+      },
+      {
+        "cell": "B3",
+        "sheet": "exclusions",
+        "source": "$document.version",
+        "value_map": null
+      },
+      {
+        "cell": "B4",
+        "sheet": "exclusions",
+        "source": "$project.id",
+        "value_map": null
+      },
+      {
+        "cell": "B5",
+        "sheet": "exclusions",
+        "source": "$document.status",
+        "value_map": "doc_status"
       }
     ],
+    "lists": [
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "version",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "date",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "summary",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "reason",
+            "value_map": null
+          },
+          {
+            "col": "F",
+            "field": "author",
+            "value_map": null
+          },
+          {
+            "col": "G",
+            "field": "approver",
+            "value_map": null
+          }
+        ],
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "history",
+        "source": "$revisions",
+        "start_row": 8
+      },
+      {
+        "columns": [
+          {
+            "col": "B",
+            "field": "item_ref",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "reason",
+            "value_map": null
+          }
+        ],
+        "numbering": {
+          "column": "A"
+        },
+        "sheet": "exclusions",
+        "source": "$exclusions",
+        "start_row": 8
+      }
+    ],
+    "sections": [],
     "tables": [
       {
         "columns": [
@@ -38,7 +219,7 @@
           {
             "col": "D",
             "field": "level",
-            "value_map": null
+            "value_map": "level"
           },
           {
             "col": "E",
@@ -98,6 +279,18 @@
       }
     ],
     "value_maps": {
+      "doc_status": {
+        "approved": "承認済",
+        "draft": "作成中",
+        "in_review": "レビュー中",
+        "superseded": "旧版"
+      },
+      "level": {
+        "IT": "結合テスト",
+        "ST": "総合テスト",
+        "UAT": "受入テスト",
+        "UT": "単体テスト"
+      },
       "scope": {
         "in": "対象",
         "out": "対象外"
@@ -107,7 +300,10 @@
   "company_id": "default",
   "doc_type": "TEST_UT",
   "sheet_map": {
-    "cases": "テストケース"
+    "cases": "テストケース",
+    "cover": "表紙",
+    "exclusions": "除外項目",
+    "history": "改訂履歴"
   },
   "source": "baseline",
   "validation_rules": [

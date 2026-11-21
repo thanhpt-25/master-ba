@@ -10,8 +10,23 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.utils.exceptions import IllegalCharacterError
 from openpyxl.worksheet.worksheet import Worksheet
 
-from masterba.models import PAYLOAD_BY_TYPE, Document, Payload, PayloadItem, payload_items
-from masterba.rendering.bindings import HEADER_SOURCES, MaxCellLength, NonEmptyTable, TableBinding
+from masterba.models import (
+    PAYLOAD_BY_TYPE,
+    Document,
+    Payload,
+    PayloadItem,
+    TestSpecContent,
+    payload_items,
+    payload_sections,
+)
+from masterba.rendering.bindings import (
+    HEADER_SOURCES,
+    ListBinding,
+    MaxCellLength,
+    NonEmptyTable,
+    TableBinding,
+)
+from masterba.rendering.context import EMPTY_CONTEXT, RenderContext
 from masterba.rendering.errors import InvalidTemplateError, RenderValidationError
 from masterba.rendering.formatting import CellValue, format_value
 from masterba.rendering.template import ResolvedTemplate
@@ -35,14 +50,21 @@ def _matches(item: PayloadItem, where: dict[str, str]) -> bool:
     return True
 
 
+def _list_rows(source: str, content: Payload, context: RenderContext) -> Sequence[object]:
+    if source == "$revisions":
+        return context.revisions
+    if source == "$trace":
+        return context.trace
+    return content.exclusions if isinstance(content, TestSpecContent) else ()
+
+
 def _render_table(
     ws: Worksheet,
-    table: TableBinding,
-    items: Sequence[PayloadItem],
+    table: TableBinding | ListBinding,
+    rows: Sequence[object],
     value_maps: dict[str, dict[str, str]],
 ) -> tuple[int, int]:
     """Write one table; return (row count, longest text length)."""
-    rows = [item for item in items if _matches(item, table.where)]
     columns = [c.col for c in table.columns]
     if table.numbering is not None:
         columns.append(table.numbering.column)
@@ -66,8 +88,18 @@ def _render_table(
     return len(rows), longest
 
 
-def render_document(doc: Document, content: Payload, template: ResolvedTemplate) -> Workbook:
-    """Fill the template's shell with `content`; raises `RenderError` subclasses on failure."""
+def render_document(
+    doc: Document,
+    content: Payload,
+    template: ResolvedTemplate,
+    context: RenderContext | None = None,
+) -> Workbook:
+    """Fill the template's shell with `content`; raises `RenderError` subclasses on failure.
+
+    `context` supplies the cover, revision history and traceability (spec 19); without it
+    those cells stay empty.
+    """
+    ctx = context or EMPTY_CONTEXT
     if template.definition.doc_type is not doc.type:
         raise InvalidTemplateError(
             f"template is for {template.definition.doc_type}, not {doc.type}"
@@ -80,15 +112,31 @@ def render_document(doc: Document, content: Payload, template: ResolvedTemplate)
     if missing:
         raise InvalidTemplateError(f"shell {template.shell_path.name} lacks sheets {missing}")
     try:
+        value_maps = template.bindings.value_maps
         for head in template.bindings.header:
-            _put(wb[names[head.sheet]], head.cell, HEADER_SOURCES[head.source](doc))
+            raw = HEADER_SOURCES[head.source](doc, ctx)
+            value = format_value(head.source, raw, value_maps.get(head.value_map or ""))
+            _put(wb[names[head.sheet]], head.cell, value)
         items = payload_items(content)
         counts: dict[str, int] = {}
         longest = 0
         for table in template.bindings.tables:
-            ws = wb[names[table.sheet]]
-            count, width = _render_table(ws, table, items, template.bindings.value_maps)
+            matched = [item for item in items if _matches(item, table.where)]
+            count, width = _render_table(wb[names[table.sheet]], table, matched, value_maps)
             counts[table.sheet] = counts.get(table.sheet, 0) + count
+            longest = max(longest, width)
+        written = {s.key: s for s in payload_sections(content)}
+        for binding in template.bindings.sections:
+            ws = wb[names[binding.sheet]]
+            section = written.get(binding.key)
+            body = section.body if section else binding.empty_text
+            _put(ws, binding.body_cell, body)
+            longest = max(longest, len(body or ""))
+            if binding.sources_cell is not None:
+                _put(ws, binding.sources_cell, "\n".join(section.sources) if section else None)
+        for listed in template.bindings.lists:
+            rows = _list_rows(listed.source, content, ctx)
+            _, width = _render_table(wb[names[listed.sheet]], listed, rows, value_maps)
             longest = max(longest, width)
     except IllegalCharacterError as exc:
         raise RenderValidationError(f"content has a character Excel cannot store: {exc}") from exc

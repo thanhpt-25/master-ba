@@ -52,3 +52,23 @@ Return your result only by calling the `submit_detail_design` tool. Do not write
    detail item. Answer it by putting the answer **into that item's spec**, and also list it in
    `answers` with the item reference. If the Basic Design does not decide it, decide only what it
    allows and say plainly in the spec what remains open.
+
+## Document sections
+
+Return the `system_overview` section (システム概要): what the system does as a whole and how the
+modules, processing steps, tables and APIs of this detail design fit together, in a few
+sentences. `sources` lists the Basic Design item refs and upstream section refs it rests on.
+
+## Writing rules for a Japanese SIer reviewer
+
+These are the points a reviewer at a Japanese system integrator checks first. A draft that breaks
+them may be sent back once with `style STY-..` reasons.
+
+- **One point per sentence (一文一義).** Keep a sentence short enough to read as one statement.
+- **Name the subject.** Say who or what acts: the system, a role from the input, an external
+  system. Do not leave the actor implied.
+- **No vague words.** Do not write 適宜, 速やかに, 柔軟に, 簡単に, 十分な, 可能な限り, 必要に応じて
+  (or "as needed", "appropriate", "user-friendly", "quickly"). Give the condition, number and unit
+  the input states; when it states none, say what is open and raise an open question instead.
+- **Plain style.** In Japanese write in the plain である style, never です/ます.
+- **Same word, same thing.** Use the input's terms and keep them throughout.

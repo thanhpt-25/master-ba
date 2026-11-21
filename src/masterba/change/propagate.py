@@ -226,7 +226,7 @@ def _revise(
     add_document(store, revised, result.content)
     for link in missing_links(get_trace_links(store), links_for_document(result.content)):
         add_trace_link(store, link)
-    render_to_project(store, doc_id, templates_root, version=version)
+    render_to_project(store, doc_id, templates_root, version=version, revised_by=dr.id)
     if for_review:
         _supersede(store, templates_root, dr, doc_id, document.version)
     run = team.finish(TeamRunStatus.DONE)

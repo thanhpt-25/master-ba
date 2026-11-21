@@ -12,6 +12,12 @@ from masterba.agents.design_writer import (
     validate_design_draft,
     write_design,
 )
+from masterba.agents.sections import (
+    section_ref,
+    to_content,
+    upstream_sections_block,
+    validate_sections,
+)
 from masterba.agents.test_writer import (
     TestDraft,
     cases_view,
@@ -144,7 +150,7 @@ def assign_basic_ids(
     documents: tuple[tuple[Document, BasicDesignContent | TestSpecContent], ...] = (
         (
             make_document(DESIGN_DOC_ID, DocType.BASIC_DESIGN, project_id),
-            BasicDesignContent(items=design_items),
+            BasicDesignContent(items=design_items, sections=to_content(design.sections)),
         ),
         (make_document(IT_DOC_ID, DocType.TEST_IT, project_id), contents[Level.IT]),
         (make_document(ST_DOC_ID, DocType.TEST_ST, project_id), contents[Level.ST]),
@@ -189,6 +195,11 @@ def run_basic_design(
     tester = RecordingLLM(tester_llm or designer_llm, team)
     reviewer = RecordingLLM(qa_llm or designer_llm, team)
     srs_text = srs_view(srs_items)
+    srs_sections = upstream_sections_block(SRS_DOC_ID, content.sections)
+    section_sources = {
+        *(i.item_id for i in srs_items),
+        *(section_ref(SRS_DOC_ID, s.key) for s in content.sections),
+    }
 
     hooks: DesignTestHooks[BasicDesignDraft, TestDraft] = DesignTestHooks(
         write_design=lambda previous, feedback: write_design(
@@ -199,6 +210,7 @@ def run_basic_design(
             feedback,
             DESIGN_DOC_ID,
             references=kb_block(session, "designer", srs_text),
+            upstream_sections=srs_sections,
         ),
         write_tests=lambda design, previous, feedback: write_tests(
             tester,
@@ -216,6 +228,9 @@ def run_basic_design(
         ),
         gate_design=lambda d: [
             *validate_design_draft(d, srs_items, DESIGN_DOC_ID, language),
+            *validate_sections(
+                d.sections, DocType.BASIC_DESIGN, language=language, known_sources=section_sources
+            ),
             *kb_gate(session, "designer", kb_citations(DESIGN_DOC_ID, d.items)),
         ],
         gate_tests=lambda d, t: [
@@ -232,7 +247,7 @@ def run_basic_design(
             reviewer,
             checklist=design_checklist,
             item_counts={DESIGN_DOC_ID: len(d.items)},
-            upstream=srs_text,
+            upstream="\n\n".join(filter(None, (srs_text, srs_sections))),
             draft_view=design_view(d, DESIGN_DOC_ID),
             language=language,
             references=kb_text(session, "designer", srs_text),
