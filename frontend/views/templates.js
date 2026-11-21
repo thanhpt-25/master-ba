@@ -1,4 +1,7 @@
 import { badge, clear, empty, field, h, loadError, spinner, table } from "../dom.js";
+import { t } from "../i18n.js";
+
+const tr = t; // `t` is a mapping table inside mappingTables
 
 const DOC_TYPES = ["BRD", "SRS", "BASIC_DESIGN", "DETAIL_DESIGN", "TEST_IT", "TEST_ST", "TEST_UT"];
 const STATE_BADGE = { confirmed: "approved", draft: "proposed" };
@@ -8,15 +11,15 @@ function mappingTables(data, onSet) {
     h(
       "section",
       { class: "panel" },
-      h("h4", {}, `${t.sheet} · header row ${t.header_row}`, t.where && Object.keys(t.where).length ? ` · ${JSON.stringify(t.where)}` : ""),
+      h("h4", {}, `${t.sheet} · ${tr("header row {n}", { n: t.header_row })}`, t.where && Object.keys(t.where).length ? ` · ${JSON.stringify(t.where)}` : ""),
       table(
-        ["Column", "Sample header", "Field"],
+        [tr("Column"), tr("Sample header"), tr("Field")],
         t.columns.map((c) => {
-          const input = h("input", { type: "text", value: c.field ?? "", "aria-label": `Field of column ${c.col} on ${t.sheet}`, maxlength: "40" });
-          const save = h("button", { onClick: () => onSet(t.sheet, c.col, input.value.trim() || null) }, "Set");
+          const input = h("input", { type: "text", value: c.field ?? "", "aria-label": tr("Field of column {col} on {sheet}", { col: c.col, sheet: t.sheet }), maxlength: "40" });
+          const save = h("button", { onClick: () => onSet(t.sheet, c.col, input.value.trim() || null) }, tr("Set"));
           return [h("code", {}, c.col), c.header, h("span", { class: "row" }, input, save)];
         }),
-        `Columns of ${t.sheet}`,
+        tr("Columns of {sheet}", { sheet: t.sheet }),
         { dense: true, stickyFirst: true },
       ),
     ),
@@ -32,7 +35,7 @@ export async function render({ main, api, toast }) {
   const detail = h("div", {});
 
   const refresh = async () => {
-    clear(list).append(spinner("Loading templates…"));
+    clear(list).append(spinner(t("Loading templates…")));
     let rows;
     try {
       rows = await api.get("/templates");
@@ -43,12 +46,12 @@ export async function render({ main, api, toast }) {
     clear(list).append(
       rows.length
         ? table(
-            ["Company", "Type", "State", ""],
-            rows.map((r) => [r.company, r.doc_type, badge(STATE_BADGE[r.state] ?? r.state), h("button", { class: "link", onClick: () => open(r.company, r.doc_type) }, "Open")]),
-            "Company templates",
+            [t("Company"), t("Type"), t("State"), ""],
+            rows.map((r) => [r.company, r.doc_type, badge(STATE_BADGE[r.state] ?? r.state), h("button", { class: "link", onClick: () => open(r.company, r.doc_type) }, t("Open"))]),
+            t("Company templates"),
             { dense: true, stickyFirst: true },
           )
-        : empty("No company template yet. Upload a sample workbook to start."),
+        : empty(t("No company template yet. Upload a sample workbook to start.")),
     );
   };
 
@@ -65,7 +68,7 @@ export async function render({ main, api, toast }) {
       }
     };
     const onSet = async (sheet, col, name) => {
-      const next = await run(() => api.put(`${path}/mapping`, { sheet, col, field: name }), "Mapping updated; confirm again.");
+      const next = await run(() => api.put(`${path}/mapping`, { sheet, col, field: name }), t("Mapping updated; confirm again."));
       if (next) {
         show(next);
         refresh();
@@ -84,22 +87,22 @@ export async function render({ main, api, toast }) {
           "div",
           { class: "row" },
           h("button", { onClick: async () => {
-            const result = await run(() => api.post(`${path}/preview`), "Preview rendered.");
+            const result = await run(() => api.post(`${path}/preview`), t("Preview rendered."));
             if (result) {
-              toast(result.differences.length ? `${result.differences.length} layout differences` : "Layout matches the sample", "info");
-              detail.append(h("p", {}, h("a", { href: api.url(`${path}/preview.xlsx`) }, "Download the preview"), result.differences.length ? h("ul", {}, result.differences.map((d) => h("li", {}, d))) : " · no layout differences"));
+              toast(result.differences.length ? t("{n} layout differences", { n: result.differences.length }) : t("Layout matches the sample"), "info");
+              detail.append(h("p", {}, h("a", { href: api.url(`${path}/preview.xlsx`) }, t("Download the preview")), result.differences.length ? h("ul", {}, result.differences.map((d) => h("li", {}, d))) : ` · ${t("no layout differences")}`));
             }
-          } }, "Render preview"),
+          } }, t("Render preview")),
           confirmed
-            ? h("button", { onClick: async () => { const next = await run(() => api.post(`${path}/unconfirm`), "Confirmation removed."); if (next) { show(next); refresh(); } } }, "Remove confirmation")
-            : h("button", { class: "primary", disabled: data.problems.length > 0, onClick: async () => { const next = await run(() => api.post(`${path}/confirm`), "Template confirmed."); if (next) { show(next); refresh(); } } }, "Confirm template"),
+            ? h("button", { onClick: async () => { const next = await run(() => api.post(`${path}/unconfirm`), t("Confirmation removed.")); if (next) { show(next); refresh(); } } }, t("Remove confirmation"))
+            : h("button", { class: "primary", disabled: data.problems.length > 0, onClick: async () => { const next = await run(() => api.post(`${path}/confirm`), t("Template confirmed.")); if (next) { show(next); refresh(); } } }, t("Confirm template")),
         ),
       ),
     );
   };
 
   const open = async (c, t) => {
-    clear(detail).append(spinner("Opening template\u2026"));
+    clear(detail).append(spinner(t("Opening template…")));
     try {
       const data = await api.get(`/templates/${c}/${t}`);
       clear(detail);
@@ -111,10 +114,10 @@ export async function render({ main, api, toast }) {
 
   const upload = async () => {
     const file = sample.files[0];
-    if (!company.value.trim() || !file) return toast("Enter a company id and choose an .xlsx sample.", "error");
+    if (!company.value.trim() || !file) return toast(t("Enter a company id and choose an .xlsx sample."), "error");
     try {
       const data = await api.upload(`/templates/${encodeURIComponent(company.value.trim())}/${docType.value}/calibrate`, file);
-      toast("Draft written. Review it, then confirm.", "info");
+      toast(t("Draft written. Review it, then confirm."), "info");
       show(data);
       refresh();
     } catch (error) {
@@ -123,9 +126,9 @@ export async function render({ main, api, toast }) {
   };
 
   clear(main).append(
-    h("h2", {}, "Company templates"),
-    h("p", { class: "hint" }, "A calibrated template is used for rendering only after an administrator confirms it."),
-    h("section", { class: "panel" }, field("Company", company), field("Document type", docType), field("Sample workbook (.xlsx, up to 5 MB)", sample), h("button", { class: "primary", onClick: upload }, "Calibrate from sample")),
+    h("h1", {}, t("Company templates")),
+    h("p", { class: "hint" }, t("A calibrated template is used for rendering only after an administrator confirms it.")),
+    h("section", { class: "panel" }, field(t("Company"), company), field(t("Document type"), docType), field(t("Sample workbook (.xlsx, up to 5 MB)"), sample), h("button", { class: "primary", onClick: upload }, t("Calibrate from sample"))),
     list,
     detail,
   );

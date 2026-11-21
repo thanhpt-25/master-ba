@@ -1,53 +1,55 @@
-import { append, badge, clear, confirmDialog, empty, fmtTime, h, liveDot } from "../dom.js";
+import { append, badge, clear, empty, fmtTime, h, liveDot, statusLabel } from "../dom.js";
+import { N_, t } from "../i18n.js";
+import { nextStep, PHASES, phaseTitle, workflowSteps } from "./journey.js";
+import { parseComments, reviewBox } from "./review.js";
 
-const LEFT = [
-  { key: "brd", title: "BRD", sub: "業務要件定義書", needs: "Intake text" },
-  { key: "srs", title: "SRS", sub: "システム要件定義書", needs: "BRD" },
-  { key: "basic", title: "Basic Design", sub: "基本設計書", needs: "SRS" },
-  { key: "detail", title: "Detail Design", sub: "詳細設計書", needs: "Basic Design" },
-];
+export { nextStep, parseComments, workflowSteps };
+
 const RIGHT = [
-  { title: "UAT", sub: "受入テスト", doc: null, link: "BRD ↔ UAT" },
-  { title: "System tests (ST)", sub: "システムテスト", doc: "DOC-TEST_ST-0001", stage: "basic", link: "SRS ↔ ST" },
-  { title: "Integration tests (IT)", sub: "結合テスト", doc: "DOC-TEST_IT-0001", stage: "basic", link: "Basic ↔ IT" },
-  { title: "Unit tests (UT)", sub: "単体テスト", doc: "DOC-TEST_UT-0001", stage: "detail", link: "Detail ↔ UT" },
+  { title: N_("UAT"), sub: "受入テスト", doc: null, link: "BRD ↔ UAT" },
+  { title: N_("System tests (ST)"), sub: "総合テスト", doc: "DOC-TEST_ST-0001", stage: "basic", link: "SRS ↔ ST" },
+  { title: N_("Integration tests (IT)"), sub: "結合テスト", doc: "DOC-TEST_IT-0001", stage: "basic", link: "Basic ↔ IT" },
+  { title: N_("Unit tests (UT)"), sub: "単体テスト", doc: "DOC-TEST_UT-0001", stage: "detail", link: "Detail ↔ UT" },
 ];
 
-// The workflow strip (spec 15 section 7): where each phase stands and what to do next.
-export function workflowSteps(stages, gates) {
-  const steps = LEFT.map((phase) => {
-    const info = stages.find((s) => s.stage === phase.key) || { status: "not_started", review: "not_started" };
-    let state;
-    if (info.status === "running") state = "running";
-    else if (info.status === "waiting_for_input") state = "waiting_for_input";
-    else if (info.status === "escalated") state = "escalated";
-    else if (info.review === "in_review") state = "in_review";
-    else if (info.review === "approved") state = "approved";
-    else if (info.status === "done") state = "done";
-    else state = "ready";
-    return { key: phase.key, title: phase.title, sub: phase.sub, state, waiting: info.waiting_for || null };
-  });
-  // Finished means the next phase may start. With gates, a fresh run is in_review until approved;
-  // a `done` phase (documents in draft) only exists without gates or after a Decision Record.
-  const finished = (s) => s.state === "approved" || s.state === "done";
-  steps.forEach((step, i) => {
-    if (step.state === "ready" && i > 0 && (!finished(steps[i - 1]) || step.waiting)) step.state = "locked";
-  });
-  const gatesBetween = gates
-    ? steps.slice(0, -1).map((s) => (finished(s) ? "open" : s.state === "in_review" ? "waiting" : "closed"))
-    : [];
-  const current = steps.find((s) => !finished(s)) || null;
-  return { steps, gates: gatesBetween, current: current ? current.key : null, next: nextAction(current) };
+const canAct = (me) => ["approver", "admin"].includes(me?.role);
+
+// An intake picker and the button that uploads it and starts the BRD run.
+function uploadBox(ctx, { reuse, label }) {
+  const file = h("input", { type: "file", accept: ".txt,.md", id: "intake-file", "aria-label": t("Intake file (.txt or .md)") });
+  const go = async () => {
+    if (!file.files[0]) return ctx.toast(t("Choose an intake file first."), "error");
+    try {
+      const stored = await ctx.api.upload(`/projects/${ctx.pid}/intake`, file.files[0]);
+      await ctx.start("brd", { intake: stored.name, reuse_intake: reuse });
+    } catch (error) {
+      ctx.toast(error.message, "error");
+    }
+  };
+  return h("div", { class: "run-box" }, file, h("button", { class: "primary", type: "button", onClick: go }, label));
 }
 
-function nextAction(step) {
-  if (!step) return "Every phase is finished. Changes from here go through a Decision Record.";
-  if (step.state === "in_review") return `Review the ${step.title} phase: approve it, or reject it with comments.`;
-  if (step.state === "running") return `${step.title} is running.`;
-  if (step.state === "escalated") return `${step.title} escalated: resume it, or raise a Decision Record from the run.`;
-  if (step.state === "waiting_for_input") return `${step.title} is paused. Answer or withdraw its blocker questions, then resume the run in Activity.`;
-  if (step.state === "locked") return `${step.title} waits for the phase before it.`;
-  return step.key === "brd" ? "Upload the customer's intake and run the BRD stage." : `Run the ${step.title} stage.`;
+function actionButton(action, ctx) {
+  if (!action) return null;
+  if (action.kind === "link") return h("a", { class: "button primary", href: action.href }, action.label, h("span", { "aria-hidden": "true" }, " →"));
+  if (!canAct(ctx.me)) return h("p", { class: "hint" }, t("An approver or administrator takes this step."));
+  if (action.kind === "upload") return uploadBox(ctx, action);
+  const body = action.kind === "resume" ? { resume: action.runId } : {};
+  return h("button", { class: "primary", type: "button", onClick: () => ctx.start(action.stage, body).catch((e) => ctx.toast(e.message, "error")) }, action.label);
+}
+
+// The one step the project waits for (spec 19 section 13), at the top of the page.
+function nextStepPanel(overview, ctx) {
+  const step = nextStep(overview, ctx.pid);
+  return h(
+    "section",
+    { class: `panel next-step ${step.state}`, "aria-labelledby": "next-title" },
+    h("p", { class: "eyebrow" }, t("Next step")),
+    h("div", { class: "next-body" },
+      h("div", {}, h("h2", { id: "next-title" }, step.title), h("p", { class: "muted" }, step.detail)),
+      h("div", { class: "next-action" }, actionButton(step.action, ctx)),
+    ),
+  );
 }
 
 function workflowStrip(overview, pid) {
@@ -65,164 +67,98 @@ function workflowStrip(overview, pid) {
     );
     if (i < flow.gates.length) {
       const gate = flow.gates[i];
-      const label = { open: "Approved", waiting: "Waiting for review", closed: "Review gate" }[gate];
-      items.push(h("li", { class: `wf-gate ${gate}`, "aria-label": `Review gate: ${label}` }, h("span", { "aria-hidden": "true" }, gate === "open" ? "✓" : "◆"), h("span", { class: "sub" }, label)));
+      const label = { open: t("Approved"), waiting: t("Waiting for review"), closed: t("Review gate") }[gate];
+      items.push(h("li", { class: `wf-gate ${gate}`, "aria-label": t("Review gate: {state}", { state: label }) }, h("span", { "aria-hidden": "true" }, gate === "open" ? "✓" : "◆"), h("span", { class: "sub" }, label)));
     }
   });
   const c = overview.counts;
   return h(
     "section",
     { class: "panel workflow", "aria-labelledby": "wf-title" },
-    h("h2", { id: "wf-title" }, "Workflow"),
-    h("ol", { class: "wf-track", "aria-label": "Phases in order" }, items),
-    h("p", { class: "wf-next" }, h("strong", {}, "Next: "), flow.next),
+    h("h2", { id: "wf-title" }, t("Workflow")),
+    h("ol", { class: "wf-track", "aria-label": t("Phases in order") }, items),
     h(
       "ul",
-      { class: "wf-loops", "aria-label": "What feeds the phases" },
-      h("li", {}, h("a", { href: `#/p/${pid}/questions` }, `${c.open_questions} open customer question(s)`), h("span", { class: "sub" }, " · later phases may not decide them")),
-      h("li", {}, h("a", { href: `#/p/${pid}/drs` }, `${c.open_drs} open Decision Record(s)`), h("span", { class: "sub" }, " · changes and review revisions")),
-      h("li", {}, h("a", { href: `#/p/${pid}/knowledge` }, "Knowledge base"), h("span", { class: "sub" }, " · passages the writers cite")),
-      overview.project.review_gates ? null : h("li", { class: "sub" }, "Review gates are off for this project: stages run back to back."),
+      { class: "wf-loops", "aria-label": t("What feeds the phases") },
+      h("li", {}, h("a", { href: `#/p/${pid}/questions` }, t("{n} open customer question(s)", { n: c.open_questions })), h("span", { class: "sub" }, ` · ${t("later phases may not decide them")}`)),
+      h("li", {}, h("a", { href: `#/p/${pid}/drs` }, t("{n} open Decision Record(s)", { n: c.open_drs })), h("span", { class: "sub" }, ` · ${t("changes and review revisions")}`)),
+      h("li", {}, h("a", { href: `#/p/${pid}/knowledge` }, t("Knowledge base")), h("span", { class: "sub" }, ` · ${t("passages the writers cite")}`)),
+      overview.project.review_gates ? null : h("li", { class: "sub" }, t("Review gates are off for this project: stages run back to back.")),
     ),
   );
 }
 
-function docLine(doc) {
-  return h("li", {}, h("code", {}, doc.id), h("span", { class: "ver" }, `v${doc.version}`));
+function docLine(pid, doc) {
+  return h("li", {}, h("a", { href: `#/p/${pid}/documents/${doc.id}` }, h("code", {}, doc.id)), h("span", { class: "ver" }, `v${doc.version}`), doc.status ? badge(doc.status) : null);
 }
 
-const ITEM_PREFIX = /^\s*(DOC-[A-Z_]+-\d{4}#item\.\d+)\s*:\s*(.*)$/;
-
-// One comment per line; a line may start with an item ref (spec 15 section 7).
-export function parseComments(text) {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const match = line.match(ITEM_PREFIX);
-      return match ? { ref: match[1], text: match[2].trim() } : { ref: null, text: line };
-    });
-}
-
-function reviewBox(stage, ctx) {
-  const comments = h("textarea", {
-    id: `reject-${stage.key}`,
-    rows: "3",
-    maxlength: "20000",
-    spellcheck: "false",
-    "aria-label": `Comments for rejecting ${stage.title}, one per line`,
-    placeholder: "DOC-SRS-0001#item.3: Split this obligation…",
-  });
-  const approve = async () => {
-    const open = ctx.openQuestions.length;
-    const warning = open ? ` ${open} customer question(s) are still open; they stay open and later stages may not decide them.` : "";
-    const ok = await confirmDialog({
-      title: `Approve ${stage.title}?`,
-      message: `The next stage can then start.${warning}`,
-      confirmLabel: "Approve",
-    });
-    if (!ok) return;
-    ctx.approve(stage.key).catch((e) => ctx.toast(e.message, "error"));
-  };
-  const reject = () => {
-    const parsed = parseComments(comments.value);
-    if (!parsed.length) return ctx.toast("Write at least one comment.", "error");
-    ctx.reject(stage.key, parsed).catch((e) => ctx.toast(e.message, "error"));
-  };
-  return h(
-    "div",
-    { class: "review-box" },
-    h("p", { class: "hint" }, "Waiting for your review."),
-    h("button", { class: "primary", type: "button", onClick: approve }, "Approve"),
-    comments,
-    h("button", { type: "button", onClick: reject }, "Reject with comments"),
-  );
-}
-
-function leftCard(stage, info, index, ctx) {
-  const canRun = ["approver", "admin"].includes(ctx.me.role);
-  const run = (body = {}) => ctx.start(stage.key, body);
+function leftCard(phase, info, index, ctx) {
+  const stage = { key: phase.key, title: t(phase.title) };
+  const may = canAct(ctx.me);
   let action = null;
   if (info.review === "in_review" && info.status !== "running") {
-    action = canRun ? reviewBox(stage, ctx) : h("p", { class: "hint" }, "Waiting for an approver's review.");
-  } else if (canRun && info.waiting_for && info.status !== "running" && info.status !== "done") {
+    action = may
+      ? reviewBox(stage, { ...ctx, openQuestions: info.open_questions }, { placeholderRef: `${phase.doc}#item.1` })
+      : h("p", { class: "hint" }, t("Waiting for an approver's review."));
+  } else if (may && info.waiting_for && info.status !== "running" && info.status !== "done") {
     // The gate (spec 15 section 3.2): the server refuses too; this only explains why.
-    action = h("button", { class: "primary", disabled: true, title: `Approve ${info.waiting_for} first` }, `Waiting for the ${info.waiting_for} review`);
-  } else if (canRun && ctx.locked.has(stage.key)) {
-    action = h("button", { class: "primary", disabled: true }, `Waiting for ${stage.needs}`);
+    const before = phaseTitle(info.waiting_for);
+    action = h("button", { class: "primary", disabled: true, title: t("Approve {phase} first", { phase: before }) }, t("Waiting for the {phase} review", { phase: before }));
+  } else if (may && ctx.locked.has(phase.key)) {
+    action = h("button", { class: "primary", disabled: true }, t("Waiting for {phase}", { phase: t(phase.needs) }));
   } else if (info.status === "waiting_for_input") {
-    action = h("p", { class: "hint" }, "This run is waiting for customer input. ", h("a", { href: `#/p/${ctx.pid}/questions` }, "Answer its blocker questions"), " and resume it from Activity.");
-  } else if (canRun && info.status === "done") {
+    action = h("p", { class: "hint" }, t("This run is waiting for customer input."), " ", h("a", { href: `#/p/${ctx.pid}/questions` }, t("Answer its blocker questions")));
+  } else if (may && info.status === "done") {
     // A stage refuses to run over its own documents; changes go through a Decision Record.
-    action = h("p", { class: "hint" }, "To change these documents, raise a ", h("a", { href: `#/p/${ctx.pid}/drs` }, "Decision Record"), ".");
-  } else if (canRun && info.status !== "running") {
-    if (stage.key === "brd") {
-      const file = h("input", { type: "file", accept: ".txt,.md", id: "intake-file", "aria-label": "Intake file (.txt or .md)" });
-      action = h(
-        "div",
-        { class: "run-box" },
-        file,
-        h(
-          "button",
-          {
-            class: "primary",
-            onClick: async () => {
-              if (!file.files[0]) return ctx.toast("Choose an intake file first.", "error");
-              try {
-                const stored = await ctx.api.upload(`/projects/${ctx.pid}/intake`, file.files[0]);
-                await run({ intake: stored.name, reuse_intake: info.status === "escalated" });
-              } catch (error) {
-                ctx.toast(error.message, "error");
-              }
-            },
-          },
-          "Upload and run",
-        ),
-      );
-    } else {
-      action = h("button", { class: "primary", onClick: () => run().catch((e) => ctx.toast(e.message, "error")) }, "Run stage");
-    }
+    action = h("p", { class: "hint" }, t("To change these documents, raise a Decision Record."), " ", h("a", { href: `#/p/${ctx.pid}/drs` }, t("Decision Records")));
+  } else if (may && info.status !== "running") {
+    action = phase.key === "brd"
+      ? uploadBox(ctx, { reuse: info.status === "escalated", label: t("Upload and run") })
+      : h("button", { class: "primary", onClick: () => ctx.start(phase.key, {}).catch((e) => ctx.toast(e.message, "error")) }, t("Run stage"));
   }
   const last = info.last_run;
+  const asked = info.open_questions ?? 0;
   return h(
     "section",
-    { class: `vcard left ${info.status}`, style: `--i:${index}`, "aria-labelledby": `st-${stage.key}` },
-    h("div", { class: "vcard-head" }, h("h3", { id: `st-${stage.key}` }, stage.title), badge(info.status), info.review === "in_review" || info.review === "approved" ? badge(info.review) : null),
-    h("p", { class: "sub" }, stage.sub),
-    info.documents.length ? h("ul", { class: "docs" }, info.documents.map(docLine)) : h("p", { class: "muted" }, `Needs: ${stage.needs}`),
+    { class: `vcard left ${info.status}`, style: `--i:${index}`, "aria-labelledby": `st-${phase.key}` },
+    h("div", { class: "vcard-head" }, h("h3", { id: `st-${phase.key}` }, t(phase.title)), badge(info.status), info.review === "in_review" || info.review === "approved" ? badge(info.review) : null),
+    h("p", { class: "sub" }, phase.sub),
+    info.documents.length ? h("ul", { class: "docs" }, info.documents.map((d) => docLine(ctx.pid, d))) : h("p", { class: "muted" }, t("Needs: {what}", { what: t(phase.needs) })),
+    asked ? h("p", { class: "blocker" }, h("span", { "aria-hidden": "true" }, "●"), " ", h("a", { href: `#/p/${ctx.pid}/questions` }, t("{n} open customer question(s)", { n: asked }))) : null,
     last
-      ? h("p", { class: "muted" }, `Last run ${last.run_id}: ${last.status}, ${last.rounds} round(s), ${last.issues_raised} issue(s)`)
+      ? h("p", { class: "muted" }, t("Last run {id}: {status}, {rounds} round(s), {issues} issue(s)", { id: last.run_id, status: statusLabel(last.status), rounds: last.rounds, issues: last.issues_raised }))
       : null,
     action,
   );
 }
 
-function rightCard(card, index, stages) {
+function rightCard(card, index, stages, pid) {
   const info = card.stage ? stages.find((s) => s.stage === card.stage) : null;
   const doc = info?.documents.find((d) => d.id === card.doc);
   const status = card.doc === null ? "planned" : doc ? "done" : ["escalated", "waiting_for_input"].includes(info?.status) ? info.status : "not_started";
   return h(
     "section",
     { class: `vcard right ${status}`, style: `--i:${index}` },
-    h("div", { class: "vcard-head" }, h("h3", {}, card.title), badge(status)),
+    h("div", { class: "vcard-head" }, h("h3", {}, t(card.title)), badge(status)),
     h("p", { class: "sub" }, card.sub),
-    doc ? h("ul", { class: "docs" }, docLine(doc)) : h("p", { class: "muted" }, card.doc ? "Written with its design stage" : "Not generated by this system yet"),
+    doc ? h("ul", { class: "docs" }, docLine(pid, doc)) : h("p", { class: "muted" }, card.doc ? t("Written with its design stage") : t("Not generated by this system yet")),
   );
 }
 
 function jobPanel(job) {
   if (!job) return null;
+  const [what, target] = job.kind.split(":");
+  const title = what === "stage" ? phaseTitle(target) : target;
   return h(
     "section",
     { class: "panel", "aria-labelledby": "job-title" },
-    h("div", { class: "vcard-head" }, h("h2", { id: "job-title" }, job.kind.replace(":", " · ")), badge(job.status)),
-    h("p", { class: "muted" }, `Started ${fmtTime(job.started)}${job.finished ? `, finished ${fmtTime(job.finished)}` : ""}`),
+    h("div", { class: "vcard-head" }, h("h2", { id: "job-title" }, t("Job · {what}", { what: title })), badge(job.status)),
+    h("p", { class: "muted" }, job.finished ? t("Started {start}, finished {end}", { start: fmtTime(job.started), end: fmtTime(job.finished) }) : t("Started {start}", { start: fmtTime(job.started) })),
     job.error ? h("p", { class: "error", role: "alert" }, job.error) : null,
     job.result?.escalations?.length
-      ? h("div", {}, h("h3", {}, "Escalated because"), h("ul", {}, job.result.escalations.map((e) => h("li", {}, e))))
+      ? h("div", {}, h("h3", {}, t("Escalated because")), h("ul", {}, job.result.escalations.map((e) => h("li", {}, e))))
       : null,
-    h("pre", { class: "log", tabindex: "0", "aria-label": "Job log" }, job.log.length ? job.log.join("\n") : "Waiting for the first message…"),
+    h("pre", { class: "log", tabindex: "0", "aria-label": t("Job log") }, job.log.length ? job.log.join("\n") : t("Waiting for the first message…")),
   );
 }
 
@@ -249,10 +185,10 @@ export async function render(context) {
     if (!active && !paused) return null;
     const toggle = h(
       "button",
-      { class: "link", type: "button", onClick: togglePause, title: "Pause or resume live updates (P)" },
-      paused ? "Resume updates (P)" : "Pause updates (P)",
+      { class: "link", type: "button", onClick: togglePause, title: t("Pause or resume live updates (P)") },
+      paused ? t("Resume updates (P)") : t("Pause updates (P)"),
     );
-    return h("div", { class: "live-bar" }, liveDot(active && !paused, paused ? "Paused" : "Live"), toggle);
+    return h("div", { class: "live-bar" }, liveDot(active && !paused, paused ? t("Paused") : t("Live")), toggle);
   };
 
   const modeToggle = (overview) => {
@@ -264,67 +200,74 @@ export async function render(context) {
       onClick: async () => {
         try {
           await api.post(`/projects/${pid}/settings/propagation-mode`, { propagation_mode: auto ? "manual_gate" : "auto" });
-          toast(auto ? "Document updates are now manual" : "Document updates are now automatic");
+          toast(auto ? t("Document updates are now manual") : t("Document updates are now automatic"));
           await refresh();
         } catch (error) {
           toast(error.message, "error");
         }
       },
-    }, auto ? "Switch to manual updates" : "Switch to automatic updates");
+    }, auto ? t("Switch to manual updates") : t("Switch to automatic updates"));
   };
+
+  const facts = (project) => [
+    project.document_language === "ja" ? t("Japanese documents") : t("English documents"),
+    project.review_gates ? t("Review gates on") : t("Review gates off"),
+    project.propagation_mode === "auto" ? t("Document updates automatic") : t("Document updates manual"),
+  ].join(" · ");
 
   const draw = (overview, job) => {
     const stages = overview.stages;
     const flow = workflowSteps(stages, overview.project.review_gates);
     const locked = new Set(flow.steps.filter((s) => s.state === "locked").map((s) => s.key));
-    const ctx = { ...context, pid, start, approve, reject, locked, openQuestions: overview.open_questions };
-    draw.last = () => draw(overview, job);
+    const ctx = { ...context, pid, start, approve, reject, locked };
+    draw.last = () => draw(overview, { ...job });
+    const finished = flow.steps.filter((step) => ["approved", "done"].includes(step.state)).length;
     // dom.js append skips empty sections; the native one would print "null".
     append(clear(main), [
       h("div", { class: "page-heading" },
-        h("div", {}, h("p", { class: "eyebrow" }, "Project overview"), h("h1", {}, pid), h("p", { class: "muted" }, `${overview.project.document_language === "ja" ? "Japanese" : "English"} documents · Review gates ${overview.project.review_gates ? "on" : "off"} · Document updates ${overview.project.propagation_mode === "auto" ? "automatic" : "manual"}`), modeToggle(overview)),
+        h("div", {}, h("p", { class: "eyebrow" }, t("Project overview")), h("h1", {}, pid), h("p", { class: "muted" }, facts(overview.project)), modeToggle(overview)),
         liveBar(lastActive),
       ),
-      h("dl", { class: "overview-stats", "aria-label": "Project summary" },
-        h("div", {}, h("dt", {}, "Requirements"), h("dd", {}, overview.counts.requirements)),
-        h("div", {}, h("dt", {}, "Trace links"), h("dd", {}, overview.counts.links)),
-        h("div", {}, h("dt", {}, "Open decisions"), h("dd", {}, overview.counts.open_drs)),
-        h("div", {}, h("dt", {}, "Phases complete"), h("dd", {}, `${flow.steps.filter((step) => ["approved", "done"].includes(step.state)).length} / 4`)),
+      nextStepPanel({ ...overview, job: job ?? overview.job }, ctx),
+      h("dl", { class: "overview-stats", "aria-label": t("Project summary") },
+        h("div", {}, h("dt", {}, t("Requirements")), h("dd", {}, overview.counts.requirements)),
+        h("div", {}, h("dt", {}, t("Trace links")), h("dd", {}, overview.counts.links)),
+        h("div", {}, h("dt", {}, t("Open decisions")), h("dd", {}, overview.counts.open_drs)),
+        h("div", {}, h("dt", {}, t("Phases complete")), h("dd", {}, `${finished} / ${PHASES.length}`)),
       ),
-      overview.project ? budgetPanel(overview.project, context) : null,
       workflowStrip(overview, pid),
       h(
         "div",
-        { class: "vmodel", role: "group", "aria-label": "V-model stages" },
-        LEFT.map((stage, i) => leftCard(stage, stages.find((s) => s.stage === stage.key), i, ctx)),
-        RIGHT.map((card, i) => rightCard(card, i, stages)),
+        { class: "vmodel", role: "group", "aria-label": t("V-model stages") },
+        PHASES.map((phase, i) => leftCard(phase, stages.find((s) => s.stage === phase.key), i, ctx)),
+        RIGHT.map((card, i) => rightCard(card, i, stages, pid)),
         RIGHT.map((card, i) => h("div", { class: "link-label", style: `--i:${i}`, "aria-hidden": "true" }, card.link)),
       ),
       jobPanel(job),
       h(
         "section",
         { class: "panel" },
-        h("h2", {}, "Open questions for the customer"),
+        h("h2", {}, t("Open questions for the customer")),
         overview.open_questions.length
-          ? h("div", {}, h("ul", {}, overview.open_questions.map((q) => h("li", {}, q))), h("p", {}, h("a", { href: `#/p/${pid}/questions` }, "Answer them in the Questions tab")))
-          : empty("No open questions. Agents raise one here when only the customer can settle something.", h("a", { class: "button", href: `#/p/${pid}/questions` }, "Review the Questions tab")),
+          ? h("div", {}, h("ul", {}, overview.open_questions.map((q) => h("li", {}, q))), h("p", {}, h("a", { href: `#/p/${pid}/questions` }, t("Answer them in the Questions tab"))))
+          : empty(t("No open questions. Agents raise one here when only the customer can settle something.")),
       ),
+      context.me?.role === "admin" ? budgetPanel(overview.project) : null,
     ]);
   };
 
   async function start(stage, body) {
     paused = false;
     const started = await api.post(`/projects/${pid}/stages/${stage}/run`, body);
-    toast(`Started ${stage}`);
+    toast(t("Started {phase}", { phase: phaseTitle(stage) }));
     shown = started.id;
     await refresh();
   }
 
-  function budgetPanel(project, ctx) {
-    if (ctx.me?.role !== "admin") return null;
+  function budgetPanel(project) {
     const input = h("input", {
-      type: "number", min: "1", value: project.team_token_budget ?? "", placeholder: "No cap",
-      "aria-label": "Token budget per run",
+      type: "number", min: "1", value: project.team_token_budget ?? "", placeholder: t("No cap"),
+      "aria-label": t("Token budget per run"),
     });
     return h("form", {
       class: "panel form-grid",
@@ -334,26 +277,26 @@ export async function render(context) {
           await api.post(`/projects/${pid}/settings/token-budget`, {
             team_token_budget: input.value.trim() ? Number(input.value) : null,
           });
-          toast("Project token budget updated");
+          toast(t("Project token budget updated"));
           await refresh();
         } catch (error) { toast(error.message, "error"); }
       },
-    }, h("h2", {}, "Run token budget"),
-    h("p", { class: "muted" }, "Applies to future runs and resumes. Existing run usage is retained."),
-    input, h("button", { class: "primary", type: "submit" }, "Save budget"));
+    }, h("h2", {}, t("Run token budget")),
+    h("p", { class: "muted" }, t("Applies to future runs and resumes. Existing run usage is retained.")),
+    input, h("button", { class: "primary", type: "submit" }, t("Save budget")));
   }
 
   async function approve(stage) {
     paused = false;
     const done = await api.post(`/projects/${pid}/stages/${stage}/approve`);
-    toast(`Approved ${stage} (${done.review.id})`);
+    toast(t("Approved {phase} ({id})", { phase: phaseTitle(stage), id: done.review.id }));
     await refresh();
   }
 
   async function reject(stage, comments) {
     paused = false;
     const started = await api.post(`/projects/${pid}/stages/${stage}/reject`, { comments });
-    toast(`Rejected ${stage}; revising`);
+    toast(t("Rejected {phase}; revising", { phase: phaseTitle(stage) }));
     shown = started.id;
     await refresh();
   }
@@ -397,7 +340,7 @@ export async function render(context) {
   document.addEventListener("keydown", onKey);
 
   await refresh();
-  if (!main.firstChild) main.append(empty("Nothing to show."));
+  if (!main.firstChild) main.append(empty(t("Nothing to show.")));
   return () => {
     stopped = true;
     clearTimeout(timer);

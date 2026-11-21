@@ -1,19 +1,23 @@
 import { asyncView, badge, clear, empty, fmtTime, h, spinner, table } from "../dom.js";
+import { t } from "../i18n.js";
+import { STAGE_NAMES } from "./questions.js";
+
+const stageName = (stage) => t(STAGE_NAMES[stage] ?? stage);
 
 function runDetail(data) {
   const { summary, tasks = [], mailbox = [] } = data;
   return h(
     "section",
     { class: "panel" },
-    h("h3", {}, `${summary.run_id} · ${summary.stage} · ${summary.trigger}`),
-    h("p", { class: "muted" }, `Tokens: ${summary.tokens_used ?? 0}${summary.token_budget ? ` / ${summary.token_budget}` : " · no cap"}`),
+    h("h3", {}, `${summary.run_id} · ${stageName(summary.stage)} · ${summary.trigger}`),
+    h("p", { class: "muted" }, `${t("Tokens")}: ${summary.tokens_used ?? 0}${summary.token_budget ? ` / ${summary.token_budget}` : ` · ${t("no cap")}`}`),
     summary.escalations.length ? h("ul", {}, summary.escalations.map((e) => h("li", {}, e))) : null,
-    h("h4", {}, "Tasks"),
-    tasks.length ? table(["Task", "Title", "Owner", "Status"], tasks.map((t) => [h("code", {}, t.id), t.title, t.owner, badge(t.status === "in_progress" ? "running" : t.status === "blocked" ? "escalated" : t.status)]), "Tasks") : empty("No tasks."),
-    h("h4", {}, "Mailbox"),
+    h("h4", {}, t("Tasks")),
+    tasks.length ? table([t("Task"), t("Title"), t("Owner"), t("Status")], tasks.map((t) => [h("code", {}, t.id), t.title, t.owner, badge(t.status === "in_progress" ? "running" : t.status === "blocked" ? "escalated" : t.status)]), t("Tasks")) : empty(t("No tasks.")),
+    h("h4", {}, t("Mailbox")),
     mailbox.length
-      ? table(["Round", "From", "To", "Type", "About", "Message"], mailbox.map((m) => [m.round, m.sender, m.to, m.type, m.ref ? h("code", {}, m.ref) : "", m.body]), "Mailbox")
-      : empty("No messages: the team agreed without discussion."),
+      ? table([t("Round"), t("From"), t("To"), t("Type"), t("About"), t("Message")], mailbox.map((m) => [m.round, m.sender, m.to, m.type, m.ref ? h("code", {}, m.ref) : "", m.body]), t("Mailbox"))
+      : empty(t("No messages: the team agreed without discussion.")),
   );
 }
 
@@ -26,7 +30,7 @@ export async function render({ main, api, params, toast, me, go }) {
   const resume = async (r) => {
     try {
       await api.post(`/projects/${pid}/stages/${RESUMABLE[r.stage]}/run`, { resume: r.run_id });
-      toast(`Resuming ${r.run_id}; follow it on the overview.`);
+      toast(t("Resuming {id}; follow it on the overview.", { id: r.run_id }));
       go?.(`#/p/${pid}/overview`);
     } catch (error) {
       toast(error.message, "error");
@@ -36,14 +40,14 @@ export async function render({ main, api, params, toast, me, go }) {
     h(
       "span",
       {},
-      h("button", { class: "link", onClick: () => show(r.run_id) }, "Open"),
-      canRun && r.resumable && RESUMABLE[r.stage] ? h("button", { class: "link", onClick: () => resume(r) }, "Resume") : null,
-      r.waiting_questions?.length ? h("a", { class: "link", href: `#/p/${pid}/questions` }, `Answer ${r.waiting_questions.length} blocker question(s)`) : null,
+      h("button", { class: "link", onClick: () => show(r.run_id) }, t("Open")),
+      canRun && r.resumable && RESUMABLE[r.stage] ? h("button", { class: "link", onClick: () => resume(r) }, t("Resume")) : null,
+      r.waiting_questions?.length ? h("a", { class: "link", href: `#/p/${pid}/questions` }, t("Answer {n} blocker question(s)", { n: r.waiting_questions.length })) : null,
     );
   const detail = h("div", {});
   const show = async (runId) => {
     detail.setAttribute("aria-busy", "true");
-    clear(detail).append(h("section", { class: "panel" }, spinner("Loading run…")));
+    clear(detail).append(h("section", { class: "panel" }, spinner(t("Loading run…"))));
     try {
       clear(detail).append(runDetail(await api.get(`/projects/${pid}/runs/${runId}`)));
     } catch (error) {
@@ -54,11 +58,11 @@ export async function render({ main, api, params, toast, me, go }) {
     }
   };
 
-  clear(main).append(h("h1", {}, "Activity"));
+  clear(main).append(h("h1", {}, t("Activity")));
   const runsHost = h("div", {});
   const logHost = h("div", {});
-  const runsSection = h("section", {}, h("h2", {}, "Team runs"), runsHost);
-  const logSection = h("section", {}, h("h2", {}, "Audit log"), h("p", { class: "muted" }, "Every action is a git commit; this is the project's history, newest first."), logHost);
+  const runsSection = h("section", {}, h("h2", {}, t("Team runs")), runsHost);
+  const logSection = h("section", {}, h("h2", {}, t("Audit log")), h("p", { class: "muted" }, t("Every action is a git commit; this is the project's history, newest first.")), logHost);
   main.append(runsSection, detail, logSection);
 
   asyncView(
@@ -68,12 +72,12 @@ export async function render({ main, api, params, toast, me, go }) {
       host.append(
         runs.length
           ? table(
-              ["Run", "Stage", "Trigger", "Status", "Rounds", "Issues", "Tokens", ""],
-              runs.map((r) => [h("code", {}, r.run_id), r.stage, r.trigger, badge(r.status), r.rounds, `${r.issues_resolved}/${r.issues_raised}`, `${r.tokens_used ?? 0}${r.token_budget ? ` / ${r.token_budget}` : " / ∞"}`, actions(r)]),
-              "Team runs",
+              [t("Run"), t("Stage"), t("Trigger"), t("Status"), t("Rounds"), t("Issues"), t("Tokens"), ""],
+              runs.map((r) => [h("code", {}, r.run_id), stageName(r.stage), r.trigger, badge(r.status), r.rounds, `${r.issues_resolved}/${r.issues_raised}`, `${r.tokens_used ?? 0}${r.token_budget ? ` / ${r.token_budget}` : " / ∞"}`, actions(r)]),
+              t("Team runs"),
               { dense: true, stickyFirst: true },
             )
-          : empty("No team has run yet."),
+          : empty(t("No team has run yet.")),
       );
     },
     { rows: 4 },
@@ -85,8 +89,8 @@ export async function render({ main, api, params, toast, me, go }) {
     (log, host) => {
       host.append(
         log.length
-          ? table(["Time", "By", "Commit", "Action"], log.map((e) => [fmtTime(e.time), e.author, h("code", {}, e.commit), e.subject]), "Audit log", { dense: true, stickyFirst: true })
-          : empty("Nothing recorded yet."),
+          ? table([t("Time"), t("By"), t("Commit"), t("Action")], log.map((e) => [fmtTime(e.time), e.author, h("code", {}, e.commit), e.subject]), t("Audit log"), { dense: true, stickyFirst: true })
+          : empty(t("Nothing recorded yet.")),
       );
     },
     { rows: 6 },

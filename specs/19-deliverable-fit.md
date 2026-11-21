@@ -1,6 +1,6 @@
 # Spec 19 — Deliverable fit: SIer-quality templates and content
 
-Status: v0.2 (2026-11-21), parts 1 and 2 implemented. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
+Status: v0.3 (2026-11-21), parts 1, 2 and 3 implemented. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
 
 ## Goal
 
@@ -168,3 +168,72 @@ Phase 17 (benchmark) reuses these figures per run and stores the reviewer's scor
 - [x] Style findings reach the writer once, only with two rounds left, and never block a run on their own afterwards.
 - [x] `masterba quality` lists the figures, findings and the rubric for every latest document.
 - [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass.
+
+# Part 3 — Dashboard flows for a pilot team
+
+Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 item 8 (gap E3), [08-dashboard.md](08-dashboard.md), [15-phase-review-gates.md](15-phase-review-gates.md), [13-customer-questions.md](13-customer-questions.md).
+
+## 11. Goal
+
+A Japanese SIer reviewer who opens a project should see, without reading a manual, what the project waits for and do it in one click: upload the intake, run a phase, answer the questions that block it, read the document in the browser, approve or reject it, and move to the next phase. The dashboard speaks Japanese by default.
+
+No model call, store format or library function changes. The dashboard keeps calling the same library functions as the CLI, so git history stays identical.
+
+## 12. Non-goals
+
+- Direct edits of a document in the browser (B5), intake formats other than `.txt` / `.md` (E1, part 4 of the pilot plan), SSO (C6).
+- Translating content: documents print in the project's `document_language`; only the dashboard's own words change with the UI language.
+- A preview of a calibrated company layout. The preview shows the default layout (section 14); the downloaded workbook still follows the project's template.
+
+## 13. Guided journey (Overview)
+
+`nextStep(overview)` (pure, in `frontend/views/journey.js`) returns the one action the project waits for, in this order:
+
+| Situation | Next step | Action |
+|---|---|---|
+| A job is running | 「<phase> を実行中です」 | none, the job panel shows progress |
+| An approved DR with affected documents waits for propagation | Propagate `DR-####` | link to the DR |
+| The current phase's run waits for input | Answer the `n` blocker questions | link to Questions |
+| The current phase escalated | Resume the run (one round) | button: resume `last_run` |
+| The current phase is `in_review` | Review `<document>` | link to the document preview, where approve and reject are |
+| The current phase is ready (BRD) | Upload the intake and run BRD | file picker and button |
+| The current phase is ready (later phase) | Run `<phase>` | button |
+| Every phase is finished | Changes go through a Decision Record | link to DRs |
+
+The step shows as one panel at the top of the Overview with a single primary button; a viewer sees the same text with no button ("an approver does this"). The V-model cards stay below it.
+
+Blockers are shown where they block: a stage card names its open customer questions (`n` 件の未回答の質問) with a link, and the overview response gains, per stage, `open_questions` (open questions whose stage is one of the stage's document types) and, per project, `pending_drs` (approved DRs with affected documents whose propagation has not finished, `{id, description}`; a clarification that affects no stored document is only a fact for later runs).
+
+## 14. Document preview
+
+`GET /api/projects/{pid}/documents/{doc_id}/preview?version=n` (viewer) returns the document as the default workbook would print it, built from `rendering/catalog.py` and `build_context` with no model and no write (`rendering/preview.py`):
+
+```json
+{"document": {...}, "versions": [1, 2],
+ "sheets": [
+   {"key": "cover", "name": "表紙", "kind": "cover", "title": "業務要件定義書", "rows": [["文書ID", "DOC-BRD-0001"], ...]},
+   {"key": "history", "name": "改訂履歴", "kind": "table", "columns": ["版", ...], "rows": [["1", ...]]},
+   {"key": "background", "name": "背景・目的", "kind": "section", "body": "...", "sources": ["intake/x.md#L3-L5"], "empty_text": "（入力資料に…）"},
+   {"key": "diagrams", "name": "構成図・フロー図・ER図", "kind": "note", "note": "（図は別途添付）"}
+ ]}
+```
+
+- Table rows hold the same text the workbook cells hold (value maps applied, lists joined by new lines, numbered steps); columns without a field (判定, 実施日, ...) are left out of the preview.
+- The Documents view shows the sheets as tabs in workbook order, with the version selector, the Excel download and the version comparison kept.
+- When the document's phase is `in_review` and the user is an approver, a note at the top says so and the review box sits below the sheets, so the reviewer reads first: approve, or reject with one comment per line (an item ref at the start of a line ties the comment to that item, as on the Overview). After either the dashboard returns to the Overview, where the next step shows.
+
+## 15. Japanese UI
+
+- `frontend/i18n.js` holds `t(text, vars)`; the English text is the key and `frontend/i18n-ja.js` maps it to Japanese, so English needs no second catalog. Every view takes its words from `t()` (or marks a static label with `N_()`). A missing entry falls back to English, and a test fails when a string passed to `t()` has no Japanese entry or an entry is unused.
+- The language is chosen in the header (日本語 / English) and kept per user in the browser (`masterba-lang:<user>`); the default is Japanese. `<html lang>` follows the choice.
+- Status words (badges) and phase names come from the catalog; ids, enum values in code and API error texts are not translated.
+- Dates use `Intl` with the chosen language.
+
+## 16. Acceptance criteria (part 3)
+
+- [x] For each situation in section 13 `nextStep` returns the listed step (unit tests in `frontend/test`).
+- [x] A stage card with open questions links to them; an approved, unpropagated DR with affected documents shows as the next step.
+- [x] The preview endpoint returns every sheet of the default layout in order with the workbook's cell text, including revision history, sections and traceability; it writes nothing.
+- [x] A reviewer can approve or reject an `in_review` phase from the document preview.
+- [x] With the default language every view shows Japanese labels; switching to English and back needs no page reload; every string passed to `t()` has a Japanese entry and the catalog has no unused entry.
+- [x] `uv run pytest`, `ruff`, `mypy --strict` and `npm test` in `frontend/` pass.

@@ -1,6 +1,6 @@
 // Tiny DOM helpers. Text is only ever inserted as text nodes, never as HTML.
 
-const DATE_TIME = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+import { locale, N_, t } from "./i18n.js";
 
 export function append(el, children) {
   for (const child of children.flat(Infinity)) {
@@ -49,38 +49,45 @@ export function cellText(value) {
 export function fmtTime(iso) {
   if (!iso) return "";
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : DATE_TIME.format(date);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
 const STATUS = {
-  not_started: { icon: "○", label: "Not started", cls: "idle" },
-  queued: { icon: "◔", label: "Queued", cls: "run" },
-  running: { icon: "◐", label: "Running", cls: "run" },
-  done: { icon: "✓", label: "Done", cls: "ok" },
-  escalated: { icon: "▲", label: "Escalated", cls: "warn" },
-  waiting_for_input: { icon: "●", label: "Waiting for input", cls: "warn" },
-  failed: { icon: "✕", label: "Failed", cls: "bad" },
-  draft: { icon: "✎", label: "Draft", cls: "idle" },
-  proposed: { icon: "○", label: "Proposed", cls: "idle" },
-  approved: { icon: "✓", label: "Approved", cls: "run" },
-  propagated: { icon: "✓", label: "Propagated", cls: "ok" },
-  closed: { icon: "■", label: "Closed", cls: "idle" },
-  planned: { icon: "·", label: "Planned", cls: "idle" },
-  open: { icon: "○", label: "Open", cls: "warn" },
-  answered: { icon: "✓", label: "Answered", cls: "ok" },
-  in_review: { icon: "◔", label: "In review", cls: "warn" },
-  ready: { icon: "▶", label: "Ready", cls: "run" },
-  locked: { icon: "■", label: "Locked", cls: "idle" },
-  withdrawn: { icon: "■", label: "Withdrawn", cls: "idle" },
-  indexed: { icon: "✓", label: "Indexed", cls: "ok" },
-  stale: { icon: "▲", label: "Stale", cls: "warn" },
-  missing: { icon: "✕", label: "Missing", cls: "bad" },
+  not_started: { icon: "○", label: N_("Not started"), cls: "idle" },
+  queued: { icon: "◔", label: N_("Queued"), cls: "run" },
+  running: { icon: "◐", label: N_("Running"), cls: "run" },
+  done: { icon: "✓", label: N_("Done"), cls: "ok" },
+  escalated: { icon: "▲", label: N_("Escalated"), cls: "warn" },
+  waiting_for_input: { icon: "●", label: N_("Waiting for input"), cls: "warn" },
+  failed: { icon: "✕", label: N_("Failed"), cls: "bad" },
+  draft: { icon: "✎", label: N_("Draft"), cls: "idle" },
+  proposed: { icon: "○", label: N_("Proposed"), cls: "idle" },
+  approved: { icon: "✓", label: N_("Approved"), cls: "run" },
+  propagated: { icon: "✓", label: N_("Propagated"), cls: "ok" },
+  closed: { icon: "■", label: N_("Closed"), cls: "idle" },
+  planned: { icon: "·", label: N_("Planned"), cls: "idle" },
+  open: { icon: "○", label: N_("Open"), cls: "warn" },
+  answered: { icon: "✓", label: N_("Answered"), cls: "ok" },
+  in_review: { icon: "◔", label: N_("In review"), cls: "warn" },
+  ready: { icon: "▶", label: N_("Ready"), cls: "run" },
+  locked: { icon: "■", label: N_("Locked"), cls: "idle" },
+  withdrawn: { icon: "■", label: N_("Withdrawn"), cls: "idle" },
+  indexed: { icon: "✓", label: N_("Indexed"), cls: "ok" },
+  stale: { icon: "▲", label: N_("Stale"), cls: "warn" },
+  missing: { icon: "✕", label: N_("Missing"), cls: "bad" },
+  superseded: { icon: "■", label: N_("Superseded"), cls: "idle" },
+  interrupted: { icon: "▲", label: N_("Interrupted"), cls: "warn" },
 };
+
+export function statusLabel(status) {
+  return STATUS[status] ? t(STATUS[status].label) : String(status);
+}
 
 // Status is shown as icon plus word; colour is never the only signal.
 export function badge(status) {
   const info = STATUS[status] ?? { icon: "·", label: String(status), cls: "idle" };
-  return h("span", { class: `badge ${info.cls}` }, h("span", { "aria-hidden": "true" }, info.icon), " ", info.label);
+  return h("span", { class: `badge ${info.cls}` }, h("span", { "aria-hidden": "true" }, info.icon), " ", t(info.label));
 }
 
 // opts: { dense } tightens padding for wide audit-style tables;
@@ -89,7 +96,7 @@ export function table(headers, rows, caption = "", opts = {}) {
   const cls = ["table-wrap", opts.dense ? "dense" : "", opts.stickyFirst ? "sticky-first" : ""].filter(Boolean).join(" ");
   return h(
     "div",
-    { class: cls, tabindex: "0", role: "region", "aria-label": caption || "table" },
+    { class: cls, tabindex: "0", role: "region", "aria-label": caption || t("Table") },
     h(
       "table",
       {},
@@ -116,7 +123,7 @@ export function chip(id, extra = "") {
 }
 
 // A small inline spinner; label is read by assistive tech, hidden visually.
-export function spinner(label = "Loading…") {
+export function spinner(label = t("Loading…")) {
   return h("span", { class: "spinner", role: "status" }, h("span", { class: "spinner-mark", "aria-hidden": "true" }), h("span", { class: "sr-only" }, label));
 }
 
@@ -157,8 +164,8 @@ export function errorBox(message, onRetry = null) {
     "div",
     { class: "load-error", role: "alert" },
     h("span", { class: "load-error-mark", "aria-hidden": "true" }, "✕"),
-    h("p", {}, message || "Something went wrong."),
-    onRetry ? h("button", { type: "button", onClick: onRetry }, "Try again") : null,
+    h("p", {}, message || t("Something went wrong.")),
+    onRetry ? h("button", { type: "button", onClick: onRetry }, t("Try again")) : null,
   );
 }
 
@@ -166,7 +173,7 @@ let openDialog = null;
 
 // A focus-trapped confirmation dialog that replaces window.confirm.
 // Resolves to true on confirm, false on cancel/escape. Only one is open at a time.
-export function confirmDialog({ title = "Please confirm", message = "", confirmLabel = "Confirm", cancelLabel = "Cancel", danger = false } = {}) {
+export function confirmDialog({ title = t("Please confirm"), message = "", confirmLabel = t("Confirm"), cancelLabel = t("Cancel"), danger = false } = {}) {
   return new Promise((resolve) => {
     // answer is true only if the confirm button was pressed; Escape and the
     // backdrop leave it false. onClose fires exactly once, after teardown.
@@ -252,7 +259,7 @@ export function shortcutsDialog(shortcuts) {
       h(
         "div",
         { class: "dialog shortcuts" },
-        h("h2", { id: "sc-title" }, "Keyboard shortcuts"),
+        h("h2", { id: "sc-title" }, t("Keyboard shortcuts")),
         h(
           "dl",
           { class: "shortcut-list" },
@@ -261,7 +268,7 @@ export function shortcutsDialog(shortcuts) {
             h("dd", {}, s.description),
           ]),
         ),
-        h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "primary", onClick: close }, "Close")),
+        h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "primary", onClick: close }, t("Close"))),
       ),
     { labelledBy: "sc-title" },
   );

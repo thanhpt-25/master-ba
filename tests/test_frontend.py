@@ -33,6 +33,8 @@ def test_the_expected_files_exist() -> None:
         "activity",
         "drs",
         "templates",
+        "journey",
+        "review",
     ):
         assert f"views/{view}.js" in names
 
@@ -69,7 +71,7 @@ def test_scripts_never_set_a_style_attribute_directly() -> None:
 def test_the_knowledge_tab_is_registered_and_safe() -> None:
     app = (FRONTEND / "app.js").read_text("utf-8")
     assert 'knowledge: () => import("./views/knowledge.js")' in app
-    assert '["knowledge", "Knowledge"]' in app
+    assert '["knowledge", N_("Knowledge")]' in app
     view = (FRONTEND / "views" / "knowledge.js").read_text("utf-8")
     # Only approvers and admins get upload, replace and remove controls (Requirement 14.9).
     assert 'const canAct = ["approver", "admin"].includes(me.role);' in view
@@ -87,25 +89,30 @@ def test_the_overview_offers_review_controls_and_explains_the_gate() -> None:
     view = (FRONTEND / "views" / "overview.js").read_text("utf-8")
     assert "/stages/${stage}/approve" in view and "/stages/${stage}/reject" in view
     assert 'info.review === "in_review"' in view and "info.waiting_for" in view
-    assert "export function parseComments" in view
-    assert "customer question(s) are still open" in view  # approval warns about open questions
+    review = (FRONTEND / "views" / "review.js").read_text("utf-8")
+    assert "export function parseComments" in review and "parseComments" in view
+    assert "customer question(s) are still open" in review  # approval warns about open questions
     assert "in_review:" in (FRONTEND / "dom.js").read_text("utf-8")
 
 
 def test_the_overview_opens_with_a_workflow_strip() -> None:
     # Spec 15 section 7: phases in order, the gate between them, the next action, side loops.
     view = (FRONTEND / "views" / "overview.js").read_text("utf-8")
-    assert "export function workflowSteps" in view and "workflowStrip(overview, pid)" in view
+    journey = (FRONTEND / "views" / "journey.js").read_text("utf-8")
+    assert "export function workflowSteps" in journey and "workflowStrip(overview, pid)" in view
+    assert "nextStepPanel(" in view  # spec 19 section 13: the next step leads the page
     for link in ("/questions", "/drs", "/knowledge"):
         assert f"#/p/${{pid}}{link}" in view
     dom = (FRONTEND / "dom.js").read_text("utf-8")
     assert "ready:" in dom and "locked:" in dom
     # Run is offered only for the phase whose turn it is; the page prints no stray "null".
-    assert "ctx.locked.has(stage.key)" in view and "append(clear(main), [" in view
+    assert "ctx.locked.has(phase.key)" in view and "append(clear(main), [" in view
 
 
 WORKFLOW_SCRIPT = """
-import { workflowSteps } from "%s";
+import { setLang } from "%s";
+import { nextStep, workflowSteps } from "%s";
+setLang("en");
 const st = (stage, status, review, waiting = null) =>
   ({ stage, status, review, waiting_for: waiting, documents: [] });
 const none = (s) => st(s, "not_started", "not_started");
@@ -117,7 +124,11 @@ const cases = {
   finished: ["brd", "srs", "basic", "detail"].map((s) => st(s, "done", "approved")),
 };
 const out = {};
-for (const [name, stages] of Object.entries(cases)) out[name] = workflowSteps(stages, true);
+for (const [name, stages] of Object.entries(cases)) {
+  out[name] = workflowSteps(stages, true);
+  const project = { review_gates: true };
+  out[name].next = nextStep({ project, stages, job: null }, "PRJ-001").title;
+}
 const offStages = [st("brd", "done", "draft"), none("srs"), none("basic"), none("detail")];
 out.off = workflowSteps(offStages, false);
 console.log(JSON.stringify(out));
@@ -129,7 +140,11 @@ def test_workflow_steps_follow_the_review_gates(tmp_path: Path) -> None:
     if node is None:
         pytest.skip("node is not installed")
     script = tmp_path / "check.mjs"
-    script.write_text(WORKFLOW_SCRIPT % (FRONTEND / "views" / "overview.js").as_uri(), "utf-8")
+    script.write_text(
+        WORKFLOW_SCRIPT
+        % ((FRONTEND / "i18n.js").as_uri(), (FRONTEND / "views" / "journey.js").as_uri()),
+        "utf-8",
+    )
     done = subprocess.run([node, str(script)], capture_output=True, text=True, check=True)
     flows = json.loads(done.stdout)
 
@@ -139,9 +154,10 @@ def test_workflow_steps_follow_the_review_gates(tmp_path: Path) -> None:
     assert states("fresh") == ["ready", "locked", "locked", "locked"]
     assert states("inReview") == ["in_review", "locked", "locked", "locked"]
     assert flows["inReview"]["gates"] == ["waiting", "closed", "closed"]
-    assert flows["inReview"]["next"].startswith("Review the BRD phase")
+    assert flows["inReview"]["next"] == "Review BRD"
     assert states("approved") == ["approved", "ready", "locked", "locked"]
     assert flows["approved"]["gates"][0] == "open" and flows["approved"]["current"] == "srs"
     assert flows["finished"]["current"] is None
-    assert "Decision Record" in flows["finished"]["next"]
+    assert flows["finished"]["next"] == "Every phase is approved."
+    assert flows["approved"]["next"] == "Run SRS"
     assert flows["off"]["gates"] == [] and states("off")[:2] == ["done", "ready"]

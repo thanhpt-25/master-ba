@@ -24,6 +24,7 @@ index.html          Shell: skip link, #app mount, #toasts live region.
 app.js              Boot, hash router, workspace shell, page metadata, error boundary, "?" help.
 api.js              JSON client for /api (CSRF header, ApiError with .status).
 dom.js              All DOM + UI primitives. No view touches the DOM directly.
+i18n.js             t(text, vars): English text is the key; i18n-ja.js is the Japanese catalog (default).
 app.css             Token-driven styles (light/dark, reduced-motion, forced-colors).
 views/*.js          One module per screen, each exporting async render(context).
 test/               Zero-dependency test harness (node --test).
