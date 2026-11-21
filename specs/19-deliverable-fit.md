@@ -1,6 +1,6 @@
-# Spec 19 — Deliverable fit, part 1: SIer-quality default templates
+# Spec 19 — Deliverable fit: SIer-quality templates and content
 
-Status: v0.1 (2026-11-21), part 1 implemented. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
+Status: v0.2 (2026-11-21), parts 1 and 2 implemented. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
 
 ## Goal
 
@@ -10,7 +10,7 @@ Part 1 changes only rendering. No model call is added, the payload models do not
 
 ## Non-goals (later parts of Phase 19)
 
-- Document-level prose sections (背景・目的, 制約事項, システム概要, 結合テスト観点). They need a payload change (spec 01 amendment) and writer work, and are part 2. Their sheets stay placeholders.
+- Document-level prose sections (背景・目的, 制約事項, システム概要, 結合テスト観点): part 2 below.
 - CRUD matrix and screen transitions. The payload has no relation between a function and the tables it touches, or between screens, so they cannot be derived honestly yet.
 - Merged data cells, multi-row headers or several tables per sheet in company templates (gap A2), direct edits (B5), intake formats (E1), the Japanese dashboard (E3).
 
@@ -105,3 +105,66 @@ Print and entry settings in every shell: A4 landscape, fit to one page wide, the
 1. The author of every version is `MasterBA`, not the person who started the run: runs do not record who started them, and the person who takes responsibility is the approver.
 2. Dates come from git, which the store already requires, instead of a new field on `Document` (spec 01 stays unchanged).
 3. The stamp box is left empty for a hand or electronic seal; an approval in MasterBA fills 承認者, not the seal.
+
+# Part 2 — Stronger document content
+
+## 6. Goal
+
+Fill the prose sheets a reviewer expects with text that rests on the input, hold the wording to the rules a Japanese SIer reviewer checks first, and measure the result so that a prompt or model change can be judged. No new model call is added: sections come from the same writer call, style checks and the report are deterministic.
+
+## 7. Document sections
+
+Spec 01 amendment (`specs/01-data-contracts.md`, 2026-11-21): `BrdContent`, `SrsContent`, `BasicDesignContent` and `DetailDesignContent` gain `sections: list[DocumentSection]` (default empty, so stored documents stay valid). `DocumentSection` is `{key: SectionKey, body: str, sources: list[str]}`; a section is not an item, has no id and no trace link, and the ID Stability Rule does not apply to it.
+
+| Document | Sections (key, sheet) | Written by | `sources` |
+|---|---|---|---|
+| BRD | `background` 背景・目的, `constraints` 制約事項 | requirements analyst | intake line ranges, stored as `intake/<file>#L<a>-L<b>` |
+| SRS | `background`, `constraints` | SRS writer | BRD REQ ids and BRD section refs (`DOC-BRD-0001#background`) |
+| Basic Design | `it_viewpoints` 結合テスト観点 | designer | SRS item refs and SRS section refs |
+| Detail Design | `system_overview` システム概要 | detail designer | Basic Design item refs and section refs |
+
+- Drafts carry `sections: list[DraftSection]`. A later writer receives the upstream sections in an `<upstream_sections>` block; QA sees them in the draft view and in the upstream text.
+- Gate (`agents/sections.py`, `validate_sections`): the key belongs to the document, each key once, at least one source, every source is an intake line range inside the intake (BRD) or an id the writer was given (later stages), body within 4,000 characters and in the document language. Errors go back to the writer like any gate error.
+- A section is optional. When the input does not support it the writer leaves it out, and the sheet prints 「（入力資料に記載がないため、本版では記載していません。）」 instead of the old "pending" note.
+- Checklists: BRD-07 and SRS-08 (blocking) require a section to add nothing its sources do not support; BD-07 and DD-07 (advisory) check the viewpoints and the overview.
+- Rendering: `SectionBinding {sheet, key, body_cell, sources_cell, empty_text}`; the default section sheets show 記載内容 (A8) and 出典 (A11).
+- A Decision Record revises items only; `apply_patch` keeps the sections of the previous version unchanged.
+
+## 8. SIer writing rules
+
+Every writer prompt gains a short section with the rules a reviewer checks first: one point per sentence (一文一義), a named subject, no vague words, the plain である style in Japanese, one term per concept. Test writers also get the rule that an expected result names what a tester observes (TS-07, UT-06, advisory).
+
+Deterministic style findings (`quality/lint.py`):
+
+| Rule | Finding | Applies to |
+|---|---|---|
+| STY-01 | vague word (適宜, 速やかに, 柔軟に, 十分な, 必要に応じて, ... / as needed, appropriate, ...) | BRD descriptions, SRS statements, design descriptions and specs |
+| STY-02 | requirement statement without an obligation ending (〜こと / 〜ならない; 'shall') | SRS statements |
+| STY-03 | sentence over 150 characters (Japanese) or 50 words (English) | all prose |
+| STY-04 | expected result such as 正常に動作すること, 問題がないこと, 'works correctly' | test cases |
+| STY-05 | non-functional statement with no figure | SRS non-functional statements |
+| STY-06 | です/ます in a Japanese document | all prose |
+
+A vague word or a missing figure is not reported for a draft item whose source the writer already raised an open question about (intake lines overlap, or a shared REQ id).
+
+In the BRD and SRS stages `StyleFeedback` returns the findings to the writer as gate feedback **at most once per run, and only while at least two rounds remain**, so wording never costs the round QA needs; afterwards they appear only in the quality report. The design stages do not gate on style (their convergence is the open problem of Phase 18); their findings are reported.
+
+## 9. Quality report
+
+`masterba quality --project PRJ-001 [--out report.md]` writes a Markdown report of the latest version of every document (`quality/report.py`, no model):
+
+- per document: version, status, active items, items traced upstream and downstream, missing sections, style findings by rule, open customer questions of that stage;
+- SRS: functional items with an acceptance hint, non-functional items with a figure; tests: exclusions;
+- a rubric table per document for the SIer reviewer, scored 1 to 5: 網羅性, 正確性, 検証可能性, 表現・用語, 構成.
+
+Phase 17 (benchmark) reuses these figures per run and stores the reviewer's scores; this part only produces the report.
+
+## 10. Acceptance criteria (part 2)
+
+- [x] Stored documents without `sections` still load; the generated schemas include `sections`.
+- [x] A BRD draft section with a source outside the intake, a duplicate key or a key of another document is sent back; a valid one is stored with intake citations and rendered on its sheet with its sources.
+- [x] An SRS, Basic Design and Detail Design draft section may cite only the ids and upstream section refs the writer was given.
+- [x] A section sheet with no section prints the "not stated" text, not "pending".
+- [x] Style findings reach the writer once, only with two rounds left, and never block a run on their own afterwards.
+- [x] `masterba quality` lists the figures, findings and the rubric for every latest document.
+- [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass.
