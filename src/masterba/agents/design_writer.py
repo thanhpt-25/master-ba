@@ -9,6 +9,7 @@ from masterba.agents.requirements_analyst import (
     language_problem,
     load_system_prompt,
 )
+from masterba.agents.sections import DraftSection, sections_view
 from masterba.llm import LLM, LLMResult
 from masterba.models import SrsContent, SrsItem
 from masterba.models.base import FrozenModel
@@ -19,8 +20,9 @@ from masterba.models.knowledge import KbCitation
 PROMPT_PATH = REPO_ROOT / "agents" / "basic-design.md"
 TOOL_NAME = "submit_basic_design"
 _LANGUAGE_INSTRUCTION = {
-    DocLanguage.JA: "Write every `name`, `description` and answer text in Japanese (日本語).",
-    DocLanguage.EN: "Write every `name`, `description` and answer text in English.",
+    DocLanguage.JA: "Write every `name`, `description`, section body and answer text in Japanese "
+    "(日本語), in the plain である style.",
+    DocLanguage.EN: "Write every `name`, `description`, section body and answer text in English.",
 }
 
 
@@ -42,6 +44,7 @@ class DraftDesignItem(FrozenModel):
 class BasicDesignDraft(FrozenModel):
     items: list[DraftDesignItem] = Field(min_length=1)
     answers: list[DesignAnswer] = Field(default_factory=list)
+    sections: list[DraftSection] = Field(default_factory=list)
 
 
 def active_srs_items(content: SrsContent) -> list[SrsItem]:
@@ -69,6 +72,8 @@ def design_view(draft: BasicDesignDraft, doc_id: str) -> str:
     if draft.answers:
         lines.append("Answers the designer gave to the tester:")
         lines.extend(f"- {a.ref}: {a.text}" for a in draft.answers)
+    if draft.sections:
+        lines.append(sections_view(draft.sections))
     return "\n".join(lines)
 
 
@@ -121,9 +126,12 @@ def write_design(
     system_prompt: str | None = None,
     *,
     references: str = "",
+    upstream_sections: str = "",
 ) -> LLMResult[BasicDesignDraft]:
     """One designer call: a first design, or a revision with the pending feedback."""
     user = f"<srs>\n{srs_view(srs_items)}\n</srs>"
+    if upstream_sections:  # the SRS's 背景・目的 and 制約事項 (spec 19 part 2)
+        user += f"\n\n{upstream_sections}"
     if references:  # the Reference_Block (spec 12); empty keeps the prompt unchanged
         user += f"\n\n{references}"
     if previous is not None:

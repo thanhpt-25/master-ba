@@ -40,3 +40,29 @@ Return your result only by calling the `submit_brd` tool. Do not write any other
    decisive detail (a number, an owner, a deadline), do not guess. Add an entry to
    `open_questions` with the lines it concerns and a precise question for the customer.
 8. Do not number or label requirements yourself; identifiers are assigned afterwards.
+
+## Document sections
+
+Besides the requirements, return `sections` for the document-level prose a 業務要件定義書 opens
+with, but only what the intake supports:
+
+- `background` (背景・目的): why the customer wants the system and what it is to achieve.
+- `constraints` (制約事項): deadlines, budget, systems or rules the solution must respect.
+
+Each section has a `body` of a few sentences and `sources`: the intake line ranges it rests on,
+written `L3` or `L3-L5`. Leave a section out when the intake does not state it; never fill it
+with general statements. A section restates and organises the intake; it adds no requirement.
+
+## Writing rules for a Japanese SIer reviewer
+
+These are the points a reviewer at a Japanese system integrator checks first. A draft that breaks
+them may be sent back once with `style STY-..` reasons.
+
+- **One point per sentence (一文一義).** Keep a sentence short enough to read as one statement.
+- **Name the subject.** Say who or what acts: the system, a role from the input, an external
+  system. Do not leave the actor implied.
+- **No vague words.** Do not write 適宜, 速やかに, 柔軟に, 簡単に, 十分な, 可能な限り, 必要に応じて
+  (or "as needed", "appropriate", "user-friendly", "quickly"). Give the condition, number and unit
+  the input states; when it states none, say what is open and raise an open question instead.
+- **Plain style.** In Japanese write in the plain である style, never です/ます.
+- **Same word, same thing.** Use the input's terms and keep them throughout.

@@ -25,6 +25,7 @@ from masterba.rendering.bindings import (
     HeaderBinding,
     ListBinding,
     NumberingBinding,
+    SectionBinding,
     TableBinding,
 )
 from masterba.rendering.catalog import (
@@ -41,6 +42,12 @@ from masterba.rendering.catalog import (
     JUDGEMENT_HEADER,
     NOTE_ROW,
     NUMBER_COL,
+    SECTION_BODY_CELL,
+    SECTION_BODY_HEADER,
+    SECTION_EMPTY,
+    SECTION_SOURCES_CELL,
+    SECTION_SOURCES_HEADER,
+    SECTION_SOURCES_HEADER_ROW,
     VALUE_MAPS,
     DocSpec,
     SheetSpec,
@@ -112,6 +119,25 @@ def _build_cover(wb: Workbook, sheet: SheetSpec) -> None:
     _print_setup(ws, None)
 
 
+def _build_section(ws: Worksheet) -> None:
+    """A prose sheet: a wide text cell for the body, then its sources."""
+    ws.column_dimensions[NUMBER_COL].width = 110
+    for row, label in (
+        (HEADER_ROW, SECTION_BODY_HEADER),
+        (SECTION_SOURCES_HEADER_ROW, SECTION_SOURCES_HEADER),
+    ):
+        head = ws.cell(row=row, column=1, value=label)
+        head.font = Font(name=FONT, size=10, bold=True)
+        head.fill = _HEAD_FILL
+        head.border = _BORDER
+    for ref, size in ((SECTION_BODY_CELL, 10.5), (SECTION_SOURCES_CELL, 9)):
+        cell = ws[ref]
+        cell.font = Font(name=FONT, size=size)
+        cell.border = _BORDER
+        cell.alignment = Alignment(wrap_text=True, vertical="top")
+    _print_setup(ws, None)
+
+
 def _add_judgement_list(ws: Worksheet, sheet: SheetSpec) -> None:
     headers = [c.header for c in sheet.columns]
     if JUDGEMENT_HEADER not in headers:
@@ -140,6 +166,9 @@ def _build_sheet(wb: Workbook, sheet: SheetSpec) -> None:
     if sheet.is_placeholder:
         ws.cell(row=HEADER_ROW, column=1, value=sheet.note).font = Font(name=FONT, size=10)
         _print_setup(ws, None)
+        return
+    if sheet.section is not None:
+        _build_section(ws)
         return
     if sheet.note:
         ws.cell(row=NOTE_ROW, column=1, value=sheet.note).font = Font(
@@ -227,7 +256,20 @@ def build_definition(spec: DocSpec) -> TemplateDefinition:
     header = [binding for sheet in spec.sheets for binding in _header(sheet)]
     tables = [_table(s) for s in spec.sheets if s.columns and s.source is None]
     lists = [_list(s) for s in spec.sheets if s.columns and s.source is not None]
-    bindings = Bindings(header=header, tables=tables, lists=lists, value_maps=VALUE_MAPS)
+    sections = [
+        SectionBinding(
+            sheet=s.key,
+            key=s.section,
+            body_cell=SECTION_BODY_CELL,
+            sources_cell=SECTION_SOURCES_CELL,
+            empty_text=SECTION_EMPTY,
+        )
+        for s in spec.sheets
+        if s.section is not None
+    ]
+    bindings = Bindings(
+        header=header, tables=tables, lists=lists, sections=sections, value_maps=VALUE_MAPS
+    )
     return TemplateDefinition(
         company_id=COMPANY_ID,
         doc_type=spec.doc_type,

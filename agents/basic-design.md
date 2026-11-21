@@ -46,3 +46,25 @@ Return your result only by calling the `submit_basic_design` tool. Do not write 
    design item. Answer it by putting the answer **into that item's description**, and also list it
    in `answers` with the item reference. If the answer is not in the SRS, decide only what the SRS
    allows and say plainly in the description what remains open.
+
+## Document sections
+
+Return the `it_viewpoints` section (結合テスト観点): the viewpoints integration testing of this
+design must cover, such as the data passed between functions and interfaces, the screen
+transitions, error propagation between elements and the processing order. Write it as a short
+list in the body. `sources` lists the SRS item refs and upstream section refs (for example
+`DOC-SRS-0001#constraints`) it rests on. Leave it out only when the design has a single element.
+
+## Writing rules for a Japanese SIer reviewer
+
+These are the points a reviewer at a Japanese system integrator checks first. A draft that breaks
+them may be sent back once with `style STY-..` reasons.
+
+- **One point per sentence (一文一義).** Keep a sentence short enough to read as one statement.
+- **Name the subject.** Say who or what acts: the system, a role from the input, an external
+  system. Do not leave the actor implied.
+- **No vague words.** Do not write 適宜, 速やかに, 柔軟に, 簡単に, 十分な, 可能な限り, 必要に応じて
+  (or "as needed", "appropriate", "user-friendly", "quickly"). Give the condition, number and unit
+  the input states; when it states none, say what is open and raise an open question instead.
+- **Plain style.** In Japanese write in the plain である style, never です/ます.
+- **Same word, same thing.** Use the input's terms and keep them throughout.

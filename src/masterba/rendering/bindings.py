@@ -11,8 +11,8 @@ from pydantic import Field, TypeAdapter, field_validator
 
 from masterba.models import PAYLOAD_BY_TYPE, Document, PayloadItem, TestSpecContent
 from masterba.models.base import FrozenModel
-from masterba.models.enums import DocType
-from masterba.models.payloads import TestExclusion
+from masterba.models.enums import DocType, SectionKey
+from masterba.models.payloads import SECTIONS_BY_TYPE, TestExclusion
 from masterba.rendering.context import (
     DOC_TITLES,
     REVISION_FIELDS,
@@ -99,10 +99,21 @@ class ListBinding(FrozenModel):
     columns: list[ColumnBinding] = Field(min_length=1)
 
 
+class SectionBinding(FrozenModel):
+    """A prose section of the payload: its body in one cell, its sources in another."""
+
+    sheet: str = Field(min_length=1)
+    key: SectionKey
+    body_cell: str = Field(pattern=_CELL)
+    sources_cell: str | None = Field(default=None, pattern=_CELL)
+    empty_text: str | None = None
+
+
 class Bindings(FrozenModel):
     header: list[HeaderBinding] = Field(default_factory=list)
     tables: list[TableBinding] = Field(default_factory=list)
     lists: list[ListBinding] = Field(default_factory=list)
+    sections: list[SectionBinding] = Field(default_factory=list)
     value_maps: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
@@ -145,7 +156,11 @@ def validate_bindings(bindings: Bindings, doc_type: DocType, sheet_map: dict[str
             problems.append(f"{doc_type.value} has no exclusions")
         known = set(LIST_FIELDS[listed.source])
         problems += _check_columns(listed, bindings, known, f"a {listed.source} field")
+    for section in bindings.sections:
+        if section.key not in SECTIONS_BY_TYPE.get(doc_type, ()):
+            problems.append(f"{doc_type.value} has no section {section.key.value!r}")
     sheets = {t.sheet for t in bindings.tables} | {t.sheet for t in bindings.lists}
+    sheets |= {s.sheet for s in bindings.sections}
     for name in sorted(sheets - set(sheet_map)):
         problems.append(f"table sheet {name!r} is not in sheet_map")
     if problems:

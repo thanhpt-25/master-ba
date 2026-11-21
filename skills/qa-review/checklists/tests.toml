@@ -31,6 +31,11 @@ severity = "advisory"
 text = "Cases are not duplicated and do not test several unrelated things at once."
 
 [[checks]]
+id = "TS-07"
+severity = "advisory"
+text = "An expected result names what the tester observes (a screen, message, value or record), not phrases such as 正常に動作すること, 問題がないこと or 'works correctly'."
+
+[[checks]]
 id = "TS-KB"
 severity = "blocking"
 requires_reference = true

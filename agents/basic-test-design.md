@@ -61,3 +61,10 @@ Return your result only by calling the `submit_tests` tool. Do not write any oth
 7. When a request carries previous tests with reasons for sending them back, fix every point and
    keep what was not criticised. If the design was revised, re-check every case against it. Item
    references in the reasons count items of the previous draft from 1.
+
+## Expected results a reviewer accepts
+
+An expected result names what the tester observes: the screen shown, the message text, the value
+or record written, the state reached. Never write 正常に動作すること, 問題がないこと, 正しく処理されること
+or "works correctly" on their own: a tester cannot judge OK or NG from them. In Japanese write in
+the plain である style (〜されること / 〜が表示されること).

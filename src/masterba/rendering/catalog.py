@@ -6,7 +6,7 @@ two cannot drift apart.
 
 from dataclasses import dataclass
 
-from masterba.models.enums import DocType
+from masterba.models.enums import DocType, SectionKey
 
 NUMBER_COL = "A"
 HEADER_ROW = 7
@@ -57,7 +57,12 @@ JUDGEMENT_CHOICES = ("OK", "NG", "保留", "対象外")
 
 EXECUTION_NOTE = "判定・実施日・実施者・不具合IDは手入力欄です（再出力すると消えます）。"
 DIAGRAM_NOTE = "（図は別途添付）"
-PENDING_NOTE = "（本版ではデータ未対応の項目です）"
+SECTION_EMPTY = "（入力資料に記載がないため、本版では記載していません。）"
+SECTION_BODY_HEADER = "記載内容"
+SECTION_SOURCES_HEADER = "出典"
+SECTION_BODY_CELL = "A8"
+SECTION_SOURCES_HEADER_ROW = 10
+SECTION_SOURCES_CELL = "A11"
 
 
 @dataclass(frozen=True)
@@ -77,10 +82,11 @@ class SheetSpec:
     note: str | None = None
     source: str | None = None  # a `ListBinding` source; None means `content.items`
     is_cover: bool = False
+    section: SectionKey | None = None  # a prose section of the payload (spec 19 part 2)
 
     @property
     def is_placeholder(self) -> bool:
-        return not self.columns and not self.is_cover
+        return not self.columns and not self.is_cover and self.section is None
 
 
 @dataclass(frozen=True)
@@ -175,18 +181,18 @@ def _test_spec(doc_type: DocType) -> DocSpec:
 CATALOG: tuple[DocSpec, ...] = (
     _doc(
         DocType.BRD,
-        SheetSpec("background", "背景・目的", note=PENDING_NOTE),
+        SheetSpec("background", "背景・目的", section=SectionKey.BACKGROUND),
         SheetSpec("requirements", "業務要件", _BRD_COLS, _ACTIVE),
         SheetSpec("scope", "システム化の範囲", _BRD_COLS, (*_ACTIVE, ("scope", "in"))),
         SheetSpec("out_of_scope", "対象外", _BRD_COLS, (*_ACTIVE, ("scope", "out"))),
-        SheetSpec("constraints", "制約事項", note=PENDING_NOTE),
+        SheetSpec("constraints", "制約事項", section=SectionKey.CONSTRAINTS),
     ),
     _doc(
         DocType.SRS,
-        SheetSpec("background", "背景・目的", note=PENDING_NOTE),
+        SheetSpec("background", "背景・目的", section=SectionKey.BACKGROUND),
         SheetSpec("functional", "機能要件", _SRS_COLS, (*_ACTIVE, ("kind", "functional"))),
         SheetSpec("nonfunctional", "非機能要件", _SRS_COLS, (*_ACTIVE, ("kind", "non_functional"))),
-        SheetSpec("constraints", "制約事項", note=PENDING_NOTE),
+        SheetSpec("constraints", "制約事項", section=SectionKey.CONSTRAINTS),
     ),
     _doc(
         DocType.BASIC_DESIGN,
@@ -195,11 +201,11 @@ CATALOG: tuple[DocSpec, ...] = (
         SheetSpec("interfaces", "IF設計", _BASIC_COLS, (*_ACTIVE, ("kind", "interface"))),
         SheetSpec("tables", "テーブル定義書", _BASIC_COLS, (*_ACTIVE, ("kind", "data_entity"))),
         SheetSpec("diagrams", "構成図・フロー図・ER図", note=DIAGRAM_NOTE),
-        SheetSpec("it_viewpoints", "結合テスト観点", note=PENDING_NOTE),
+        SheetSpec("it_viewpoints", "結合テスト観点", section=SectionKey.IT_VIEWPOINTS),
     ),
     _doc(
         DocType.DETAIL_DESIGN,
-        SheetSpec("overview", "システム概要", note=PENDING_NOTE),
+        SheetSpec("overview", "システム概要", section=SectionKey.SYSTEM_OVERVIEW),
         SheetSpec("modules", "機能仕様", _DETAIL_COLS, (*_ACTIVE, ("kind", "module"))),
         SheetSpec("steps", "処理フロー", _DETAIL_COLS, (*_ACTIVE, ("kind", "processing_step"))),
         SheetSpec("db", "データベース設計", _DETAIL_COLS, (*_ACTIVE, ("kind", "db_table"))),

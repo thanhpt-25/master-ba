@@ -31,6 +31,11 @@ severity = "advisory"
 text = "Vague wording such as 'quickly', 'appropriate' or 'as needed' is not left undefined in a description."
 
 [[checks]]
+id = "BD-07"
+severity = "advisory"
+text = "The it_viewpoints section (結合テスト観点) names the interactions integration testing must cover: data passed between design elements, screen transitions, error propagation and processing order. Leave ref empty for a section."
+
+[[checks]]
 id = "BD-KB"
 severity = "blocking"
 requires_reference = true

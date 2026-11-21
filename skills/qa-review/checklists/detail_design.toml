@@ -31,6 +31,11 @@ severity = "advisory"
 text = "Vague wording such as 'appropriately' or 'as needed' is not left undefined in a spec."
 
 [[checks]]
+id = "DD-07"
+severity = "advisory"
+text = "The system_overview section (システム概要) agrees with the detail items and the Basic Design it cites. Leave ref empty for a section."
+
+[[checks]]
 id = "DD-KB"
 severity = "blocking"
 requires_reference = true

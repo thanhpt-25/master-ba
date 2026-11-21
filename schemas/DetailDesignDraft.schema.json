@@ -74,6 +74,34 @@
       "title": "DraftDetailItem",
       "type": "object"
     },
+    "DraftSection": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        },
+        "key": {
+          "$ref": "#/$defs/SectionKey"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "body",
+        "sources"
+      ],
+      "title": "DraftSection",
+      "type": "object"
+    },
     "KbCitation": {
       "additionalProperties": false,
       "properties": {
@@ -100,6 +128,17 @@
       ],
       "title": "KbCitation",
       "type": "object"
+    },
+    "SectionKey": {
+      "description": "A prose section of a document (spec 19 part 2).",
+      "enum": [
+        "background",
+        "constraints",
+        "system_overview",
+        "it_viewpoints"
+      ],
+      "title": "SectionKey",
+      "type": "string"
     }
   },
   "additionalProperties": false,
@@ -117,6 +156,13 @@
       },
       "minItems": 1,
       "title": "Items",
+      "type": "array"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/DraftSection"
+      },
+      "title": "Sections",
       "type": "array"
     }
   },

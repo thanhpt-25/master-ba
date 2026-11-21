@@ -12,6 +12,12 @@ from masterba.agents.detail_writer import (
     validate_detail_draft,
     write_detail,
 )
+from masterba.agents.sections import (
+    section_ref,
+    to_content,
+    upstream_sections_block,
+    validate_sections,
+)
 from masterba.agents.unit_test_writer import (
     UnitTestDraft,
     unit_cases_view,
@@ -131,7 +137,7 @@ def assign_detail_ids(
     documents: tuple[tuple[Document, DetailDesignContent | TestSpecContent], ...] = (
         (
             make_document(DETAIL_DOC_ID, DocType.DETAIL_DESIGN, project_id),
-            DetailDesignContent(items=items),
+            DetailDesignContent(items=items, sections=to_content(detail.sections)),
         ),
         (
             make_document(UT_DOC_ID, DocType.TEST_UT, project_id),
@@ -178,6 +184,11 @@ def run_detail_design(
     tester = RecordingLLM(tester_llm or designer_llm, team)
     reviewer = RecordingLLM(qa_llm or designer_llm, team)
     basic_text = basic_view(basic_items)
+    basic_sections = upstream_sections_block(DESIGN_DOC_ID, content.sections)
+    section_sources = {
+        *(i.item_id for i in basic_items),
+        *(section_ref(DESIGN_DOC_ID, s.key) for s in content.sections),
+    }
 
     hooks: DesignTestHooks[DetailDesignDraft, UnitTestDraft] = DesignTestHooks(
         write_design=lambda previous, feedback: write_detail(
@@ -188,6 +199,7 @@ def run_detail_design(
             feedback,
             DETAIL_DOC_ID,
             references=kb_block(session, "designer", basic_text),
+            upstream_sections=basic_sections,
         ),
         write_tests=lambda detail, previous, feedback: write_unit_tests(
             tester,
@@ -204,6 +216,9 @@ def run_detail_design(
         ),
         gate_design=lambda d: [
             *validate_detail_draft(d, basic_items, DETAIL_DOC_ID, language),
+            *validate_sections(
+                d.sections, DocType.DETAIL_DESIGN, language=language, known_sources=section_sources
+            ),
             *kb_gate(session, "designer", kb_citations(DETAIL_DOC_ID, d.items)),
         ],
         gate_tests=lambda d, t: [
@@ -216,7 +231,7 @@ def run_detail_design(
             reviewer,
             checklist=design_checklist,
             item_counts={DETAIL_DOC_ID: len(d.items)},
-            upstream=basic_text,
+            upstream="\n\n".join(filter(None, (basic_text, basic_sections))),
             draft_view=detail_view(d, DETAIL_DOC_ID),
             language=language,
             references=kb_text(session, "designer", basic_text),

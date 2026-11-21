@@ -17,6 +17,7 @@ from masterba.models import (
     PayloadItem,
     TestSpecContent,
     payload_items,
+    payload_sections,
 )
 from masterba.rendering.bindings import (
     HEADER_SOURCES,
@@ -124,6 +125,15 @@ def render_document(
             count, width = _render_table(wb[names[table.sheet]], table, matched, value_maps)
             counts[table.sheet] = counts.get(table.sheet, 0) + count
             longest = max(longest, width)
+        written = {s.key: s for s in payload_sections(content)}
+        for binding in template.bindings.sections:
+            ws = wb[names[binding.sheet]]
+            section = written.get(binding.key)
+            body = section.body if section else binding.empty_text
+            _put(ws, binding.body_cell, body)
+            longest = max(longest, len(body or ""))
+            if binding.sources_cell is not None:
+                _put(ws, binding.sources_cell, "\n".join(section.sources) if section else None)
         for listed in template.bindings.lists:
             rows = _list_rows(listed.source, content, ctx)
             _, width = _render_table(wb[names[listed.sheet]], listed, rows, value_maps)

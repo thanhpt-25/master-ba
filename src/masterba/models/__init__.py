@@ -28,6 +28,7 @@ from masterba.models.payloads import (
     BrdItem,
     DetailDesignContent,
     DetailDesignItem,
+    DocumentSection,
     Payload,
     PayloadItem,
     SrsContent,
@@ -36,6 +37,7 @@ from masterba.models.payloads import (
     TestExclusion,
     TestSpecContent,
     payload_items,
+    payload_sections,
 )
 from masterba.models.review import Review, ReviewComment, ReviewedDocument
 
@@ -49,6 +51,7 @@ __all__ = [
     "DecisionRecord",
     "DetailDesignContent",
     "DetailDesignItem",
+    "DocumentSection",
     "Document",
     "KbCitation",
     "KbManifest",
@@ -74,4 +77,5 @@ __all__ = [
     "TestSpecContent",
     "TraceLink",
     "payload_items",
+    "payload_sections",
 ]

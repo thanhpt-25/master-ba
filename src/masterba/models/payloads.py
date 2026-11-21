@@ -12,6 +12,7 @@ from masterba.models.enums import (
     ItemStatus,
     Level,
     Scope,
+    SectionKey,
     SrsKind,
 )
 from masterba.models.ids import ItemRef, ReqId, ReqOrItemRef, TcId
@@ -75,20 +76,36 @@ class TestExclusion(FrozenModel):
     reason: str = Field(min_length=1)
 
 
+class DocumentSection(FrozenModel):
+    """Document-level prose (背景・目的, 制約事項, ...) with the sources it rests on.
+
+    Sources are intake citations (`intake/<file>#L<a>-L<b>`) in a BRD and upstream REQ ids or
+    item refs in later documents. Sections are not items: they carry no id and no trace link.
+    """
+
+    key: SectionKey
+    body: str = Field(min_length=1)
+    sources: list[str] = Field(min_length=1)
+
+
 class BrdContent(FrozenModel):
     items: list[BrdItem]
+    sections: list[DocumentSection] = Field(default_factory=list)
 
 
 class SrsContent(FrozenModel):
     items: list[SrsItem]
+    sections: list[DocumentSection] = Field(default_factory=list)
 
 
 class BasicDesignContent(FrozenModel):
     items: list[BasicDesignItem]
+    sections: list[DocumentSection] = Field(default_factory=list)
 
 
 class DetailDesignContent(FrozenModel):
     items: list[DetailDesignItem]
+    sections: list[DocumentSection] = Field(default_factory=list)
 
 
 class TestSpecContent(FrozenModel):
@@ -119,5 +136,17 @@ LEVEL_BY_TEST_TYPE: dict[DocType, Level] = {
 }
 
 
+SECTIONS_BY_TYPE: dict[DocType, tuple[SectionKey, ...]] = {
+    DocType.BRD: (SectionKey.BACKGROUND, SectionKey.CONSTRAINTS),
+    DocType.SRS: (SectionKey.BACKGROUND, SectionKey.CONSTRAINTS),
+    DocType.BASIC_DESIGN: (SectionKey.IT_VIEWPOINTS,),
+    DocType.DETAIL_DESIGN: (SectionKey.SYSTEM_OVERVIEW,),
+}
+
+
 def payload_items(payload: Payload) -> Sequence[PayloadItem]:
     return payload.items
+
+
+def payload_sections(payload: Payload) -> Sequence[DocumentSection]:
+    return getattr(payload, "sections", ())

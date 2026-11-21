@@ -284,6 +284,22 @@
         "start_row": 8
       }
     ],
+    "sections": [
+      {
+        "body_cell": "A8",
+        "empty_text": "（入力資料に記載がないため、本版では記載していません。）",
+        "key": "background",
+        "sheet": "background",
+        "sources_cell": "A11"
+      },
+      {
+        "body_cell": "A8",
+        "empty_text": "（入力資料に記載がないため、本版では記載していません。）",
+        "key": "constraints",
+        "sheet": "constraints",
+        "sources_cell": "A11"
+      }
+    ],
     "tables": [
       {
         "columns": [
