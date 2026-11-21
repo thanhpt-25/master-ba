@@ -2,13 +2,14 @@
 
 import { api, ApiError } from "./api.js";
 import { clear, errorBox, h, shortcutsDialog, skeleton } from "./dom.js";
+import { lang, loadLang, N_, setLang, t } from "./i18n.js";
 
 // Shortcuts shown by the "?" help overlay. Views that add their own entries
 // (e.g. Overview's "P") describe them here so the list stays in one place.
 const SHORTCUTS = [
-  { keys: "?", description: "Show this keyboard shortcut help" },
-  { keys: "P", description: "Pause or resume live polling (Overview, Decision Records)" },
-  { keys: "Esc", description: "Close an open dialog" },
+  { keys: "?", description: N_("Show this keyboard shortcut help") },
+  { keys: "P", description: N_("Pause or resume live polling (Overview, Decision Records)") },
+  { keys: "Esc", description: N_("Close an open dialog") },
 ];
 
 const app = document.getElementById("app");
@@ -26,16 +27,29 @@ function applyTheme() {
   try { localStorage.setItem("masterba-theme", theme); } catch { /* Theme still applies for this session. */ }
 }
 
+const THEME_NAMES = { system: N_("System"), light: N_("Light"), dark: N_("Dark") };
+
+function themeLabel() {
+  return t("Theme: {name}", { name: t(THEME_NAMES[theme]) });
+}
+
 function cycleTheme() {
   theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
   applyTheme();
   const button = document.getElementById("theme-toggle");
   if (button) {
-    button.textContent = `Theme: ${theme[0].toUpperCase()}${theme.slice(1)}`;
-    button.setAttribute("aria-label", `Color theme: ${theme}. Activate to change theme.`);
+    button.textContent = themeLabel();
+    button.setAttribute("aria-label", t("Color theme: {name}. Activate to change theme.", { name: t(THEME_NAMES[theme]) }));
   }
 }
+
+// The other language, named in its own language so a reader of either can find it.
+function switchLanguage() {
+  setLang(lang() === "ja" ? "en" : "ja", state.me?.name);
+  route();
+}
 applyTheme();
+loadLang();
 
 const VIEWS = {
   login: () => import("./views/login.js"),
@@ -51,27 +65,28 @@ const VIEWS = {
 };
 
 const TABS = [
-  ["overview", "Overview"],
-  ["documents", "Documents"],
-  ["trace", "Traceability"],
-  ["activity", "Activity"],
-  ["questions", "Questions"],
-  ["knowledge", "Knowledge"],
-  ["drs", "Decision Records"],
+  ["overview", N_("Overview")],
+  ["documents", N_("Documents")],
+  ["questions", N_("Questions")],
+  ["drs", N_("Decision Records")],
+  ["trace", N_("Traceability")],
+  ["activity", N_("Activity")],
+  ["knowledge", N_("Knowledge")],
 ];
 
 const PAGE_META = {
-  login: ["Sign in", "Sign in to your MasterBA project workspace."],
-  projects: ["Projects", "Manage MasterBA projects, requirements, documents, and decisions."],
-  overview: ["Project overview", "Follow requirements, document stages, reviews, and decisions in the MasterBA V-model."],
-  documents: ["Documents", "Browse versioned project documents and compare changes."],
-  trace: ["Traceability", "Explore requirement, design, and test trace links."],
-  activity: ["Activity", "Review project tasks, team activity, and audit history."],
-  questions: ["Customer questions", "Track open questions and confirmed customer answers."],
-  knowledge: ["Knowledge base", "Manage reference sources used by MasterBA writers."],
-  drs: ["Decision records", "Review project decisions, impacts, and change propagation."],
-  templates: ["Templates", "Manage company document template mappings."],
+  login: [N_("Sign in"), N_("Sign in to your MasterBA project workspace.")],
+  projects: [N_("Projects"), N_("Manage MasterBA projects, requirements, documents, and decisions.")],
+  overview: [N_("Project overview"), N_("Follow requirements, document stages, reviews, and decisions in the MasterBA V-model.")],
+  documents: [N_("Documents"), N_("Browse versioned project documents and compare changes.")],
+  trace: [N_("Traceability"), N_("Explore requirement, design, and test trace links.")],
+  activity: [N_("Activity"), N_("Review project tasks, team activity, and audit history.")],
+  questions: [N_("Customer questions"), N_("Track open questions and confirmed customer answers.")],
+  knowledge: [N_("Knowledge base"), N_("Manage reference sources used by MasterBA writers.")],
+  drs: [N_("Decision records"), N_("Review project decisions, impacts, and change propagation.")],
+  templates: [N_("Templates"), N_("Manage company document template mappings.")],
 };
+const ROLES = { viewer: N_("Viewer"), approver: N_("Approver"), admin: N_("Admin") };
 
 export function go(hash) {
   if (location.hash === hash) route();
@@ -103,9 +118,9 @@ function shell(params, content) {
   const nav = params.pid
     ? h(
         "nav",
-        { class: "tabs", "aria-label": "Project sections" },
+        { class: "tabs", "aria-label": t("Project sections") },
         TABS.map(([key, label]) =>
-          h("a", { href: `#/p/${params.pid}/${key}`, "aria-current": params.name === key ? "page" : null }, label),
+          h("a", { href: `#/p/${params.pid}/${key}`, "aria-current": params.name === key ? "page" : null }, t(label)),
         ),
       )
     : null;
@@ -113,21 +128,22 @@ function shell(params, content) {
     h("div", { class: "app-shell" },
       h("aside", { class: "sidebar" },
         h("a", { class: "brand", href: "#/projects" }, h("span", { class: "seal", "aria-hidden": "true" }, "要"), "MasterBA", h("span", { class: "brand-dot", "aria-hidden": "true" }, ".")),
-        h("p", { class: "sidebar-label" }, "Workspace"),
-        h("nav", { class: "workspace-nav", "aria-label": "Workspace" },
-          h("a", { href: "#/projects", "aria-current": params.pid ? null : params.name === "projects" ? "page" : null }, h("span", { "aria-hidden": "true" }, "▦"), "Projects"),
-          state.me.role === "admin" ? h("a", { href: "#/templates", "aria-current": params.name === "templates" ? "page" : null }, h("span", { "aria-hidden": "true" }, "▤"), "Templates") : null,
+        h("p", { class: "sidebar-label" }, t("Workspace")),
+        h("nav", { class: "workspace-nav", "aria-label": t("Workspace") },
+          h("a", { href: "#/projects", "aria-current": params.pid ? null : params.name === "projects" ? "page" : null }, h("span", { "aria-hidden": "true" }, "▦"), t("Projects")),
+          state.me.role === "admin" ? h("a", { href: "#/templates", "aria-current": params.name === "templates" ? "page" : null }, h("span", { "aria-hidden": "true" }, "▤"), t("Templates")) : null,
         ),
-        h("div", { class: "sidebar-foot" }, h("span", { class: "sidebar-live", "aria-hidden": "true" }), "V-model workspace"),
+        h("div", { class: "sidebar-foot" }, h("span", { class: "sidebar-live", "aria-hidden": "true" }), t("V-model workspace")),
       ),
       h("div", { class: "workspace" },
         h("header", { class: "top" },
-          h("span", { class: "crumb" }, params.pid ? [h("a", { href: "#/projects" }, "Projects"), h("span", { "aria-hidden": "true" }, "/"), h("code", {}, params.pid)] : "Workspace / Projects"),
+          h("span", { class: "crumb" }, params.pid ? [h("a", { href: "#/projects" }, t("Projects")), h("span", { "aria-hidden": "true" }, "/"), h("code", {}, params.pid)] : `${t("Workspace")} / ${t("Projects")}`),
           h("div", { class: "who" },
             h("span", { class: "avatar", "aria-hidden": "true" }, state.me.name.slice(0, 1).toUpperCase()),
-            h("span", { class: "user-name" }, state.me.name, h("span", { class: "role" }, state.me.role)),
-            h("button", { id: "theme-toggle", class: "link theme-toggle", type: "button", onClick: cycleTheme, "aria-label": `Color theme: ${theme}. Activate to change theme.` }, `Theme: ${theme[0].toUpperCase()}${theme.slice(1)}`),
-            h("button", { class: "link", onClick: logout }, "Sign out"),
+            h("span", { class: "user-name" }, state.me.name, h("span", { class: "role" }, t(ROLES[state.me.role] ?? state.me.role))),
+            h("button", { id: "lang-toggle", class: "link lang-toggle", type: "button", lang: lang() === "ja" ? "en" : "ja", onClick: switchLanguage }, lang() === "ja" ? "English" : "日本語"),
+            h("button", { id: "theme-toggle", class: "link theme-toggle", type: "button", onClick: cycleTheme, "aria-label": t("Color theme: {name}. Activate to change theme.", { name: t(THEME_NAMES[theme]) }) }, themeLabel()),
+            h("button", { class: "link", onClick: logout }, t("Sign out")),
           ),
         ),
         nav,
@@ -157,6 +173,7 @@ async function route() {
   if (!state.me) {
     try {
       state.me = await api.get("/me");
+      loadLang(state.me.name);
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 401) throw error;
     }
@@ -170,7 +187,7 @@ async function route() {
   } else {
     app.append(...shell(params, main).filter(Boolean));
   }
-  const [pageTitle, description] = PAGE_META[params.name] ?? PAGE_META.projects;
+  const [pageTitle, description] = (PAGE_META[params.name] ?? PAGE_META.projects).map((text) => t(text));
   document.title = `${params.pid ? `${pageTitle} · ${params.pid}` : pageTitle} | MasterBA`;
   const metaDescription = document.querySelector('meta[name="description"]');
   if (metaDescription) metaDescription.content = description;
@@ -226,12 +243,12 @@ function fatalBoundary(error) {
     "div",
     { class: "fatal", role: "alert" },
     h("div", { class: "fatal-card" },
-      h("h1", {}, "Something went wrong"),
-      h("p", {}, "The screen hit an unexpected error. Your work on the server is unaffected — reloading usually clears it."),
+      h("h1", {}, t("Something went wrong")),
+      h("p", {}, t("The screen hit an unexpected error. Your work on the server is unaffected; reloading usually clears it.")),
       error?.message ? h("p", { class: "fatal-detail" }, error.message) : null,
       h("div", { class: "fatal-actions" },
-        h("button", { class: "primary", type: "button", onClick: () => location.reload() }, "Reload"),
-        h("button", { type: "button", onClick: () => { boundaryShown = false; panel.remove(); route(); } }, "Try to continue"),
+        h("button", { class: "primary", type: "button", onClick: () => location.reload() }, t("Reload")),
+        h("button", { type: "button", onClick: () => { boundaryShown = false; panel.remove(); route(); } }, t("Try to continue")),
       ),
     ),
   );
@@ -249,7 +266,7 @@ window.addEventListener("keydown", (event) => {
   if (el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))) return;
   if (!state.me) return;
   event.preventDefault();
-  shortcutsDialog(SHORTCUTS);
+  shortcutsDialog(SHORTCUTS.map((s) => ({ keys: s.keys, description: t(s.description) })));
 });
 
 route();

@@ -13,6 +13,8 @@ from masterba.change.diffview import diff_versions
 from masterba.diff import Classification
 from masterba.models import payload_items
 from masterba.models.enums import QuestionOrigin, QuestionStatus
+from masterba.rendering.history import build_context
+from masterba.rendering.preview import preview_sheets
 from masterba.trace_store import (
     NotFoundError,
     ProjectStore,
@@ -83,6 +85,19 @@ def read_document(store: Store, doc_id: str, version: int | None = None) -> dict
         "document": doc.model_dump(mode="json"),
         "versions": document_versions(store, doc_id),
         "content": content.model_dump(mode="json"),
+    }
+
+
+@router.get("/documents/{doc_id}/preview", dependencies=[Viewer])
+def preview_document(store: Store, doc_id: str, version: int | None = None) -> dict[str, Any]:
+    """The default workbook layout as JSON (spec 19 section 14); writes nothing."""
+    checked("doc", doc_id)
+    chosen = _version(store, doc_id, version)
+    doc, content = get_document(store, doc_id, chosen)
+    return {
+        "document": doc.model_dump(mode="json"),
+        "versions": document_versions(store, doc_id),
+        "sheets": preview_sheets(doc, content, build_context(store, doc, content)),
     }
 
 
