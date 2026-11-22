@@ -1,7 +1,7 @@
 // Shell and hash router. Views live in ./views and are loaded on demand.
 
 import { api, ApiError } from "./api.js";
-import { clear, errorBox, h, shortcutsDialog, skeleton } from "./dom.js";
+import { append, clear, errorBox, h, icon, shortcutsDialog, skeleton } from "./dom.js";
 import { lang, loadLang, N_, setLang, t } from "./i18n.js";
 
 // Shortcuts shown by the "?" help overlay. Views that add their own entries
@@ -38,7 +38,7 @@ function cycleTheme() {
   applyTheme();
   const button = document.getElementById("theme-toggle");
   if (button) {
-    button.textContent = themeLabel();
+    button.querySelector("span").textContent = themeLabel();
     button.setAttribute("aria-label", t("Color theme: {name}. Activate to change theme.", { name: t(THEME_NAMES[theme]) }));
   }
 }
@@ -114,7 +114,49 @@ function parse() {
   return parseHash(location.hash);
 }
 
+const TAB_ICONS = { overview: "overview", documents: "documents", questions: "questions", drs: "drs", trace: "trace", activity: "activity", knowledge: "knowledge" };
+
+function navLink(href, iconName, label, current) {
+  return h("a", { href, "aria-current": current ? "page" : null }, icon(iconName), h("span", {}, label));
+}
+
+// The account menu (name, role, language, theme, sign out) behind one chip, as in the refresh design.
+function accountMenu() {
+  const menu = h("details", { class: "account" },
+    h("summary", { "aria-label": t("Account and display settings") },
+      h("span", { class: "avatar", "aria-hidden": "true" }, state.me.name.slice(0, 1).toUpperCase()),
+      h("span", { class: "user-name" }, state.me.name, h("span", { class: "role" }, t(ROLES[state.me.role] ?? state.me.role))),
+      icon("chevron", 14),
+    ),
+    h("div", { class: "account-menu" },
+      h("button", { id: "lang-toggle", class: "menu-item lang-toggle", type: "button", lang: lang() === "ja" ? "en" : "ja", onClick: switchLanguage }, icon("language", 16), lang() === "ja" ? "English" : "日本語"),
+      h("button", { id: "theme-toggle", class: "menu-item theme-toggle", type: "button", onClick: cycleTheme, "aria-label": t("Color theme: {name}. Activate to change theme.", { name: t(THEME_NAMES[theme]) }) }, icon("theme", 16), h("span", {}, themeLabel())),
+      h("button", { class: "menu-item", type: "button", onClick: logout }, icon("signout", 16), t("Sign out")),
+    ),
+  );
+  // Close on outside click and Escape, like a native menu.
+  const onDoc = (event) => { if (menu.open && !menu.contains(event.target)) menu.open = false; };
+  document.addEventListener("click", onDoc);
+  menu.addEventListener("keydown", (event) => { if (event.key === "Escape" && menu.open) { menu.open = false; menu.querySelector("summary").focus(); } });
+  shellCleanup = () => document.removeEventListener("click", onDoc);
+  return menu;
+}
+let shellCleanup = null;
+
 function shell(params, content) {
+  if (shellCleanup) { shellCleanup(); shellCleanup = null; }
+  const section = params.pid ? TABS.find(([key]) => key === params.name) : null;
+  const crumbs = [h("span", {}, t("Workspace")), h("span", { class: "crumb-slash", "aria-hidden": "true" }, "/")];
+  if (params.pid) {
+    crumbs.push(h("a", { href: "#/projects" }, t("Projects")), h("span", { class: "crumb-slash", "aria-hidden": "true" }, "/"));
+    if (section && section[0] !== "overview") {
+      crumbs.push(h("a", { href: `#/p/${params.pid}/overview` }, h("code", {}, params.pid)), h("span", { class: "crumb-slash", "aria-hidden": "true" }, "/"), h("span", { class: "crumb-current", "aria-current": "page" }, t(section[1])));
+    } else {
+      crumbs.push(h("code", { class: "crumb-current", "aria-current": "page" }, params.pid));
+    }
+  } else {
+    crumbs.push(h("span", { class: "crumb-current", "aria-current": "page" }, params.name === "templates" ? t("Templates") : t("Projects")));
+  }
   const nav = params.pid
     ? h(
         "nav",
@@ -127,24 +169,26 @@ function shell(params, content) {
   return [
     h("div", { class: "app-shell" },
       h("aside", { class: "sidebar" },
-        h("a", { class: "brand", href: "#/projects" }, h("span", { class: "seal", "aria-hidden": "true" }, "要"), "MasterBA", h("span", { class: "brand-dot", "aria-hidden": "true" }, ".")),
+        h("a", { class: "brand", href: "#/projects", "aria-label": t("MasterBA, go to projects") }, h("span", { class: "seal", "aria-hidden": "true" }, "要"), h("span", {}, "MasterBA"), h("span", { class: "brand-dot", "aria-hidden": "true" }, ".")),
         h("p", { class: "sidebar-label" }, t("Workspace")),
         h("nav", { class: "workspace-nav", "aria-label": t("Workspace") },
-          h("a", { href: "#/projects", "aria-current": params.pid ? null : params.name === "projects" ? "page" : null }, h("span", { "aria-hidden": "true" }, "▦"), t("Projects")),
-          state.me.role === "admin" ? h("a", { href: "#/templates", "aria-current": params.name === "templates" ? "page" : null }, h("span", { "aria-hidden": "true" }, "▤"), t("Templates")) : null,
+          navLink("#/projects", "projects", t("Projects"), !params.pid && params.name === "projects"),
+          state.me.role === "admin" ? navLink("#/templates", "templates", t("Templates"), params.name === "templates") : null,
         ),
+        params.pid
+          ? [
+              h("p", { class: "sidebar-label project-label" }, h("span", {}, t("Project")), h("code", {}, params.pid)),
+              h("nav", { class: "workspace-nav project-nav", "aria-label": t("Project navigation") },
+                TABS.map(([key, label]) => navLink(`#/p/${params.pid}/${key}`, TAB_ICONS[key], t(label), params.name === key)),
+              ),
+            ]
+          : null,
         h("div", { class: "sidebar-foot" }, h("span", { class: "sidebar-live", "aria-hidden": "true" }), t("V-model workspace")),
       ),
       h("div", { class: "workspace" },
         h("header", { class: "top" },
-          h("span", { class: "crumb" }, params.pid ? [h("a", { href: "#/projects" }, t("Projects")), h("span", { "aria-hidden": "true" }, "/"), h("code", {}, params.pid)] : `${t("Workspace")} / ${t("Projects")}`),
-          h("div", { class: "who" },
-            h("span", { class: "avatar", "aria-hidden": "true" }, state.me.name.slice(0, 1).toUpperCase()),
-            h("span", { class: "user-name" }, state.me.name, h("span", { class: "role" }, t(ROLES[state.me.role] ?? state.me.role))),
-            h("button", { id: "lang-toggle", class: "link lang-toggle", type: "button", lang: lang() === "ja" ? "en" : "ja", onClick: switchLanguage }, lang() === "ja" ? "English" : "日本語"),
-            h("button", { id: "theme-toggle", class: "link theme-toggle", type: "button", onClick: cycleTheme, "aria-label": t("Color theme: {name}. Activate to change theme.", { name: t(THEME_NAMES[theme]) }) }, themeLabel()),
-            h("button", { class: "link", onClick: logout }, t("Sign out")),
-          ),
+          h("nav", { class: "crumb", "aria-label": t("Breadcrumb") }, crumbs),
+          h("div", { class: "who" }, accountMenu()),
         ),
         nav,
         h("main", { id: "main", tabindex: "-1" }, content),
@@ -185,7 +229,7 @@ async function route() {
   if (params.name === "login") {
     app.append(main);
   } else {
-    app.append(...shell(params, main).filter(Boolean));
+    append(app, shell(params, main));
   }
   const [pageTitle, description] = (PAGE_META[params.name] ?? PAGE_META.projects).map((text) => t(text));
   document.title = `${params.pid ? `${pageTitle} · ${params.pid}` : pageTitle} | MasterBA`;

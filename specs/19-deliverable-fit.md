@@ -1,6 +1,6 @@
 # Spec 19 — Deliverable fit: SIer-quality templates and content
 
-Status: v0.4 (2026-11-22), parts 1 to 4 implemented. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
+Status: v0.5 (2026-11-22), parts 1 to 5 implemented. v0.5 adds part 5, the workspace refresh of the dashboard (sections 22 to 25). Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
 
 ## Goal
 
@@ -273,4 +273,31 @@ A pilot team can start from the files a customer actually sends, run MasterBA on
 - [x] The API accepts the five types, refuses a file that `check_upload` refuses or that has no text, and returns the stored `.md` name; the dashboard picker accepts them.
 - [x] An unreadable file stops the BRD stage with nothing written.
 - [x] The runbook, the guide in both languages and the scoring checklist exist and are linked from `docs/next-steps.md`.
+- [x] `uv run pytest`, `ruff`, `mypy --strict` and `npm test` pass.
+
+# Part 5 — Workspace refresh
+
+## 22. Goal
+
+The owner asked (2026-11-22) to build the dashboard on the design of the `master-frontend-refresh` repository, a Lovable mock-up (React, TanStack Start, Tailwind, sample data only) of this dashboard. The pilot needs a dashboard that reads as an enterprise tool; the mock-up sets that look. Part 5 ports its design into the existing frontend. It does not adopt its stack: the dashboard stays plain ES modules with no build step, served by `masterba serve` under the same Content-Security-Policy, so the Docker image, the API and every existing flow (guided journey, document preview, review gates, Japanese UI) stay as they are.
+
+## 23. What is ported
+
+- **Palette and type.** The mock-up's graphite and vermilion palette as tokens in `app.css`, for both themes (the mock-up is dark only; the light theme uses the same hues on warm paper). Mono uppercase kickers above headings. No web fonts: the CSP allows none and pilot sites may be offline.
+- **Shell.** A full-height sidebar with the workspace links and, inside a project, the project sections with icons; breadcrumbs (Workspace / Projects / project / section) in the top bar; one account menu (name, role, language, theme, sign out) instead of four top-bar links. Below 760 px the sidebar becomes a top bar and the project sections are the scrolling tab row as before.
+- **Icons.** Line icons (Lucide shapes) built with DOM calls by `dom.js` `icon()`, always decorative and next to a word.
+- **Projects.** A metric strip (projects, in progress, reviews waiting with the open question count), an "All projects" panel with search and language filter, and cards that show the current phase, a status word, a progress bar and the document count. The card data come from each project's `GET /api/projects/{pid}` (`projectSummary` in `views/projects.js`); a project whose overview fails still shows its card. New project opens a dialog with the same fields and validation instead of a form under the list.
+- **Overview.** A title row (monogram, id, facts, overall status), the next step panel (spec 19 section 13, unchanged in content), four stats with a note each, then two columns: the delivery pipeline (one row per phase with its state and latest version, the review gate between phases, the side-loop links of spec 15 section 7) and recent activity (the latest six commits of the project from `GET /activity`, re-read at most every 10 seconds while a job polls). The V-model cards, job log, open questions and token budget follow unchanged.
+- **Other screens** take the new look through the shared tokens, badges, panels and tables; their content and flows do not change.
+
+## 24. What is not ported
+
+Sample data, the "Preview data" label, greetings ("Good morning, team"), invented figures (coverage trends, "+8% this month"), and screens or buttons with no backend (template creation, document upload outside the BRD intake). The mock-up's React components, router and build are not used.
+
+## 25. Acceptance criteria (part 5)
+
+- [x] Every screen renders in light and dark, in Japanese and English, with no console error and no horizontal scroll at 390 px.
+- [x] The account menu switches language and theme and signs out; Escape and an outside click close it.
+- [x] New project validates the id inline in the dialog and opens the new project on success.
+- [x] `projectSummary` is unit tested (fresh, in review, finished, missing overview); `npm test` checks every new string has a Japanese translation.
 - [x] `uv run pytest`, `ruff`, `mypy --strict` and `npm test` pass.

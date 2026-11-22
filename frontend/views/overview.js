@@ -1,6 +1,7 @@
-import { append, badge, clear, empty, fmtTime, h, liveDot, statusLabel } from "../dom.js";
+import { append, badge, clear, empty, fmtTime, h, icon, liveDot, monogram, statusLabel } from "../dom.js";
 import { N_, t } from "../i18n.js";
 import { nextStep, PHASES, phaseTitle, workflowSteps } from "./journey.js";
+import { projectSummary } from "./projects.js";
 import { parseComments, reviewBox } from "./review.js";
 
 export { nextStep, parseComments, workflowSteps };
@@ -44,47 +45,74 @@ function nextStepPanel(overview, ctx) {
   return h(
     "section",
     { class: `panel next-step ${step.state}`, "aria-labelledby": "next-title" },
-    h("p", { class: "eyebrow" }, t("Next step")),
     h("div", { class: "next-body" },
-      h("div", {}, h("h2", { id: "next-title" }, step.title), h("p", { class: "muted" }, step.detail)),
+      h("span", { class: "next-mark", "aria-hidden": "true" }, icon("shield", 18)),
+      h("div", { class: "next-copy" }, h("p", { class: "eyebrow" }, t("Next step")), h("h2", { id: "next-title" }, step.title), h("p", { class: "muted" }, step.detail)),
       h("div", { class: "next-action" }, actionButton(step.action, ctx)),
     ),
   );
 }
 
-function workflowStrip(overview, pid) {
+const STAGE_TONE = { approved: "done", done: "done", in_review: "review", running: "review", escalated: "warn", waiting_for_input: "warn", ready: "ready", locked: "locked" };
+const GATE_LABEL = { open: N_("Approved"), waiting: N_("Waiting for review"), closed: N_("Review gate") };
+
+// The delivery pipeline: one row per phase, the review gate between them, and what feeds the phases.
+function pipelinePanel(overview, pid) {
   const flow = workflowSteps(overview.stages, overview.project.review_gates);
-  const items = [];
+  const rows = [];
   flow.steps.forEach((step, i) => {
-    items.push(
-      h(
-        "li",
-        { class: `wf-step ${step.state}`, "aria-current": flow.current === step.key ? "step" : null },
-        h("span", { class: "wf-title" }, step.title),
-        h("span", { class: "sub" }, step.sub),
-        badge(step.state),
+    const info = overview.stages.find((s) => s.stage === step.key);
+    const docs = info?.documents ?? [];
+    const tone = STAGE_TONE[step.state] ?? "locked";
+    rows.push(h(
+      "li",
+      { class: `stage-row ${tone}`, "aria-current": flow.current === step.key ? "step" : null },
+      h("span", { class: "stage-number", "aria-hidden": "true" }, String(i + 1).padStart(2, "0")),
+      h("span", { class: "stage-marker", "aria-hidden": "true" }, tone === "done" ? icon("check", 14) : tone === "review" || tone === "warn" ? icon("clock", 14) : null),
+      h("span", { class: "stage-name" },
+        h("strong", { class: "wf-title" }, step.title),
+        h("span", { class: "sub" }, step.sub, docs.length ? ` · v${Math.max(...docs.map((d) => d.version))}` : ""),
       ),
-    );
+      badge(step.state),
+    ));
     if (i < flow.gates.length) {
       const gate = flow.gates[i];
-      const label = { open: t("Approved"), waiting: t("Waiting for review"), closed: t("Review gate") }[gate];
-      items.push(h("li", { class: `wf-gate ${gate}`, "aria-label": t("Review gate: {state}", { state: label }) }, h("span", { "aria-hidden": "true" }, gate === "open" ? "✓" : "◆"), h("span", { class: "sub" }, label)));
+      rows.push(h("li", { class: `stage-gate ${gate}` }, h("span", { "aria-hidden": "true" }, gate === "open" ? "✓" : "◆"), t("Review gate: {state}", { state: t(GATE_LABEL[gate]) })));
     }
   });
   const c = overview.counts;
   return h(
     "section",
-    { class: "panel workflow", "aria-labelledby": "wf-title" },
-    h("h2", { id: "wf-title" }, t("Workflow")),
-    h("ol", { class: "wf-track", "aria-label": t("Phases in order") }, items),
+    { class: "panel pipeline-panel", "aria-labelledby": "wf-title" },
+    h("div", { class: "panel-heading" }, h("div", {}, h("p", { class: "eyebrow" }, t("Delivery pipeline")), h("h2", { id: "wf-title" }, t("V-model progress")))),
+    h("ol", { class: "stage-list", "aria-label": t("Phases in order") }, rows),
     h(
       "ul",
       { class: "wf-loops", "aria-label": t("What feeds the phases") },
-      h("li", {}, h("a", { href: `#/p/${pid}/questions` }, t("{n} open customer question(s)", { n: c.open_questions })), h("span", { class: "sub" }, ` · ${t("later phases may not decide them")}`)),
-      h("li", {}, h("a", { href: `#/p/${pid}/drs` }, t("{n} open Decision Record(s)", { n: c.open_drs })), h("span", { class: "sub" }, ` · ${t("changes and review revisions")}`)),
-      h("li", {}, h("a", { href: `#/p/${pid}/knowledge` }, t("Knowledge base")), h("span", { class: "sub" }, ` · ${t("passages the writers cite")}`)),
+      h("li", {}, icon("questions", 15), h("a", { href: `#/p/${pid}/questions` }, t("{n} open customer question(s)", { n: c.open_questions })), h("span", { class: "sub" }, ` · ${t("later phases may not decide them")}`)),
+      h("li", {}, icon("drs", 15), h("a", { href: `#/p/${pid}/drs` }, t("{n} open Decision Record(s)", { n: c.open_drs })), h("span", { class: "sub" }, ` · ${t("changes and review revisions")}`)),
+      h("li", {}, icon("knowledge", 15), h("a", { href: `#/p/${pid}/knowledge` }, t("Knowledge base")), h("span", { class: "sub" }, ` · ${t("passages the writers cite")}`)),
       overview.project.review_gates ? null : h("li", { class: "sub" }, t("Review gates are off for this project: stages run back to back.")),
     ),
+  );
+}
+
+// The latest commits of the project, newest first; every business action is one commit.
+function activityPanel(activity, pid) {
+  const items = (activity ?? []).slice(0, 6);
+  return h(
+    "section",
+    { class: "panel activity-panel", "aria-labelledby": "latest-title" },
+    h("div", { class: "panel-heading" },
+      h("div", {}, h("p", { class: "eyebrow" }, t("The latest")), h("h2", { id: "latest-title" }, t("Recent activity"))),
+      h("a", { class: "text-action", href: `#/p/${pid}/activity` }, t("View activity"), icon("next", 14)),
+    ),
+    items.length
+      ? h("ol", { class: "activity-list" }, items.map((item) => h("li", {},
+          h("span", { class: "activity-avatar", "aria-hidden": "true" }, monogram(item.author)),
+          h("span", { class: "activity-copy" }, h("span", { class: "activity-subject" }, item.subject), h("span", { class: "sub" }, `${item.author} · ${fmtTime(item.time)}`)),
+        )))
+      : h("p", { class: "muted" }, activity ? t("No activity yet.") : t("Activity is not available right now.")),
   );
 }
 
@@ -170,6 +198,8 @@ export async function render(context) {
   let paused = false;
   let shown = null;
   let lastActive = false;
+  let activity = null;
+  let activityAt = 0;
 
   // Shared by the Pause/Resume button and the keyboard shortcut so they stay in sync.
   const togglePause = () => {
@@ -222,20 +252,25 @@ export async function render(context) {
     const ctx = { ...context, pid, start, approve, reject, locked };
     draw.last = () => draw(overview, { ...job });
     const finished = flow.steps.filter((step) => ["approved", "done"].includes(step.state)).length;
+    const summary = projectSummary(overview);
     // dom.js append skips empty sections; the native one would print "null".
     append(clear(main), [
-      h("div", { class: "page-heading" },
-        h("div", {}, h("p", { class: "eyebrow" }, t("Project overview")), h("h1", {}, pid), h("p", { class: "muted" }, facts(overview.project)), modeToggle(overview)),
-        liveBar(lastActive),
+      h("div", { class: "page-heading project-title-row" },
+        h("div", { class: "project-title-line" },
+          h("span", { class: "monogram big", "aria-hidden": "true" }, overview.project.company_id && overview.project.company_id !== "default" ? monogram(overview.project.company_id) : pid.replace(/\D/g, "").slice(-2)),
+          h("div", {}, h("p", { class: "eyebrow" }, t("Project overview")), h("h1", {}, pid), h("p", { class: "muted" }, facts(overview.project)), modeToggle(overview)),
+        ),
+        h("div", { class: "title-side" }, liveBar(lastActive), badge(summary.status)),
       ),
       nextStepPanel({ ...overview, job: job ?? overview.job }, ctx),
       h("dl", { class: "overview-stats", "aria-label": t("Project summary") },
-        h("div", {}, h("dt", {}, t("Requirements")), h("dd", {}, overview.counts.requirements)),
-        h("div", {}, h("dt", {}, t("Trace links")), h("dd", {}, overview.counts.links)),
-        h("div", {}, h("dt", {}, t("Open decisions")), h("dd", {}, overview.counts.open_drs)),
-        h("div", {}, h("dt", {}, t("Phases complete")), h("dd", {}, `${finished} / ${PHASES.length}`)),
+        h("div", {}, h("dt", {}, t("Documents")), h("dd", {}, summary.documents), h("p", { class: "stat-note" }, icon("documents", 13), t("Phases complete"), ` ${finished} / ${PHASES.length}`)),
+        h("div", {}, h("dt", {}, t("Requirements")), h("dd", {}, overview.counts.requirements), h("p", { class: "stat-note" }, icon("requirements", 13), t("{n} open customer question(s)", { n: overview.counts.open_questions }))),
+        h("div", {}, h("dt", {}, t("Trace links")), h("dd", {}, overview.counts.links), h("p", { class: "stat-note" }, icon("trace", 13), h("a", { href: `#/p/${pid}/trace` }, t("Traceability")))),
+        h("div", {}, h("dt", {}, t("Open decisions")), h("dd", {}, overview.counts.open_drs), h("p", { class: "stat-note" }, icon("clock", 13), t("Reviews waiting"), ` ${summary.reviews}`)),
       ),
-      workflowStrip(overview, pid),
+      h("div", { class: "overview-columns" }, pipelinePanel(overview, pid), activityPanel(activity, pid)),
+      h("h2", { class: "section-title" }, t("V-model stages")),
       h(
         "div",
         { class: "vmodel", role: "group", "aria-label": t("V-model stages") },
@@ -304,6 +339,11 @@ export async function render(context) {
   async function refresh() {
     if (stopped || paused) return;
     const overview = await api.get(`/projects/${pid}`);
+    // Activity is a git log read; refresh it at most every 10 s while a job polls.
+    if (Date.now() - activityAt > 10000) {
+      activityAt = Date.now();
+      activity = await api.get(`/projects/${pid}/activity`).catch(() => null);
+    }
     let job = overview.job;
     if (!job && shown) job = await api.get(`/jobs/${shown}`);
     const active = Boolean(job && ["queued", "running"].includes(job.status));

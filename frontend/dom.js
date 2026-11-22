@@ -71,6 +71,7 @@ const STATUS = {
   answered: { icon: "✓", label: N_("Answered"), cls: "ok" },
   in_review: { icon: "◔", label: N_("In review"), cls: "warn" },
   ready: { icon: "▶", label: N_("Ready"), cls: "run" },
+  in_progress: { icon: "◑", label: N_("In progress"), cls: "run" },
   locked: { icon: "■", label: N_("Locked"), cls: "idle" },
   withdrawn: { icon: "■", label: N_("Withdrawn"), cls: "idle" },
   indexed: { icon: "✓", label: N_("Indexed"), cls: "ok" },
@@ -201,7 +202,7 @@ export function confirmDialog({ title = t("Please confirm"), message = "", confi
 // A focus-trapped modal overlay used by confirmDialog and shortcutsDialog. `build`
 // receives a `close` function and returns the card element to mount. Only one
 // dialog is open at a time; Escape and the backdrop close it.
-function modal(build, { labelledBy, describedBy, role = "dialog", onClose = null } = {}) {
+export function modal(build, { labelledBy, describedBy, role = "dialog", onClose = null } = {}) {
   if (openDialog) {
     openDialog.close();
     openDialog = null;
@@ -300,4 +301,57 @@ export function asyncView(host, load, render, { rows = 5 } = {}) {
 export function loadError(error, onRetry) {
   if (error?.status === 401) window.dispatchEvent(new Event("masterba:unauthorized"));
   return errorBox(error?.message, onRetry);
+}
+
+// Line icons (shapes from Lucide, ISC licence), built with DOM calls so the
+// Content-Security-Policy needs no inline markup. Always decorative: pair each with a word.
+const ICONS = {
+  projects: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><path d="M8 10v4"/><path d="M12 10v2"/><path d="M16 10v6"/>',
+  templates: '<rect width="18" height="7" x="3" y="3" rx="1"/><rect width="9" height="7" x="3" y="14" rx="1"/><rect width="5" height="7" x="16" y="14" rx="1"/>',
+  overview: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+  documents: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  trace: '<path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  questions: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  knowledge: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  drs: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m9 15 2 2 4-4"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  open: '<path d="M7 7h10v10"/><path d="M7 17 17 7"/>',
+  next: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  chevron: '<path d="m6 9 6 6 6-6"/>',
+  workflow: '<rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/>',
+  requirements: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+  close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  signout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+  language: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
+  theme: '<circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 0 0 0-12v12z"/>',
+};
+const SVG = "http://www.w3.org/2000/svg";
+const SHAPE = /<(\w+)([^>]*)\/>/g;
+const ATTR = /([\w-]+)="([^"]*)"/g;
+
+export function icon(name, size = 17) {
+  const markup = ICONS[name];
+  if (!markup || typeof document.createElementNS !== "function") return null;
+  const svg = document.createElementNS(SVG, "svg");
+  const attrs = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false", class: "icon" };
+  for (const [key, value] of Object.entries(attrs)) svg.setAttribute(key, String(value));
+  for (const [, tag, rest] of markup.matchAll(SHAPE)) {
+    const shape = document.createElementNS(SVG, tag);
+    for (const [, key, value] of rest.matchAll(ATTR)) shape.setAttribute(key, value);
+    svg.append(shape);
+  }
+  return svg;
+}
+
+// Up to two letters that stand for a project or a person.
+export function monogram(text) {
+  const words = String(text ?? "").replace(/[^\p{L}\p{N}]+/gu, " ").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
 }

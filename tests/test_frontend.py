@@ -95,11 +95,13 @@ def test_the_overview_offers_review_controls_and_explains_the_gate() -> None:
     assert "in_review:" in (FRONTEND / "dom.js").read_text("utf-8")
 
 
-def test_the_overview_opens_with_a_workflow_strip() -> None:
-    # Spec 15 section 7: phases in order, the gate between them, the next action, side loops.
+def test_the_overview_opens_with_a_workflow_pipeline() -> None:
+    # Spec 15 section 7: phases in order, the gate between them, the next action, side loops
+    # (drawn as the pipeline panel of the workspace refresh).
     view = (FRONTEND / "views" / "overview.js").read_text("utf-8")
     journey = (FRONTEND / "views" / "journey.js").read_text("utf-8")
-    assert "export function workflowSteps" in journey and "workflowStrip(overview, pid)" in view
+    assert "export function workflowSteps" in journey
+    assert "pipelinePanel(overview, pid)" in view and "stage-gate" in view
     assert "nextStepPanel(" in view  # spec 19 section 13: the next step leads the page
     for link in ("/questions", "/drs", "/knowledge"):
         assert f"#/p/${{pid}}{link}" in view

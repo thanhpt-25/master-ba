@@ -23,7 +23,7 @@ The repository-root `vercel.json` selects the **Other** framework preset and pub
 index.html          Shell: skip link, #app mount, #toasts live region.
 app.js              Boot, hash router, workspace shell, page metadata, error boundary, "?" help.
 api.js              JSON client for /api (CSRF header, ApiError with .status).
-dom.js              All DOM + UI primitives. No view touches the DOM directly.
+dom.js              All DOM + UI primitives (incl. icon(), monogram(), modal()). No view touches the DOM directly.
 i18n.js             t(text, vars): English text is the key; i18n-ja.js is the Japanese catalog (default).
 app.css             Token-driven styles (light/dark, reduced-motion, forced-colors).
 views/*.js          One module per screen, each exporting async render(context).
@@ -55,7 +55,9 @@ Everything is built from a tiny `h(tag, attrs, ...children)` helper that inserts
 - `splitNav(label, children)` — list nav that collapses behind a disclosure toggle on narrow screens.
 - `confirmDialog(opts)` — focus-trapped `alertdialog` replacing `window.confirm`; resolves `true`/`false`.
 - `shortcutsDialog(list)` — focus-trapped keyboard-shortcut help.
-- `modal(build, opts)` — the shared focus-trap both dialogs are built on (Escape + backdrop close, Tab wraps, restores focus, one open at a time).
+- `modal(build, opts)` — the shared focus-trap all dialogs are built on, including New project (Escape + backdrop close, Tab wraps, restores focus, one open at a time).
+- `icon(name, size)` — a decorative line icon (Lucide shapes, ISC) built with `createElementNS`, so the CSP needs no inline markup. Always next to a word.
+- `monogram(text)` — the two letters on project cards and activity avatars.
 
 ### Styling
 
@@ -67,7 +69,7 @@ Everything is built from a tiny `h(tag, attrs, ...children)` helper that inserts
 - Theme control cycles System, Light, and Dark and remembers the selection locally.
 - Workspace navigation stays in a compact sidebar on desktop and moves into the top bar on small screens.
 
-The Projects screen supports search by project ID or company and filtering by document language. Project overview surfaces the four key counts before the workflow and V-model detail.
+The look follows the `master-frontend-refresh` design (spec 19 part 5): a full-height sidebar that also lists the project sections, breadcrumbs and one account menu (language, theme, sign out) in the top bar, mono kickers above headings. The Projects screen shows a metric strip, then cards with each project's current phase, status, progress and document count (from `GET /api/projects/{pid}`), with search and a language filter; New project opens a dialog. The Overview leads with the next step, four counts, then the delivery pipeline (phases, review gates, side loops) beside recent activity, then the V-model detail.
 
 Page titles and descriptions update with the active route so browser tabs and shared links identify the current screen.
 
