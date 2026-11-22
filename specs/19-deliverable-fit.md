@@ -1,6 +1,6 @@
 # Spec 19 — Deliverable fit: SIer-quality templates and content
 
-Status: v0.3 (2026-11-21), parts 1, 2 and 3 implemented. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
+Status: v0.4 (2026-11-22), parts 1 to 4 implemented. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
 
 ## Goal
 
@@ -237,3 +237,40 @@ Blockers are shown where they block: a stage card names its open customer questi
 - [x] A reviewer can approve or reject an `in_review` phase from the document preview.
 - [x] With the default language every view shows Japanese labels; switching to English and back needs no page reload; every string passed to `t()` has a Japanese entry and the catalog has no unused entry.
 - [x] `uv run pytest`, `ruff`, `mypy --strict` and `npm test` in `frontend/` pass.
+
+# Part 4 — Pilot kit
+
+Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 item 7 (gap E1) and gap C1, [12-local-rag.md](12-local-rag.md) (extractors and upload checks), [03-requirements-analyst-agent.md](03-requirements-analyst-agent.md) (intake citations).
+
+## 17. Goal
+
+A pilot team can start from the files a customer actually sends, run MasterBA on a server their colleagues reach over HTTPS, know what to do in the first week, and score the first real run the same way every time.
+
+## 18. Intake from Word, PDF and Excel
+
+- `masterba/intake.py`: `intake_text(path) -> str` and `intake_name(file_name) -> str`. A `.txt` or `.md` intake is read as before. A `.docx`, `.pdf` or `.xlsx` intake is converted with the knowledge base extractors (`knowledge/extract`) into Markdown text, and **the stored intake is that text**, so line citations (`intake/<name>#L3-L5`), quote checks and answers mapped to intake lines work unchanged.
+- Conversion, in document order:
+  - `.docx`: each heading that changes is written as a Markdown heading of its level; paragraphs as they are; table rows as `| a | b |` lines.
+  - `.pdf`: a line `<!-- p.N -->` before the text of page N.
+  - `.xlsx`: a heading `## <sheet>` per sheet, then one line per non-empty row, `R<n>: <cells separated by tabs>`, so a citation names the source row.
+- The stored name is `<stem>-<ext>.md` (for example `rfp-docx.md`), so it never collides with a text intake of the same stem and still matches the store's `.txt` / `.md` name rule. The original file is not stored in the project.
+- A file that cannot be read (no text, password-protected PDF, parser error) stops the stage before anything is written, with the extractor's reason.
+- CLI: `masterba run brd --input rfp.docx`. API: `POST /projects/{pid}/intake` accepts the five types; a binary type goes through `knowledge.safety.check_upload` (size up to 20 MB, type matches the content, no macros, no archive bombs), is converted at once, and the response names the stored `.md`, which the run request then uses. Dashboard: the intake picker accepts the five types.
+- The converted text keeps the 200,000 character limit of an intake.
+
+## 19. TLS deployment runbook
+
+`docs/pilot/deployment-runbook.md`: one server, MasterBA in the existing container bound to `127.0.0.1`, a reverse proxy (Caddy, with an nginx alternative) terminating TLS, accounts and roles for the pilot team, the model key in `.env`, backups (the work tree is a git repository: `git bundle` daily plus the `.masterba/` folder), upgrade and rollback, and a checklist of what to verify before inviting the team. No code changes; the runbook states what the application already does (secure cookies only behind TLS, CSRF header, local accounts) and what it does not (no SSO, no rate limiting beyond the proxy).
+
+## 20. Pilot guide and scoring checklist
+
+- `docs/pilot/pilot-guide.md` (English) and `docs/pilot/pilot-guide.ja.md` (Japanese, for the pilot team; a deliberate exception to the English-only rule for docs, because its readers are the customer's staff): roles, the week-one plan (one real intake through BRD and SRS with review, then Basic Design), how to answer questions, approve, reject with item comments and raise a Decision Record, and what to send back.
+- `docs/pilot/scoring-checklist.md`: per phase, the measured figures from `masterba quality` and the 1-to-5 rubric (網羅性, 正確性, 検証可能性, 表現・用語, 構成), plus the time the reviewer spent, the number of review comments and the hand edits needed before the document could go to the customer; and the pass level the pilot agrees beforehand.
+
+## 21. Acceptance criteria (part 4)
+
+- [x] A `.docx` with headings, paragraphs and a table, a `.pdf` and an `.xlsx` each become numbered Markdown intake text; a BRD run on each cites lines of the stored text and passes the quote gate.
+- [x] The API accepts the five types, refuses a file that `check_upload` refuses or that has no text, and returns the stored `.md` name; the dashboard picker accepts them.
+- [x] An unreadable file stops the BRD stage with nothing written.
+- [x] The runbook, the guide in both languages and the scoring checklist exist and are linked from `docs/next-steps.md`.
+- [x] `uv run pytest`, `ruff`, `mypy --strict` and `npm test` pass.

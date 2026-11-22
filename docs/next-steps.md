@@ -18,7 +18,9 @@ The evidence that the documents are good enough to hand to a customer is thin:
 | Template calibration | verified on synthetic samples only | spec 09 section 10 |
 | Nobody outside the project has used it | no real intake, no real company template, no SIer reviewer has scored a document | |
 
-In short, the machinery is proven and the product is not. Production readiness here means proving and fixing the product, then making it safe to run for a team.
+In short, the machinery is proven and the product is not.
+
+Pilot kit (spec 19 part 4): [deployment runbook](pilot/deployment-runbook.md), [pilot guide](pilot/pilot-guide.md) ([日本語](pilot/pilot-guide.ja.md)) and [scoring checklist](pilot/scoring-checklist.md) for the first real run. Production readiness here means proving and fixing the product, then making it safe to run for a team.
 
 ## 2. What "production ready" means for MasterBA
 

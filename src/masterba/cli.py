@@ -133,7 +133,12 @@ def build_parser() -> argparse.ArgumentParser:
     stages = run.add_subparsers(dest="stage", required=True)
     brd = stages.add_parser("brd", help="intake text -> BRD json + xlsx")
     brd.add_argument("--project", type=_project_id, required=True)
-    brd.add_argument("--input", type=Path, required=True, help="intake .txt or .md file")
+    brd.add_argument(
+        "--input",
+        type=Path,
+        required=True,
+        help="intake file: .txt, .md, .docx, .pdf or .xlsx (converted to Markdown)",
+    )
     brd.add_argument("--model", default=None)
     brd.add_argument(
         "--qa-model", default=None, help="model for the QA reviewer (default: --model)"

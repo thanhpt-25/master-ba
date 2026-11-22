@@ -261,7 +261,7 @@ export const JA = {
   "{phase} waits for the phase before it": "{phase}は前工程の完了待ちです",
   "Approve the earlier phase first.": "先に前工程を承認してください。",
   "Upload the customer's intake and run the BRD": "顧客の入力資料をアップロードして業務要件定義を実行",
-  "A .txt or .md file with the customer's requirements. Every requirement will cite its lines.": "顧客の要望を記載した .txt または .md ファイルです。各要件には出典として行番号が付きます。",
+  "The customer's requirements as .txt, .md, Word, PDF or Excel. Word, PDF and Excel are converted to text, and every requirement cites its lines.": "顧客の要望資料（.txt、.md、Word、PDF、Excel）です。Word・PDF・Excel はテキストに変換し、各要件には出典として行番号が付きます。",
   "Upload and run": "アップロードして実行",
   "Run {phase}": "{phase}を実行",
   "The writer drafts it from the approved phase before; QA reviews every draft.": "承認済みの前工程から作成エージェントが原案を作り、QA がすべての原案をレビューします。",
@@ -304,7 +304,7 @@ export const JA = {
   "Password": "パスワード",
 
   // Overview
-  "Intake file (.txt or .md)": "入力資料（.txt または .md）",
+  "Intake file (.txt, .md, .docx, .pdf or .xlsx)": "入力資料（.txt、.md、.docx、.pdf、.xlsx）",
   "Choose an intake file first.": "先に入力資料を選んでください。",
   "An approver or administrator takes this step.": "この作業は承認者または管理者が行います。",
   "Next step": "次の作業",

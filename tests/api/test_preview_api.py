@@ -81,3 +81,25 @@ def test_the_overview_counts_questions_per_stage_and_lists_pending_drs(
     approver.post(f"{P}/drs/{created['id']}/approve", json={"decision": "Fix", "rationale": "x"})
     pending = approver.get(P).json()["pending_drs"]
     assert pending == [{"id": created["id"], "description": "Bug"}]
+
+
+def test_a_word_intake_is_converted_on_upload_and_bad_files_are_refused(
+    empty_client: ClientFor, tmp_path: object
+) -> None:
+    from pathlib import Path
+
+    from test_intake import make_docx
+
+    admin = empty_client("admin")
+    created = admin.post("/api/projects", json={"project_id": "PRJ-001", "company_id": "default"})
+    assert created.status_code == 201, created.text
+    path = make_docx(Path(str(tmp_path)) / "RFP v2.docx")
+    reply = admin.post(f"{P}/intake", files={"file": ("RFP v2.docx", path.read_bytes())})
+    assert reply.status_code == 201, reply.text
+    assert reply.json() == {"name": "RFP-v2-docx.md", "converted_from": "RFP v2.docx"}
+    fake = admin.post(f"{P}/intake", files={"file": ("x.docx", b"not a zip at all")})
+    assert fake.status_code == 400
+    blank = admin.post(f"{P}/intake", files={"file": ("x.pdf", b"%PDF-1.4 nothing")})
+    assert blank.status_code == 400 and "x.pdf" in blank.json()["detail"]
+    other = admin.post(f"{P}/intake", files={"file": ("mail.eml", b"From: a")})
+    assert other.status_code == 400
