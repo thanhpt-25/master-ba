@@ -129,7 +129,7 @@ export function nextStep(overview, pid) {
     return { state: "locked", title: t("{phase} waits for the phase before it", { phase: step.title }), detail: t("Approve the earlier phase first."), action: null };
   }
   if (step.key === "brd") {
-    return { state: "ready", title: t("Upload the customer's intake and run the BRD"), detail: t("A .txt or .md file with the customer's requirements. Every requirement will cite its lines."), action: { kind: "upload", stage: "brd", reuse: false, label: t("Upload and run") } };
+    return { state: "ready", title: t("Upload the customer's intake and run the BRD"), detail: t("The customer's requirements as .txt, .md, Word, PDF or Excel. Word, PDF and Excel are converted to text, and every requirement cites its lines."), action: { kind: "upload", stage: "brd", reuse: false, label: t("Upload and run") } };
   }
   return { state: "ready", title: t("Run {phase}", { phase: step.title }), detail: t("The writer drafts it from the approved phase before; QA reviews every draft."), action: { kind: "run", stage: step.key, label: t("Run {phase}", { phase: step.title }) } };
 }

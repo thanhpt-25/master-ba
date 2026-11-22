@@ -1,5 +1,7 @@
 """Sessions, projects, intake upload, stage runs and jobs (spec 08 sections 2 and 3)."""
 
+import tempfile
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
@@ -25,6 +27,8 @@ from masterba.api.schemas import (
     RunStageBody,
 )
 from masterba.api.settings import MAX_UPLOAD_CHARS, Settings
+from masterba.intake import CONVERTED_SUFFIXES, intake_name, intake_text
+from masterba.knowledge.safety import MAX_FILE_BYTES, check_upload
 from masterba.models import ProjectConfig
 from masterba.models.enums import DrStatus, QuestionStatus, ReviewStage
 from masterba.pipeline import (
@@ -38,6 +42,7 @@ from masterba.pipeline import (
 from masterba.review import blocking_phase, phase_state
 from masterba.trace_store import (
     DuplicateIdError,
+    InvalidDocumentError,
     ProjectStore,
     create_project,
     document_versions,
@@ -215,11 +220,42 @@ def overview(request: Request, store: Store) -> dict[str, Any]:
     }
 
 
+def _converted(folder: Path, name: str, data: bytes) -> str:
+    """The Markdown text of an uploaded Word, PDF or Excel intake; the original is not kept."""
+    folder.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=folder) as scratch:
+        original = Path(scratch) / f"upload{Path(name).suffix.lower()}"
+        original.write_bytes(data)
+        try:
+            return intake_text(original)
+        except InvalidDocumentError as exc:
+            detail = str(exc).replace(original.name, name)
+            raise HTTPException(status_code=400, detail=detail) from exc
+
+
 @router.post("/projects/{pid}/intake", status_code=201, dependencies=[Approver])
 async def upload_intake(request: Request, store: Store, file: UploadFile) -> dict[str, str]:
+    """Store an intake for the BRD run; Word, PDF and Excel are converted at once (spec 19)."""
     name = file.filename or ""
+    folder = state_of(request).settings.uploads_dir / store.project_id
+    if Path(name).suffix.lower() in CONVERTED_SUFFIXES:
+        data = await file.read(MAX_FILE_BYTES + 1)
+        refusals = check_upload(name, data)
+        if refusals:
+            raise HTTPException(status_code=400, detail=refusals[0].message)
+        stored = intake_name(name)
+        text = _converted(folder, name, data)
+        if len(text) > MAX_UPLOAD_CHARS:
+            raise HTTPException(
+                status_code=400, detail=f"longer than {MAX_UPLOAD_CHARS} characters"
+            )
+        (folder / stored).write_text(text, encoding="utf-8")
+        return {"name": stored, "converted_from": name}
     if not INTAKE_NAME.match(name):
-        raise HTTPException(status_code=400, detail="upload a .txt or .md file with a plain name")
+        raise HTTPException(
+            status_code=400,
+            detail="upload a .txt, .md, .docx, .pdf or .xlsx file; a text file needs a plain name",
+        )
     raw = await file.read(MAX_UPLOAD_CHARS * 4 + 1)
     try:
         text = raw.decode("utf-8")
@@ -227,7 +263,6 @@ async def upload_intake(request: Request, store: Store, file: UploadFile) -> dic
         raise HTTPException(status_code=400, detail="the file must be UTF-8 text") from exc
     if len(text) > MAX_UPLOAD_CHARS:
         raise HTTPException(status_code=400, detail=f"longer than {MAX_UPLOAD_CHARS} characters")
-    folder = state_of(request).settings.uploads_dir / store.project_id
     folder.mkdir(parents=True, exist_ok=True)
     (folder / name).write_text(text, encoding="utf-8")
     return {"name": name}

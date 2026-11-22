@@ -16,7 +16,7 @@ const canAct = (me) => ["approver", "admin"].includes(me?.role);
 
 // An intake picker and the button that uploads it and starts the BRD run.
 function uploadBox(ctx, { reuse, label }) {
-  const file = h("input", { type: "file", accept: ".txt,.md", id: "intake-file", "aria-label": t("Intake file (.txt or .md)") });
+  const file = h("input", { type: "file", accept: ".txt,.md,.docx,.pdf,.xlsx", id: "intake-file", "aria-label": t("Intake file (.txt, .md, .docx, .pdf or .xlsx)") });
   const go = async () => {
     if (!file.files[0]) return ctx.toast(t("Choose an intake file first."), "error");
     try {

@@ -90,7 +90,7 @@ changing an existing document goes through a Decision Record
 | | |
 |---|---|
 | Command | `masterba run brd --project PRJ-001 --input FILE.txt` |
-| Reads | the intake file (at most 200,000 characters); `project.json` for the document language |
+| Reads | the intake file: `.txt` / `.md` as is, or `.docx` / `.pdf` / `.xlsx` converted to Markdown by `masterba/intake.py` with the knowledge base extractors (headings, `| a | b |` table rows, `<!-- p.N -->` page marks, `## <sheet>` and `R<n>:` rows), stored as `<stem>-<ext>.md`; at most 200,000 characters; an unreadable file stops the stage with nothing written. `project.json` for the document language |
 | Stores first | `intake/<name>`, text normalised, one commit. A rerun with the same name needs `--reuse-intake`, and the text must be identical to what is stored. |
 | Writer | `requirements-analyst` (`agents/requirements-analyst.md`, skill `brd-from-intake`). Input: the intake with numbered lines. Output: a `BrdDraft` of requirements, each with `start_line`, `end_line`, an `evidence_quote`, title, description, scope and category; plus open questions. **No IDs.** |
 | Gate | `validate_draft`: every cited line range lies inside the intake; the evidence quote is a substring of those lines; titles are unique; the text is in the project's document language. Errors go straight back to the writer with no QA call. |

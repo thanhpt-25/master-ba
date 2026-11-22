@@ -17,6 +17,7 @@ from masterba.agents import (
 )
 from masterba.agents.requirements_analyst import intake_lines
 from masterba.agents.sections import line_range, to_content, validate_sections
+from masterba.intake import intake_name, intake_text
 from masterba.knowledge import open_session
 from masterba.llm import LLM
 from masterba.models import (
@@ -172,16 +173,18 @@ def run_brd(
         raise DuplicateIdError(
             f"{BRD_DOC_ID} already exists; changing a BRD goes through a Decision Record"
         )
-    text = intake_file.read_text(encoding="utf-8")
+    # Word, PDF and Excel are converted to Markdown; the stored intake is that text (spec 19).
+    name = intake_name(intake_file.name)
+    text = intake_text(intake_file)
     if len(text) > MAX_INTAKE_CHARS:
         raise InvalidDocumentError(f"intake is longer than {MAX_INTAKE_CHARS} characters")
     # A resumed run reads the intake it stored before; the given file must match it.
-    stored = _store_intake(store, intake_file.name, text, reuse_intake or resume is not None)
+    stored = _store_intake(store, name, text, reuse_intake or resume is not None)
     language = get_config(store).document_language
     checklist = load_checklist(checklist_path(DocType.BRD))
     # Before the team opens: a broken index stops the stage with nothing written (Req. 9.8).
     session = knowledge(store)
-    team, checkpoint = open_team(store, DocType.BRD, {f"intake/{intake_file.name}": 1}, resume)
+    team, checkpoint = open_team(store, DocType.BRD, {f"intake/{name}": 1}, resume)
     attach_knowledge(team, session)
     writer = RecordingLLM(llm, team)
     reviewer = RecordingLLM(qa_llm or llm, team)
@@ -221,7 +224,7 @@ def run_brd(
         start_feedback=checkpoint_feedback(checkpoint, "writer"),
         writer_questions=lambda d: [
             QuestionDraft(
-                refs=[citation(f"intake/{intake_file.name}", q.start_line, q.end_line)],
+                refs=[citation(f"intake/{name}", q.start_line, q.end_line)],
                 text=q.question,
             )
             for q in d.open_questions
@@ -233,7 +236,7 @@ def run_brd(
     artifacts = assign_ids(
         draft,
         project_id=store.project_id,
-        intake_ref=f"intake/{intake_file.name}",
+        intake_ref=f"intake/{name}",
         first_req_number=next_requirement_number(list_requirements(store)),
     )
     for requirement in artifacts.requirements:

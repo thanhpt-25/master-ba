@@ -31,7 +31,7 @@ CLI refuses to run outside a work tree that can commit (only `doctor` runs witho
 |---|---|
 | `doctor [--init]` | check git, the work tree, the default templates, dashboard users and the model key; `--init` prepares an empty folder (git init, `.gitignore`, templates) |
 | `init-project --project PRJ-001 [--language ja\|en] [--rounds STAGE=N] [--no-review-gates]` | create a project and its `project.json`; review gates are on unless turned off |
-| `run brd --project P --input FILE` | intake to BRD |
+| `run brd --project P --input FILE` | intake (`.txt`, `.md`, `.docx`, `.pdf`, `.xlsx`) to BRD |
 | `run srs --project P` | BRD to SRS |
 | `run basic --project P` | SRS to Basic Design with IT and ST tests |
 | `run detail --project P` | Basic Design to Detail Design with UT tests |
@@ -94,7 +94,7 @@ request, so changing a role takes effect at once without signing out.
 | Area | Endpoints (all under `/api`) |
 |---|---|
 | Session | `POST /login`, `POST /logout`, `GET /me` |
-| Projects | `GET/POST /projects`, `GET /projects/{pid}`, `POST /projects/{pid}/intake` |
+| Projects | `GET/POST /projects`, `GET /projects/{pid}`, `POST /projects/{pid}/intake` (`.txt`, `.md`, `.docx`, `.pdf`, `.xlsx`; a binary file passes `check_upload` and is converted at once, the response names the stored `.md`) |
 | Stage runs | `POST /projects/{pid}/stages/{stage}/run` (returns `202` and a job), `GET /projects/{pid}/jobs`, `GET /jobs/{job_id}` |
 | Documents | `GET /projects/{pid}/documents`, `.../documents/{doc_id}`, `.../documents/{doc_id}/preview` (the default workbook layout as JSON, spec 19 section 14), `.../documents/{doc_id}/xlsx`, `.../documents/{doc_id}/diff` |
 | Runs and activity | `GET /projects/{pid}/runs`, `.../runs/{run_id}`, `.../activity` |
