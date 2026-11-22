@@ -1,6 +1,6 @@
 # Spec 19 — Deliverable fit: SIer-quality templates and content
 
-Status: v0.4 (2026-11-22), parts 1, 2 and 3 implemented, part 4 specified. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
+Status: v0.4 (2026-11-22), parts 1 to 4 implemented. Sources: [docs/next-steps.md](../docs/next-steps.md) Phase 19 (gaps A3, A4, A6, A7), [02-excel-rendering.md](02-excel-rendering.md), [15-phase-review-gates.md](15-phase-review-gates.md), [07-change-management.md](07-change-management.md).
 
 ## Goal
 
@@ -269,8 +269,8 @@ A pilot team can start from the files a customer actually sends, run MasterBA on
 
 ## 21. Acceptance criteria (part 4)
 
-- [ ] A `.docx` with headings, paragraphs and a table, a `.pdf` and an `.xlsx` each become numbered Markdown intake text; a BRD run on each cites lines of the stored text and passes the quote gate.
-- [ ] The API accepts the five types, refuses a file that `check_upload` refuses or that has no text, and returns the stored `.md` name; the dashboard picker accepts them.
-- [ ] An unreadable file stops the BRD stage with nothing written.
-- [ ] The runbook, the guide in both languages and the scoring checklist exist and are linked from `docs/next-steps.md`.
-- [ ] `uv run pytest`, `ruff`, `mypy --strict` and `npm test` pass.
+- [x] A `.docx` with headings, paragraphs and a table, a `.pdf` and an `.xlsx` each become numbered Markdown intake text; a BRD run on each cites lines of the stored text and passes the quote gate.
+- [x] The API accepts the five types, refuses a file that `check_upload` refuses or that has no text, and returns the stored `.md` name; the dashboard picker accepts them.
+- [x] An unreadable file stops the BRD stage with nothing written.
+- [x] The runbook, the guide in both languages and the scoring checklist exist and are linked from `docs/next-steps.md`.
+- [x] `uv run pytest`, `ruff`, `mypy --strict` and `npm test` pass.
