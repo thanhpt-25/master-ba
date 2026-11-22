@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { install } from "./dom-shim.js";
 
 const env = install();
+(await import("../i18n.js")).setLang("en");
 const dom = await import("../dom.js");
 
 function overlay() {

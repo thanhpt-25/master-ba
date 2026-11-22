@@ -166,6 +166,12 @@ def _stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, A
         status = "not_started"
     review = phase_state(store, ReviewStage(stage))
     blocked = blocking_phase(store, ReviewStage(stage))
+    types = {doc_id.split("-")[1] for doc_id in STAGE_DOCS[stage]}
+    asked = sum(
+        1
+        for q in list_questions(store)
+        if q.status is QuestionStatus.OPEN and q.stage.value in types
+    )
     return {
         "stage": stage,
         "status": status,
@@ -173,6 +179,7 @@ def _stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, A
         "last_run": last,
         "review": review,
         "waiting_for": blocked.value if blocked else None,
+        "open_questions": asked,
     }
 
 
@@ -200,6 +207,11 @@ def overview(request: Request, store: Store) -> dict[str, Any]:
         },
         "job": job.to_json() if job else None,
         "open_questions": questions,
+        "pending_drs": [
+            {"id": d.id, "description": d.description}
+            for d in list_decision_records(store)
+            if d.status is DrStatus.APPROVED and d.affected_documents
+        ],
     }
 
 

@@ -1,4 +1,5 @@
 import { clear, empty, field, h } from "../dom.js";
+import { t } from "../i18n.js";
 
 export async function render({ main, api, me, go, toast }) {
   // The route shell shows a skeleton until this resolves.
@@ -8,12 +9,12 @@ export async function render({ main, api, me, go, toast }) {
   const listHost = h("div", {});
   const count = h("span", { class: "project-count", role: "status" });
   const searchBox = h("label", { class: "project-search" },
-    h("span", { class: "sr-only" }, "Find a project by ID or company"),
+    h("span", { class: "sr-only" }, t("Find a project by ID or company")),
     h("span", { class: "search-icon", "aria-hidden": "true" }, "⌕"),
-    h("input", { type: "search", placeholder: "Find a project by ID or company", onInput: (event) => { search = event.target.value; drawList(); } }),
+    h("input", { type: "search", placeholder: t("Find a project by ID or company"), onInput: (event) => { search = event.target.value; drawList(); } }),
   );
-  const filters = h("div", { class: "project-filters", role: "group", "aria-label": "Filter projects by document language" },
-    ...[["all", "All languages"], ["en", "English"], ["ja", "Japanese"]].map(([value, label]) =>
+  const filters = h("div", { class: "project-filters", role: "group", "aria-label": t("Filter projects by document language") },
+    ...[["all", t("All languages")], ["en", t("English")], ["ja", t("Japanese")]].map(([value, label]) =>
       h("button", { type: "button", "aria-pressed": value === languageFilter ? "true" : "false", onClick: () => { languageFilter = value; for (const button of filters.children) button.setAttribute("aria-pressed", button.textContent === label ? "true" : "false"); drawList(); } }, label),
     ),
   );
@@ -23,32 +24,32 @@ export async function render({ main, api, me, go, toast }) {
       (!term || `${project.project_id} ${project.company_id}`.toLocaleLowerCase().includes(term)) &&
       (languageFilter === "all" || project.document_language === languageFilter),
     );
-    count.textContent = `${visible.length} of ${projects.length} project${projects.length === 1 ? "" : "s"}`;
+    count.textContent = t("{shown} of {total} projects", { shown: visible.length, total: projects.length });
     if (!projects.length) {
-      clear(listHost).append(empty("No projects yet.", me.role === "admin"
-        ? h("a", { class: "button", href: "#new-project", onClick: (event) => { event.preventDefault(); document.getElementById("project_id")?.focus(); } }, "Create the first project")
+      clear(listHost).append(empty(t("No projects yet."), me.role === "admin"
+        ? h("a", { class: "button", href: "#new-project", onClick: (event) => { event.preventDefault(); document.getElementById("project_id")?.focus(); } }, t("Create the first project"))
         : null));
       return;
     }
     if (!visible.length) {
-      clear(listHost).append(empty("No projects match your search. Try another ID, company, or language."));
+      clear(listHost).append(empty(t("No projects match your search. Try another ID, company, or language.")));
       return;
     }
     clear(listHost).append(h("ul", { class: "project-list" }, visible.map((project) =>
       h("li", {}, h("a", { href: `#/p/${project.project_id}/overview` },
-        h("span", { class: "project-card-kicker" }, "Project", h("span", { "aria-hidden": "true" }, "↗")),
+        h("span", { class: "project-card-kicker" }, t("Project"), h("span", { "aria-hidden": "true" }, "↗")),
         h("strong", {}, project.project_id),
-        h("span", { class: "project-company" }, `Company · ${project.company_id}`),
-        h("span", {}, `Documents in ${project.document_language === "ja" ? "Japanese" : "English"}`),
-        h("span", {}, `Team limit · ${project.team_max_rounds} rounds`),
-        ...Object.entries(project.team_max_rounds_by_stage || {}).map(([stage, rounds]) => h("span", {}, `${stage} · ${rounds} rounds`)),
-        h("span", { class: "project-open" }, "Open workspace", h("span", { "aria-hidden": "true" }, "↗")),
+        h("span", { class: "project-company" }, t("Company · {company}", { company: project.company_id })),
+        h("span", {}, project.document_language === "ja" ? t("Documents in Japanese") : t("Documents in English")),
+        h("span", {}, t("Team limit · {rounds} rounds", { rounds: project.team_max_rounds })),
+        ...Object.entries(project.team_max_rounds_by_stage || {}).map(([stage, rounds]) => h("span", {}, t("{stage} · {rounds} rounds", { stage, rounds }))),
+        h("span", { class: "project-open" }, t("Open workspace"), h("span", { "aria-hidden": "true" }, "↗")),
       )),
     )));
   }
 
   clear(main).append(
-    h("div", { class: "page-heading" }, h("div", {}, h("p", { class: "eyebrow" }, "Workspace"), h("h1", {}, "Projects"), h("p", { class: "muted" }, "Your requirements, documents, and decisions.")), count),
+    h("div", { class: "page-heading" }, h("div", {}, h("p", { class: "eyebrow" }, t("Workspace")), h("h1", {}, t("Projects")), h("p", { class: "muted" }, t("Your requirements, documents, and decisions."))), count),
     projects.length ? h("div", { class: "project-tools" }, searchBox, filters) : null,
     listHost,
   );
@@ -57,11 +58,11 @@ export async function render({ main, api, me, go, toast }) {
 
   const id = h("input", { type: "text", id: "project_id", name: "project_id", autocomplete: "off", spellcheck: "false", placeholder: "PRJ-001…", pattern: "PRJ-[0-9]{3}", required: true });
   const company = h("input", { type: "text", name: "company_id", value: "default", required: true });
-  const language = h("select", { name: "document_language" }, h("option", { value: "ja" }, "Japanese"), h("option", { value: "en" }, "English"));
+  const language = h("select", { name: "document_language" }, h("option", { value: "ja" }, t("Japanese")), h("option", { value: "en" }, t("English")));
   const rounds = h("input", { type: "number", name: "team_max_rounds", min: "1", max: "20", value: "3" });
   const budget = h("input", { type: "number", name: "team_token_budget", min: "1", value: "100000" });
-  const mode = h("select", { name: "propagation_mode" }, h("option", { value: "manual_gate" }, "Manual: press Propagate"), h("option", { value: "auto" }, "Automatic: update documents when a decision is made"));
-  const idField = field("Project id", id, "Format PRJ-001");
+  const mode = h("select", { name: "propagation_mode" }, h("option", { value: "manual_gate" }, t("Manual: press Propagate")), h("option", { value: "auto" }, t("Automatic: update documents when a decision is made")));
+  const idField = field(t("Project id"), id, t("Format PRJ-001"));
   const setIdError = (msg) => {
     idField.classList.toggle("invalid", Boolean(msg));
     idField.querySelector(".field-error")?.remove();
@@ -81,7 +82,7 @@ export async function render({ main, api, me, go, toast }) {
         onSubmit: async (event) => {
           event.preventDefault();
           if (!/^PRJ-[0-9]{3}$/.test(id.value.trim())) {
-            setIdError("Use the format PRJ-001 (PRJ- followed by three digits).");
+            setIdError(t("Use the format PRJ-001 (PRJ- followed by three digits)."));
             id.focus();
             return;
           }
@@ -95,21 +96,21 @@ export async function render({ main, api, me, go, toast }) {
               team_token_budget: budget.value ? Number(budget.value) : null,
               propagation_mode: mode.value,
             });
-            toast(`Created ${created.project_id}`);
+            toast(t("Created {id}", { id: created.project_id }));
             go(`#/p/${created.project_id}/overview`);
           } catch (error) {
             toast(error.message, "error");
           }
         },
       },
-      h("h2", {}, "New project"),
+      h("h2", {}, t("New project")),
       idField,
-      field("Company", company, "Selects the template set; “default” uses the baseline."),
-      field("Document language", language, "The language of everything the agents write."),
-      field("Max team rounds", rounds, "How many drafts a team may make before it escalates."),
-      field("Token budget per run", budget, "100,000 tokens by default; leave blank for no cap."),
-      field("Document updates after a decision", mode, "Applies when a Decision Record is approved or a customer question is answered."),
-      h("button", { type: "submit", class: "primary" }, "Create project"),
+      field(t("Company"), company, t("Selects the template set; “default” uses the baseline.")),
+      field(t("Document language"), language, t("The language of everything the agents write.")),
+      field(t("Max team rounds"), rounds, t("How many drafts a team may make before it escalates.")),
+      field(t("Token budget per run"), budget, t("100,000 tokens by default; leave blank for no cap.")),
+      field(t("Document updates after a decision"), mode, t("Applies when a Decision Record is approved or a customer question is answered.")),
+      h("button", { type: "submit", class: "primary" }, t("Create project")),
     ),
   );
 }

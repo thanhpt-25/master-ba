@@ -96,7 +96,7 @@ request, so changing a role takes effect at once without signing out.
 | Session | `POST /login`, `POST /logout`, `GET /me` |
 | Projects | `GET/POST /projects`, `GET /projects/{pid}`, `POST /projects/{pid}/intake` |
 | Stage runs | `POST /projects/{pid}/stages/{stage}/run` (returns `202` and a job), `GET /projects/{pid}/jobs`, `GET /jobs/{job_id}` |
-| Documents | `GET /projects/{pid}/documents`, `.../documents/{doc_id}`, `.../documents/{doc_id}/xlsx`, `.../documents/{doc_id}/diff` |
+| Documents | `GET /projects/{pid}/documents`, `.../documents/{doc_id}`, `.../documents/{doc_id}/preview` (the default workbook layout as JSON, spec 19 section 14), `.../documents/{doc_id}/xlsx`, `.../documents/{doc_id}/diff` |
 | Runs and activity | `GET /projects/{pid}/runs`, `.../runs/{run_id}`, `.../activity` |
 | Trace | `GET /projects/{pid}/requirements`, `.../rtm/{req_id}`, `.../links`, `.../impact` |
 | Questions | `GET /projects/{pid}/questions[?status=]`, `.../questions/{qid}`, `POST .../answer`, `POST .../withdraw` |
@@ -142,8 +142,22 @@ stateDiagram-v2
 
 `frontend/` is plain ES modules with no build step: `app.js` starts it, `api.js` is the only place
 that calls the server, `dom.js` builds elements, and `views/` has one module per screen (login,
-overview, projects, activity, documents, trace, questions, DRs, templates). Text is inserted only as text nodes
+overview, projects, activity, documents, trace, questions, DRs, knowledge, templates). Text is inserted only as text nodes
 and the CSP forbids inline script and style, so content from a model cannot run in the page.
+
+Spec 19 part 3 shapes the pilot path:
+
+- **Next step.** `views/journey.js` `nextStep(overview)` is a pure function of `GET /projects/{pid}`
+  (stages with `open_questions`, `pending_drs`, the running job) that names the one step the project
+  waits for: a running job, an approved DR to propagate, blocker questions, a run to resume, a phase
+  to review, a phase to run. The Overview shows it first, with a single primary action.
+- **Document preview.** The Documents view shows `.../preview` as one tab per workbook sheet (表紙,
+  改訂履歴, the content sheets, トレーサビリティ or 除外項目), built by `rendering/preview.py` from the same
+  catalog and render context as the shells. When the document's phase is `in_review`, approve and
+  reject (`views/review.js`, shared with the Overview cards) sit below the sheets.
+- **Language.** `i18n.js` `t(text, vars)`: the English text is the key and `i18n-ja.js` maps it to
+  Japanese. Japanese is the default; the header switch keeps the choice per user in the browser.
+  `test/i18n.test.mjs` fails on a string without a translation or a stale entry.
 
 ## 6.4 Rendering: JSON to Excel
 
