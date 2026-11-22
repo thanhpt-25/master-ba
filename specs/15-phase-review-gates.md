@@ -99,7 +99,7 @@ Owner decision 2: a phase may be approved while customer questions are still ope
 
 `by` is the signed-in user; the body has no such field. The project overview shows a phase waiting for review with Approve and Reject controls for approvers. Approve asks for confirmation and lists the open questions; Reject takes comments, each with an optional item. The Run button of the next stage is disabled, with the reason, until the phase before it is approved.
 
-The overview opens with a workflow strip: the four phases in order, each with its state (ready, locked behind the previous phase, running, escalated, in review, approved, or done when gates are off), the review gate between two phases (open, waiting for review, or closed), one sentence naming the next action, and links to the side loops that feed the phases (open customer questions, open Decision Records, the knowledge base).
+The overview opens with a workflow strip (since spec 19 part 5 drawn as the delivery pipeline panel, one row per phase): the four phases in order, each with its state (ready, locked behind the previous phase, running, escalated, in review, approved, or done when gates are off), the review gate between two phases (open, waiting for review, or closed), one sentence naming the next action, and links to the side loops that feed the phases (open customer questions, open Decision Records, the knowledge base).
 
 ## 8. Tests
 
