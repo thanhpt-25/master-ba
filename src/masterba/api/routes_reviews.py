@@ -5,7 +5,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from masterba.api.auth import User
-from masterba.api.deps import project_store, require_role, state_of
+from masterba.api.deps import metered, project_store, require_quota, require_role, state_of
 from masterba.api.jobs import JobBusyError
 from masterba.api.schemas import RejectBody
 from masterba.models.enums import ReviewStage
@@ -58,10 +58,13 @@ def reject(
     check_rejection(store, phase, body.comments)  # refuse before a job is queued
     app = state_of(request)
     settings = app.settings
+    require_quota(app, user)
+    kind = f"review:{phase.value}"
+    llm_factory = metered(app, user, store.project_id, kind)
 
     def work() -> dict[str, Any]:
-        reviser = settings.llm_factory(settings.model)
-        qa = settings.llm_factory(settings.qa_model) if settings.qa_model else None
+        reviser = llm_factory(settings.model)
+        qa = llm_factory(settings.qa_model) if settings.qa_model else None
         review, result = reject_phase(
             store, settings.templates, phase, user.name, body.comments, reviser, qa_llm=qa
         )
@@ -78,7 +81,7 @@ def reject(
         }
 
     try:
-        job = app.jobs.submit(store.project_id, f"review:{phase.value}", work)
+        job = app.jobs.submit(store.project_id, kind, work, user.name)
     except JobBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return job.to_json()

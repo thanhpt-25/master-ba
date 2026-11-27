@@ -1,9 +1,12 @@
 // JSON client for /api. Every state-changing call carries the CSRF header.
 
+import { usageLimitText } from "./dom.js";
+
 export class ApiError extends Error {
-  constructor(status, detail) {
+  constructor(status, detail, data = null) {
     super(detail);
     this.status = status;
+    this.data = data; // the structured detail, e.g. a usage limit (spec 23)
   }
 }
 
@@ -19,13 +22,18 @@ async function request(method, path, { json, form } = {}) {
   const response = await fetch(`/api${path}`, { method, headers, body, credentials: "same-origin" });
   if (!response.ok) {
     let detail = response.statusText;
+    let data = null;
     try {
-      const data = await response.json();
-      detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+      const body = await response.json();
+      if (typeof body.detail === "string") detail = body.detail;
+      else if (body.detail?.code === "usage_limit") {
+        data = body.detail;
+        detail = usageLimitText(body.detail);
+      } else detail = JSON.stringify(body.detail);
     } catch {
       /* keep the status text */
     }
-    throw new ApiError(response.status, detail);
+    throw new ApiError(response.status, detail, data);
   }
   return response.json();
 }
@@ -34,6 +42,7 @@ export const api = {
   get: (path) => request("GET", path),
   post: (path, json = {}) => request("POST", path, { json }),
   put: (path, json = {}) => request("PUT", path, { json }),
+  patch: (path, json = {}) => request("PATCH", path, { json }),
   del: (path) => request("DELETE", path),
   upload: (path, file, method = "POST") => {
     const form = new FormData();

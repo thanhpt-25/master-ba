@@ -1,7 +1,7 @@
 // Shell and hash router. Views live in ./views and are loaded on demand.
 
 import { api, ApiError } from "./api.js";
-import { append, clear, errorBox, h, icon, shortcutsDialog, skeleton } from "./dom.js";
+import { append, clear, errorBox, h, icon, shortcutsDialog, skeleton, usageNotice } from "./dom.js";
 import { lang, loadLang, N_, setLang, t } from "./i18n.js";
 
 // Shortcuts shown by the "?" help overlay. Views that add their own entries
@@ -62,6 +62,9 @@ const VIEWS = {
   questions: () => import("./views/questions.js"),
   knowledge: () => import("./views/knowledge.js"),
   templates: () => import("./views/templates.js"),
+  usage: () => import("./views/usage.js"),
+  users: () => import("./views/users.js"),
+  members: () => import("./views/members.js"),
 };
 
 const TABS = [
@@ -72,6 +75,7 @@ const TABS = [
   ["trace", N_("Traceability")],
   ["activity", N_("Activity")],
   ["knowledge", N_("Knowledge")],
+  ["members", N_("Members")],
 ];
 
 const PAGE_META = {
@@ -85,7 +89,11 @@ const PAGE_META = {
   knowledge: [N_("Knowledge base"), N_("Manage reference sources used by MasterBA writers.")],
   drs: [N_("Decision records"), N_("Review project decisions, impacts, and change propagation.")],
   templates: [N_("Templates"), N_("Manage company document template mappings.")],
+  usage: [N_("Usage"), N_("See how many model tokens you used and when your limits reset.")],
+  users: [N_("Users"), N_("Manage accounts, roles and token limits.")],
+  members: [N_("Members"), N_("Choose who can open this project.")],
 };
+const WORKSPACE_PAGES = { projects: N_("Projects"), templates: N_("Templates"), usage: N_("Usage"), users: N_("Users") };
 const ROLES = { viewer: N_("Viewer"), approver: N_("Approver"), admin: N_("Admin") };
 
 export function go(hash) {
@@ -114,7 +122,7 @@ function parse() {
   return parseHash(location.hash);
 }
 
-const TAB_ICONS = { overview: "overview", documents: "documents", questions: "questions", drs: "drs", trace: "trace", activity: "activity", knowledge: "knowledge" };
+const TAB_ICONS = { overview: "overview", documents: "documents", questions: "questions", drs: "drs", trace: "trace", activity: "activity", knowledge: "knowledge", members: "users" };
 
 function navLink(href, iconName, label, current) {
   return h("a", { href, "aria-current": current ? "page" : null }, icon(iconName), h("span", {}, label));
@@ -129,6 +137,8 @@ function accountMenu() {
       icon("chevron", 14),
     ),
     h("div", { class: "account-menu" },
+      h("a", { class: "menu-item", href: "#/usage" }, icon("gauge", 16), t("Usage")),
+      state.me.role === "admin" ? h("a", { class: "menu-item", href: "#/users" }, icon("users", 16), t("Users")) : null,
       h("button", { id: "lang-toggle", class: "menu-item lang-toggle", type: "button", lang: lang() === "ja" ? "en" : "ja", onClick: switchLanguage }, icon("language", 16), lang() === "ja" ? "English" : "日本語"),
       h("button", { id: "theme-toggle", class: "menu-item theme-toggle", type: "button", onClick: cycleTheme, "aria-label": t("Color theme: {name}. Activate to change theme.", { name: t(THEME_NAMES[theme]) }) }, icon("theme", 16), h("span", {}, themeLabel())),
       h("button", { class: "menu-item", type: "button", onClick: logout }, icon("signout", 16), t("Sign out")),
@@ -155,7 +165,7 @@ function shell(params, content) {
       crumbs.push(h("code", { class: "crumb-current", "aria-current": "page" }, params.pid));
     }
   } else {
-    crumbs.push(h("span", { class: "crumb-current", "aria-current": "page" }, params.name === "templates" ? t("Templates") : t("Projects")));
+    crumbs.push(h("span", { class: "crumb-current", "aria-current": "page" }, t(WORKSPACE_PAGES[params.name] ?? WORKSPACE_PAGES.projects)));
   }
   const nav = params.pid
     ? h(
@@ -173,6 +183,8 @@ function shell(params, content) {
         h("p", { class: "sidebar-label" }, t("Workspace")),
         h("nav", { class: "workspace-nav", "aria-label": t("Workspace") },
           navLink("#/projects", "projects", t("Projects"), !params.pid && params.name === "projects"),
+          navLink("#/usage", "gauge", t("Usage"), params.name === "usage"),
+          state.me.role === "admin" ? navLink("#/users", "users", t("Users"), params.name === "users") : null,
           state.me.role === "admin" ? navLink("#/templates", "templates", t("Templates"), params.name === "templates") : null,
         ),
         params.pid
@@ -191,10 +203,20 @@ function shell(params, content) {
           h("div", { class: "who" }, accountMenu()),
         ),
         nav,
+        usageBanner(),
         h("main", { id: "main", tabindex: "-1" }, content),
       ),
     ),
   ];
+}
+
+// From 80 % of a usage window, and stronger once a limit is reached (spec 23 section 8).
+function usageBanner() {
+  const notice = usageNotice(state.me?.usage);
+  if (!notice) return null;
+  return h("div", { class: `usage-banner ${notice.level}`, role: notice.level === "bad" ? "alert" : "status" },
+    icon("gauge", 16), h("span", {}, notice.text), h("a", { href: "#/usage" }, t("See usage")),
+  );
 }
 
 async function logout() {
@@ -214,12 +236,15 @@ async function route() {
     state.cleanup = null;
   }
   const params = parse();
-  if (!state.me) {
+  const known = Boolean(state.me);
+  if (params.name !== "login" || !known) {
+    // Read again on every route so the role and the usage banner stay current.
     try {
       state.me = await api.get("/me");
-      loadLang(state.me.name);
+      if (!known) loadLang(state.me.name);
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 401) throw error;
+      state.me = null;
     }
   }
   if (!state.me && params.name !== "login") return go("#/login");
@@ -246,7 +271,21 @@ async function route() {
     try {
       const module = await (VIEWS[params.name] ?? VIEWS.projects)();
       if (seq !== state.seq) return; // navigated away while loading
-      const context = { main, params, me: state.me, api, go, toast };
+      // Inside a project the project role counts (spec 23 section 2), not the global role.
+      let me = state.me;
+      if (params.pid) {
+        try {
+          const access = await api.get(`/projects/${encodeURIComponent(params.pid)}/access`);
+          me = { ...state.me, role: access.my_role, globalRole: state.me.role };
+        } catch (error) {
+          if (!(error instanceof ApiError) || error.status !== 404) throw error;
+          if (seq !== state.seq) return;
+          clear(main).append(errorBox(t("This project does not exist or is not shared with you. Ask its owner to add you.")));
+          return;
+        }
+        if (seq !== state.seq) return;
+      }
+      const context = { main, params, me, api, go, toast };
       const cleanup = await module.render(context);
       if (typeof cleanup !== "function") return;
       if (seq !== state.seq) cleanup(); // a newer view owns state.cleanup now

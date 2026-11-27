@@ -2,7 +2,7 @@
 
 import subprocess
 
-from api_support import ClientFor
+from api_support import ClientFor, new_project
 
 P = "/api/projects/PRJ-001"
 
@@ -91,7 +91,7 @@ def test_a_word_intake_is_converted_on_upload_and_bad_files_are_refused(
     from test_intake import make_docx
 
     admin = empty_client("admin")
-    created = admin.post("/api/projects", json={"project_id": "PRJ-001", "company_id": "default"})
+    created = new_project(admin, {"project_id": "PRJ-001", "company_id": "default"})
     assert created.status_code == 201, created.text
     path = make_docx(Path(str(tmp_path)) / "RFP v2.docx")
     reply = admin.post(f"{P}/intake", files={"file": ("RFP v2.docx", path.read_bytes())})

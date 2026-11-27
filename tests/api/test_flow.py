@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 from pydantic import BaseModel
 
-from api_support import BlockingLLM, ClientFor, Script, clients, make_app, wait_for
+from api_support import BlockingLLM, ClientFor, Script, clients, make_app, new_project, wait_for
 from factories import (
     bad_draft,
     draft_for,
@@ -39,7 +39,7 @@ def test_project_token_budget_defaults_to_100k_and_is_admin_editable(
         empty_client("approver"),
         empty_client("viewer"),
     )
-    created = admin.post("/api/projects", json={"project_id": "PRJ-001"})
+    created = new_project(admin, {"project_id": "PRJ-001"})
     assert created.status_code == 201
     assert created.json()["team_token_budget"] == 100_000
     assert (
@@ -75,7 +75,7 @@ def test_the_whole_pipeline_runs_through_the_api_alone(
         empty_client("approver"),
         empty_client("viewer"),
     )
-    created = admin.post("/api/projects", json={"project_id": "PRJ-001", "document_language": "en"})
+    created = new_project(admin, {"project_id": "PRJ-001", "document_language": "en"})
     assert created.status_code == 201
     assert created.json()["team_token_budget"] == 100_000
     assert [p["project_id"] for p in viewer.get("/api/projects").json()] == ["PRJ-001"]
@@ -164,7 +164,7 @@ def test_an_unfinished_stage_cannot_be_started_out_of_order(
     empty_app: FastAPI, empty_client: ClientFor, script: Script
 ) -> None:
     admin, approver = empty_client("admin"), empty_client("approver")
-    admin.post("/api/projects", json={"project_id": "PRJ-001", "document_language": "en"})
+    new_project(admin, {"project_id": "PRJ-001", "document_language": "en"})
     job = run_stage(empty_app, approver, script, "srs")
     assert job["status"] == "failed"
     assert "run the brd stage first" in job["error"]
@@ -181,10 +181,7 @@ def test_an_escalated_stage_ends_the_job_escalated_and_writes_no_document(
     empty_app: FastAPI, empty_client: ClientFor, script: Script
 ) -> None:
     admin, approver = empty_client("admin"), empty_client("approver")
-    admin.post(
-        "/api/projects",
-        json={"project_id": "PRJ-001", "document_language": "en", "team_max_rounds": 1},
-    )
+    new_project(admin, {"project_id": "PRJ-001", "document_language": "en", "team_max_rounds": 1})
     approver.post(f"{P}/intake", files={"file": (LOGIN, intake_path(LOGIN).read_bytes())})
     job = run_stage(empty_app, approver, script, "brd", bad_draft(), intake=LOGIN)
     assert job["status"] == "escalated"

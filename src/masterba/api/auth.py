@@ -68,8 +68,7 @@ class UserStore:
             raise AuthError("a user name has 1 to 40 letters, digits, dots, dashes or underscores")
         if role not in ROLES:
             raise AuthError(f"role must be one of {', '.join(ROLES)}")
-        if len(password) < MIN_PASSWORD_LENGTH:
-            raise AuthError(f"a password needs at least {MIN_PASSWORD_LENGTH} characters")
+        self._check_password(password)
         users = self._load()
         if name in users:
             raise AuthError(f"user {name} already exists")
@@ -82,6 +81,33 @@ class UserStore:
         }
         self._save(users)
         return User(name, role)
+
+    def _check_password(self, password: str) -> None:
+        if len(password) < MIN_PASSWORD_LENGTH:
+            raise AuthError(f"a password needs at least {MIN_PASSWORD_LENGTH} characters")
+
+    def set_role(self, name: str, role: str) -> User:
+        if role not in ROLES:
+            raise AuthError(f"role must be one of {', '.join(ROLES)}")
+        users = self._load()
+        if name not in users:
+            raise AuthError(f"user {name} does not exist")
+        users[name]["role"] = role
+        self._save(users)
+        return User(name, role)
+
+    def set_password(self, name: str, password: str) -> None:
+        self._check_password(password)
+        users = self._load()
+        if name not in users:
+            raise AuthError(f"user {name} does not exist")
+        salt = secrets.token_bytes(16)
+        users[name].update(
+            salt=salt.hex(),
+            hash=_hash(password, salt, self._iterations).hex(),
+            iterations=self._iterations,
+        )
+        self._save(users)
 
     def get(self, name: str) -> User | None:
         entry = self._load().get(name)

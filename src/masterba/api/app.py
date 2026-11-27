@@ -9,8 +9,10 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from masterba.accounts import AccessError, LimitStore, ProjectAccess, UsageLedger
 from masterba.agents import QaOutputInvalidError
 from masterba.api import (
+    routes_accounts,
     routes_docs,
     routes_drs,
     routes_knowledge,
@@ -20,7 +22,7 @@ from masterba.api import (
     routes_templates,
     routes_trace,
 )
-from masterba.api.auth import LoginThrottle, SessionSigner, UserStore
+from masterba.api.auth import AuthError, LoginThrottle, SessionSigner, UserStore
 from masterba.api.deps import AppState
 from masterba.api.jobs import JobManager
 from masterba.api.settings import Settings
@@ -55,13 +57,21 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="MasterBA", docs_url=None, redoc_url=None, openapi_url=None)
+    users = UserStore(settings.state_dir / "users.json", settings.hash_iterations)
     app.state.masterba = AppState(
         settings=settings,
-        users=UserStore(settings.state_dir / "users.json", settings.hash_iterations),
+        users=users,
         signer=SessionSigner(settings.state_dir / "secret"),
         throttle=LoginThrottle(),
         jobs=JobManager(settings.state_dir / "jobs"),
+        access=ProjectAccess(settings.state_dir / "access.json", settings.projects, users.list),
+        usage=UsageLedger(
+            settings.state_dir / "usage.sqlite3", LimitStore(settings.state_dir / "limits.json")
+        ),
     )
+
+    # Hand existing projects to the first admin before anyone new signs in (spec 23 section 3).
+    app.state.masterba.access.migrate()
 
     @app.middleware("http")
     async def guard(
@@ -101,6 +111,8 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
     async def kb_commit(_: Request, exc: KbCommitError) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=500)
 
+    @app.exception_handler(AccessError)
+    @app.exception_handler(AuthError)
     @app.exception_handler(KbError)
     @app.exception_handler(SearchArgumentError)
     @app.exception_handler(RagUnavailableError)
@@ -125,6 +137,7 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
         return {"status": "ok", "version": version("masterba")}
 
     for module in (
+        routes_accounts,
         routes_projects,
         routes_docs,
         routes_trace,

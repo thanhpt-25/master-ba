@@ -329,6 +329,8 @@ const ICONS = {
   signout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
   language: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
   theme: '<circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 0 0 0-12v12z"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  gauge: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
 };
 const SVG = "http://www.w3.org/2000/svg";
 const SHAPE = /<(\w+)([^>]*)\/>/g;
@@ -354,4 +356,54 @@ export function monogram(text) {
   if (!words.length) return "?";
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+// Usage windows (spec 23): the 5-hour session and the weekly window, as in a Claude plan.
+const WINDOW_NAMES = { session: N_("5-hour limit"), weekly: N_("Weekly limit") };
+
+export function windowName(window) {
+  return t(WINDOW_NAMES[window] ?? window);
+}
+
+export function tokens(n) {
+  return new Intl.NumberFormat(locale()).format(Number(n ?? 0));
+}
+
+// The sentence shown when a limit stops an action (a 429 detail or a reached window).
+export function usageLimitText(w) {
+  if (!w.resets_at) {
+    return t("Your {window} is {limit} tokens. Ask an administrator to raise it.", { window: windowName(w.window), limit: tokens(w.limit) });
+  }
+  return t("You have reached your {window} ({used} of {limit} tokens). It resets at {time}.", {
+    window: windowName(w.window), used: tokens(w.used), limit: tokens(w.limit), time: fmtTime(w.resets_at),
+  });
+}
+
+// Which banner the shell shows: the first reached window, else the fullest from 80 %.
+export function usageNotice(windows) {
+  const list = Array.isArray(windows) ? windows : [];
+  const reached = list.find((w) => w.reached);
+  if (reached) return { level: "bad", text: usageLimitText(reached) };
+  const near = list.filter((w) => w.percent !== null && w.percent >= 80).sort((a, b) => b.percent - a.percent)[0];
+  if (!near) return null;
+  return {
+    level: "warn",
+    text: t("You have used {percent}% of your {window}. It resets at {time}.", { percent: near.percent, window: windowName(near.window), time: fmtTime(near.resets_at) }),
+  };
+}
+
+// One bar per window: used against the limit, with the reset time.
+export function usageMeter(w, { compact = false } = {}) {
+  const limited = w.limit !== null && w.limit !== undefined;
+  const percent = limited ? (w.percent ?? 0) : 0;
+  const tone = w.reached ? "bad" : percent >= 80 ? "warn" : "ok";
+  const amount = limited
+    ? t("{used} of {limit} tokens", { used: tokens(w.used), limit: tokens(w.limit) })
+    : t("{used} tokens · no limit", { used: tokens(w.used) });
+  const reset = w.resets_at ? t("Resets {time}", { time: fmtTime(w.resets_at) }) : t("Starts with your next model call");
+  return h("div", { class: `usage-window ${tone}${compact ? " compact" : ""}` },
+    h("div", { class: "usage-head" }, h("strong", {}, windowName(w.window)), h("span", { class: "usage-amount" }, amount)),
+    h("progress", { class: `meter usage-bar ${tone}`, value: String(percent), max: "100", "aria-label": t("{window}: {percent}% used", { window: windowName(w.window), percent }) }),
+    compact ? null : h("p", { class: "hint" }, limited ? t("{percent}% used", { percent }) + " · " + reset : reset),
+  );
 }

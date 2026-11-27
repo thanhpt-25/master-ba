@@ -1,7 +1,6 @@
 """Command line: ``masterba init-project`` and ``masterba run brd`` (spec 03 section 6)."""
 
 import argparse
-import getpass
 import json
 import os
 import re
@@ -13,7 +12,7 @@ from typing import Any
 from masterba import calibration
 from masterba.agents import QaOutputInvalidError
 from masterba.api import create_app, settings_from_env
-from masterba.api.auth import ROLES, AuthError, UserStore
+from masterba.api.auth import AuthError
 from masterba.calibration import CalibrationError
 from masterba.change import (
     LifecycleError,
@@ -28,6 +27,7 @@ from masterba.change import (
     reject_dr,
     rows,
 )
+from masterba.cli_accounts import add_account_parsers, dispatch_access, dispatch_user
 from masterba.cli_kb import KB_ERRORS, add_kb_parsers, dispatch_kb
 from masterba.cli_review import REVIEW_ERRORS, add_review_parsers, dispatch_review
 from masterba.doctor import init_root, run_checks
@@ -186,14 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve = commands.add_parser("serve", help="run the dashboard (API and web app)")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
-    user = commands.add_parser("user", help="dashboard users")
-    users = user.add_subparsers(dest="user_command", required=True)
-    add = users.add_parser("add")
-    add.add_argument("name")
-    add.add_argument("--role", choices=ROLES, required=True)
-    add.add_argument("--password-stdin", action="store_true")
-    users.add_parser("list")
-    users.add_parser("remove").add_argument("name")
+    add_account_parsers(commands)
     return parser
 
 
@@ -456,30 +449,12 @@ def _emit(data: dict[str, object]) -> None:
     sys.stdout.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 
 
-def _dispatch_user(args: argparse.Namespace, root: Path) -> int:
-    settings = settings_from_env(root)
-    store = UserStore(settings.state_dir / "users.json", settings.hash_iterations)
-    if args.user_command == "add":
-        if args.password_stdin:
-            password = sys.stdin.readline().rstrip("\n")
-        else:
-            password = getpass.getpass("Password: ")
-            if getpass.getpass("Repeat password: ") != password:
-                raise AuthError("the passwords differ")
-        user = store.add(args.name, args.role, password)
-        _emit({"name": user.name, "role": user.role})
-    elif args.user_command == "list":
-        _emit({"users": [{"name": u.name, "role": u.role} for u in store.list()]})
-    else:
-        store.remove(args.name)
-        _emit({"removed": args.name})
-    return 0
-
-
 def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
     root: Path = args.root
     if args.command == "user":
-        return _dispatch_user(args, root)
+        return dispatch_user(args, root)
+    if args.command == "access":
+        return dispatch_access(args, root)
     if args.command == "doctor":
         if args.init:
             init_root(root)

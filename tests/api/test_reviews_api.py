@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from api_support import ClientFor, Script, wait_for
+from api_support import ClientFor, Script, new_project, wait_for
 from factories import draft_for, intake_path, qa_pass
 from masterba.change import PatchOp, RevisionPatch
 
@@ -14,7 +14,7 @@ BRD = "DOC-BRD-0001"
 def brd_in_review(app: FastAPI, client: ClientFor, script: Script) -> None:
     admin, approver = client("admin"), client("approver")
     new = {"project_id": "PRJ-001", "document_language": "en"}
-    assert admin.post("/api/projects", json=new).json()["review_gates"]
+    assert new_project(admin, new).json()["review_gates"]
     approver.post(f"{P}/intake", files={"file": (LOGIN, intake_path(LOGIN).read_bytes())})
     script.add(draft_for(LOGIN), qa_pass())
     job = approver.post(f"{P}/stages/brd/run", json={"intake": LOGIN}).json()

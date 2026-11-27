@@ -10,8 +10,11 @@ from fastapi.responses import JSONResponse
 from masterba.api.auth import User
 from masterba.api.deps import (
     COOKIE,
+    AppState,
     current_user,
+    metered,
     project_store,
+    require_quota,
     require_role,
     state_of,
 )
@@ -26,7 +29,7 @@ from masterba.api.schemas import (
     PropagationModeBody,
     RunStageBody,
 )
-from masterba.api.settings import MAX_UPLOAD_CHARS, Settings
+from masterba.api.settings import MAX_UPLOAD_CHARS
 from masterba.intake import CONVERTED_SUFFIXES, intake_name, intake_text
 from masterba.knowledge.safety import MAX_FILE_BYTES, check_upload
 from masterba.models import ProjectConfig
@@ -61,6 +64,8 @@ Store = Annotated[ProjectStore, Depends(project_store)]
 Viewer = Depends(require_role("viewer"))
 Approver = Depends(require_role("approver"))
 Admin = Depends(require_role("admin"))
+Signed = Annotated[User, Depends(require_role("approver"))]
+Me = Annotated[User, Depends(current_user)]
 
 STAGE_DOCS: dict[str, tuple[str, ...]] = {
     "brd": ("DOC-BRD-0001",),
@@ -101,36 +106,47 @@ def logout(response: Response) -> dict[str, bool]:
 
 
 @router.get("/me")
-def me(user: Annotated[User, Depends(current_user)]) -> dict[str, str]:
-    return {"name": user.name, "role": user.role}
+def me(request: Request, user: Me) -> dict[str, Any]:
+    """Who is signed in and how much of each usage window is left (spec 23 section 8)."""
+    usage = state_of(request).usage.status(user.name)
+    return {"name": user.name, "role": user.role, "usage": [w.to_json() for w in usage]}
 
 
-def _project_json(settings: Settings, store: ProjectStore) -> dict[str, Any]:
-    return get_config(store).model_dump(mode="json")
+def _project_json(app: AppState, store: ProjectStore, user: User) -> dict[str, Any]:
+    entry = app.access.entry(store.project_id) or {}
+    return {
+        **get_config(store).model_dump(mode="json"),
+        "owner": entry.get("owner"),
+        "my_role": app.access.role_of(store.project_id, user),
+    }
 
 
-@router.get("/projects", dependencies=[Viewer])
-def list_projects(request: Request) -> list[dict[str, Any]]:
-    settings = state_of(request).settings
-    if not settings.projects.exists():
-        return []
-    found = []
-    for path in sorted(settings.projects.glob("PRJ-???")):
-        if (path / "project.json").exists():
-            found.append(_project_json(settings, ProjectStore(settings.projects, path.name)))
-    return found
+@router.get("/projects")
+def list_projects(request: Request, user: Me) -> list[dict[str, Any]]:
+    """Only the projects the user owns, was given, or every project for an admin."""
+    app = state_of(request)
+    return [
+        _project_json(app, ProjectStore(app.settings.projects, pid), user)
+        for pid in app.access.visible(user)
+    ]
 
 
-@router.post("/projects", status_code=201, dependencies=[Admin])
-def new_project(request: Request, body: CreateProjectBody) -> dict[str, Any]:
-    settings = state_of(request).settings
+@router.post("/projects", status_code=201)
+def new_project(request: Request, body: CreateProjectBody, user: Signed) -> dict[str, Any]:
+    """An approver or admin creates a project and becomes its owner (spec 23 section 2)."""
+    app = state_of(request)
+    settings = app.settings
     ensure_ready(settings.root)
     config = ProjectConfig(**body.model_dump())
     try:
         store = create_project(settings.projects, config)
     except DuplicateIdError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _project_json(settings, store)
+        # Do not tell whose project it is; it may not be visible to this user.
+        raise HTTPException(
+            status_code=400, detail=f"{body.project_id} is taken; choose another project id"
+        ) from exc
+    app.access.create(store.project_id, user.name)
+    return _project_json(app, store, user)
 
 
 @router.post("/projects/{pid}/settings/token-budget", dependencies=[Admin])
@@ -188,8 +204,8 @@ def _stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, A
     }
 
 
-@router.get("/projects/{pid}", dependencies=[Viewer])
-def overview(request: Request, store: Store) -> dict[str, Any]:
+@router.get("/projects/{pid}")
+def overview(request: Request, store: Store, user: Annotated[User, Viewer]) -> dict[str, Any]:
     app = state_of(request)
     job = app.jobs.running(store.project_id)
     stages = [
@@ -200,7 +216,7 @@ def overview(request: Request, store: Store) -> dict[str, Any]:
         f"{q.id}: {q.text}" for q in list_questions(store) if q.status is QuestionStatus.OPEN
     ]
     return {
-        "project": get_config(store).model_dump(mode="json"),
+        "project": _project_json(app, store, user),
         "stages": stages,
         "counts": {
             "requirements": len(list_requirements(store)),
@@ -268,7 +284,11 @@ async def upload_intake(request: Request, store: Store, file: UploadFile) -> dic
     return {"name": name}
 
 
-def _stage_work(settings: Settings, store: ProjectStore, stage: str, body: RunStageBody) -> Any:
+def _stage_work(
+    app: AppState, user: User, store: ProjectStore, stage: str, body: RunStageBody
+) -> Any:
+    settings = app.settings
+    llm_factory = metered(app, user, store.project_id, f"stage:{stage}")
     intake_path = settings.uploads_dir / store.project_id / (body.intake or "")
     if stage == "brd" and (
         not body.intake or not INTAKE_NAME.match(body.intake) or not intake_path.exists()
@@ -276,9 +296,9 @@ def _stage_work(settings: Settings, store: ProjectStore, stage: str, body: RunSt
         raise HTTPException(status_code=400, detail="upload an intake first and name it")
 
     def work() -> dict[str, Any]:
-        writer = settings.llm_factory(settings.model)
-        qa = settings.llm_factory(settings.qa_model) if settings.qa_model else None
-        tester = settings.llm_factory(settings.test_model) if settings.test_model else None
+        writer = llm_factory(settings.model)
+        qa = llm_factory(settings.qa_model) if settings.qa_model else None
+        tester = llm_factory(settings.test_model) if settings.test_model else None
         resume = (
             Resume(body.resume, body.rounds if body.rounds is not None else 1)
             if body.resume
@@ -306,8 +326,10 @@ def _stage_work(settings: Settings, store: ProjectStore, stage: str, body: RunSt
     return work
 
 
-@router.post("/projects/{pid}/stages/{stage}/run", status_code=202, dependencies=[Approver])
-def run_stage(request: Request, store: Store, stage: str, body: RunStageBody) -> dict[str, Any]:
+@router.post("/projects/{pid}/stages/{stage}/run", status_code=202)
+def run_stage(
+    request: Request, store: Store, stage: str, body: RunStageBody, user: Signed
+) -> dict[str, Any]:
     if stage not in STAGES:
         raise HTTPException(status_code=404, detail="no such stage")
     app = state_of(request)
@@ -335,9 +357,10 @@ def run_stage(request: Request, store: Store, stage: str, body: RunStageBody) ->
                 status_code=409,
                 detail=f"resume {waiting['run_id']} after answering blocker questions: {ids}",
             )
-    work = _stage_work(app.settings, store, stage, body)
+    require_quota(app, user)
+    work = _stage_work(app, user, store, stage, body)
     try:
-        job = app.jobs.submit(store.project_id, f"stage:{stage}", work)
+        job = app.jobs.submit(store.project_id, f"stage:{stage}", work, user.name)
     except JobBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return job.to_json()
@@ -348,9 +371,10 @@ def project_jobs(request: Request, store: Store) -> list[dict[str, Any]]:
     return [j.to_json() for j in state_of(request).jobs.for_project(store.project_id)]
 
 
-@router.get("/jobs/{job_id}", dependencies=[Viewer])
-def read_job(request: Request, job_id: str) -> JSONResponse:
-    job = state_of(request).jobs.get(job_id)
-    if job is None:
+@router.get("/jobs/{job_id}")
+def read_job(request: Request, job_id: str, user: Me) -> JSONResponse:
+    app = state_of(request)
+    job = app.jobs.get(job_id)
+    if job is None or app.access.role_of(job.project_id, user) is None:
         raise HTTPException(status_code=404, detail="no such job")
     return JSONResponse(job.to_json())
