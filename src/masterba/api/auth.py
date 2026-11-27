@@ -13,6 +13,7 @@ import secrets
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROLES = ("viewer", "approver", "admin")
@@ -31,6 +32,24 @@ class AuthError(ValueError):
 class User:
     name: str
     role: str
+    disabled: bool = False
+    sessions_after: float | None = None  # sessions issued before this time are refused
+
+
+def _iso(ts: object) -> str | None:
+    if not isinstance(ts, int | float):
+        return None
+    return datetime.fromtimestamp(float(ts), UTC).isoformat(timespec="seconds")
+
+
+def _user(name: str, entry: dict[str, object]) -> User:
+    after = entry.get("sessions_after")
+    return User(
+        name,
+        str(entry["role"]),
+        disabled=bool(entry.get("disabled", False)),
+        sessions_after=float(after) if isinstance(after, int | float) else None,
+    )
 
 
 def _hash(password: str, salt: bytes, iterations: int) -> bytes:
@@ -49,9 +68,12 @@ def _write_private(path: Path, text: str) -> None:
 class UserStore:
     """`users.json`: name -> role, salt, PBKDF2 hash and the iteration count used."""
 
-    def __init__(self, path: Path, iterations: int = 600_000) -> None:
+    def __init__(
+        self, path: Path, iterations: int = 600_000, clock: Callable[[], float] = time.time
+    ) -> None:
         self._path = path
         self._iterations = iterations
+        self._clock = clock
 
     def _load(self) -> dict[str, dict[str, object]]:
         if not self._path.exists():
@@ -78,6 +100,7 @@ class UserStore:
             "salt": salt.hex(),
             "hash": _hash(password, salt, self._iterations).hex(),
             "iterations": self._iterations,
+            "created": self._clock(),
         }
         self._save(users)
         return User(name, role)
@@ -94,7 +117,7 @@ class UserStore:
             raise AuthError(f"user {name} does not exist")
         users[name]["role"] = role
         self._save(users)
-        return User(name, role)
+        return _user(name, users[name])
 
     def set_password(self, name: str, password: str) -> None:
         self._check_password(password)
@@ -111,10 +134,39 @@ class UserStore:
 
     def get(self, name: str) -> User | None:
         entry = self._load().get(name)
-        return User(name, str(entry["role"])) if entry else None
+        return _user(name, entry) if entry else None
 
     def list(self) -> list[User]:
-        return [User(n, str(e["role"])) for n, e in sorted(self._load().items())]
+        return [_user(n, e) for n, e in sorted(self._load().items())]
+
+    def _change(self, name: str, **fields: object) -> User:
+        users = self._load()
+        if name not in users:
+            raise AuthError(f"user {name} does not exist")
+        users[name].update(fields)
+        self._save(users)
+        return _user(name, users[name])
+
+    def set_disabled(self, name: str, disabled: bool) -> User:
+        """Disable (and sign out) or enable an account (spec 24 section 1)."""
+        if disabled:
+            return self._change(name, disabled=True, sessions_after=self._clock())
+        return self._change(name, disabled=False)
+
+    def end_sessions(self, name: str) -> User:
+        """Refuse every session cookie of `name` issued until now."""
+        return self._change(name, sessions_after=self._clock())
+
+    def touch_login(self, name: str) -> None:
+        self._change(name, last_login=self._clock())
+
+    def details(self, name: str) -> dict[str, object]:
+        """When the account was created and last signed in, as ISO times (or None)."""
+        entry = self._load().get(name, {})
+        return {
+            "created": _iso(entry.get("created")),
+            "last_login": _iso(entry.get("last_login")),
+        }
 
     def remove(self, name: str) -> None:
         users = self._load()
@@ -132,11 +184,20 @@ class UserStore:
         salt = bytes.fromhex(str(entry["salt"]))
         expected = bytes.fromhex(str(entry["hash"]))
         actual = _hash(password, salt, int(str(entry["iterations"])))
-        return User(name, str(entry["role"])) if hmac.compare_digest(actual, expected) else None
+        if not hmac.compare_digest(actual, expected) or entry.get("disabled"):
+            return None
+        return _user(name, entry)
+
+
+@dataclass(frozen=True)
+class Session:
+    name: str
+    expiry: int
+    issued: float | None  # None for a cookie of the two-part form written before spec 24
 
 
 class SessionSigner:
-    """Cookie values `base64(name\\nexpiry).hmac`, signed with a secret kept in a 0600 file."""
+    """Cookie values `base64(name\\nexpiry\\nissued).hmac`, signed with a secret in a 0600 file."""
 
     def __init__(self, secret_path: Path, clock: Callable[[], float] = time.time) -> None:
         if not secret_path.exists():
@@ -148,21 +209,33 @@ class SessionSigner:
         return hmac.new(self._secret, payload, hashlib.sha256).hexdigest()
 
     def issue(self, name: str, hours: int) -> str:
-        expiry = int(self._clock() + hours * 3600)
-        payload = base64.urlsafe_b64encode(f"{name}\n{expiry}".encode()).decode("ascii")
+        now = self._clock()
+        expiry = int(now + hours * 3600)
+        text = f"{name}\n{expiry}\n{now:.3f}"
+        payload = base64.urlsafe_b64encode(text.encode()).decode("ascii")
         return f"{payload}.{self._sign(payload.encode('ascii'))}"
 
-    def verify(self, token: str) -> str | None:
+    def session(self, token: str) -> Session | None:
         payload, _, signature = token.partition(".")
         if not payload or not hmac.compare_digest(
             signature, self._sign(payload.encode("ascii", "ignore"))
         ):
             return None
         try:
-            name, expiry = base64.urlsafe_b64decode(payload.encode("ascii")).decode().split("\n")
+            parts = base64.urlsafe_b64decode(payload.encode("ascii")).decode().split("\n")
+            if len(parts) == 2:
+                found = Session(parts[0], int(parts[1]), None)
+            elif len(parts) == 3:
+                found = Session(parts[0], int(parts[1]), float(parts[2]))
+            else:
+                return None
         except (ValueError, UnicodeError):
             return None
-        return name if int(expiry) > self._clock() else None
+        return found if found.expiry > self._clock() else None
+
+    def verify(self, token: str) -> str | None:
+        found = self.session(token)
+        return found.name if found else None
 
 
 class LoginThrottle:

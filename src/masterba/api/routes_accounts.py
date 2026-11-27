@@ -6,7 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from masterba.accounts import Limits
 from masterba.api.auth import User
-from masterba.api.deps import AppState, current_user, project_role, require_role, state_of
+from masterba.api.deps import (
+    AppState,
+    audit,
+    current_user,
+    project_role,
+    require_role,
+    state_of,
+)
 from masterba.api.schemas import LimitsBody, MemberBody, NewUserBody, OwnerBody, UserChangeBody
 
 router = APIRouter(prefix="/api")
@@ -43,6 +50,8 @@ def _user_json(app: AppState, user: User) -> dict[str, Any]:
     return {
         "name": user.name,
         "role": user.role,
+        "disabled": user.disabled,
+        **app.users.details(user.name),
         "usage": _usage_json(app, user.name),
         "limits": app.usage.limits.effective(user.name).to_json(),
         "custom_limits": override is not None,
@@ -71,9 +80,11 @@ def list_users(request: Request, _: AdminUser) -> dict[str, Any]:
 
 
 @router.post("/admin/users", status_code=201)
-def add_user(request: Request, body: NewUserBody, _: AdminUser) -> dict[str, Any]:
+def add_user(request: Request, body: NewUserBody, admin: AdminUser) -> dict[str, Any]:
     app = state_of(request)
-    return _user_json(app, app.users.add(body.name, body.role, body.password))
+    user = app.users.add(body.name, body.role, body.password)
+    audit(request, admin.name, "user.create", target=user.name, role=user.role)
+    return _user_json(app, user)
 
 
 @router.patch("/admin/users/{name}")
@@ -85,19 +96,33 @@ def change_user(
     if body.role is not None and body.role != user.role:
         if name == admin.name and body.role != "admin":
             raise HTTPException(status_code=400, detail="you cannot take away your own admin role")
+        previous = user.role
         user = app.users.set_role(name, body.role)
+        audit(request, admin.name, "user.role", target=name, old=previous, new=body.role)
     if body.password is not None:
         app.users.set_password(name, body.password)
+        if name != admin.name:
+            user = app.users.end_sessions(name)  # spec 24 section 1
+        audit(request, admin.name, "user.password", target=name)
     if "limits" in body.model_fields_set:
-        app.usage.limits.set_override(name, _limits(body.limits) if body.limits else None)
+        limits = _limits(body.limits) if body.limits else None
+        app.usage.limits.set_override(name, limits)
+        audit(
+            request,
+            admin.name,
+            "user.limits",
+            target=name,
+            limits=limits.to_json() if limits else "default",
+        )
     return _user_json(app, user)
 
 
 @router.post("/admin/users/{name}/reset-usage")
-def reset_usage(request: Request, name: str, _: AdminUser) -> dict[str, Any]:
+def reset_usage(request: Request, name: str, admin: AdminUser) -> dict[str, Any]:
     app = state_of(request)
     user = _known(app, name)
     app.usage.reset(name)
+    audit(request, admin.name, "user.usage_reset", target=name)
     return _user_json(app, user)
 
 
@@ -110,6 +135,7 @@ def remove_user(request: Request, name: str, admin: AdminUser) -> dict[str, Any]
     app.access.forget_user(name, admin.name)
     app.usage.limits.set_override(name, None)
     app.users.remove(name)
+    audit(request, admin.name, "user.remove", target=name, projects_to=admin.name)
     return {"removed": name, "projects_to": admin.name}
 
 
@@ -119,9 +145,10 @@ def default_limits(request: Request, _: AdminUser) -> dict[str, Any]:
 
 
 @router.put("/admin/limits")
-def set_default_limits(request: Request, body: LimitsBody, _: AdminUser) -> dict[str, Any]:
+def set_default_limits(request: Request, body: LimitsBody, admin: AdminUser) -> dict[str, Any]:
     limits = state_of(request).usage.limits
     limits.set_default(_limits(body))
+    audit(request, admin.name, "limits.default", limits=_limits(body).to_json())
     return limits.default().to_json()
 
 
@@ -148,6 +175,7 @@ def project_access(request: Request, pid: str, user: ProjectViewer) -> dict[str,
 def add_member(request: Request, pid: str, body: MemberBody, user: ProjectAdmin) -> dict[str, Any]:
     app = state_of(request)
     app.access.set_member(pid, body.name, body.role)
+    audit(request, user.name, "project.member_set", target=body.name, project=pid, role=body.role)
     return _access_json(app, request, pid, user)
 
 
@@ -155,11 +183,14 @@ def add_member(request: Request, pid: str, body: MemberBody, user: ProjectAdmin)
 def remove_member(request: Request, pid: str, name: str, user: ProjectAdmin) -> dict[str, Any]:
     app = state_of(request)
     app.access.remove_member(pid, name)
+    audit(request, user.name, "project.member_remove", target=name, project=pid)
     return _access_json(app, request, pid, user)
 
 
 @router.post("/projects/{pid}/owner")
 def hand_over(request: Request, pid: str, body: OwnerBody, user: ProjectAdmin) -> dict[str, Any]:
     app = state_of(request)
+    previous = (app.access.entry(pid) or {}).get("owner")
     app.access.set_owner(pid, body.name)
+    audit(request, user.name, "project.owner", target=body.name, project=pid, previous=previous)
     return _access_json(app, request, pid, user)

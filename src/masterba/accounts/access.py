@@ -92,6 +92,11 @@ class ProjectAccess:
 
     # -- reading -----------------------------------------------------------------
 
+    def projects(self) -> list[str]:
+        """Every project on disk, for the admin console (spec 24 section 6)."""
+        self._load()
+        return self._existing()
+
     def entry(self, project_id: str) -> dict[str, Any] | None:
         found: dict[str, Any] | None = self._load()["projects"].get(project_id)
         return found

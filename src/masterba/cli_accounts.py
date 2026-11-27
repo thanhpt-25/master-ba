@@ -1,4 +1,7 @@
-"""`masterba user ...` and `masterba access ...`: accounts, limits and sharing (spec 23)."""
+"""`masterba user|access|audit ...`: accounts, limits, sharing and the audit log (spec 23, 24).
+
+Every change made here is written to the audit log with actor `cli` (spec 24 section 2).
+"""
 
 import argparse
 import getpass
@@ -7,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from masterba.accounts import Limits, LimitStore, ProjectAccess, UsageLedger
+from masterba.accounts import AuditFilter, AuditLog, Limits, LimitStore, ProjectAccess, UsageLedger
 from masterba.accounts.access import PROJECT_ROLES
 from masterba.api.auth import ROLES, AuthError, UserStore
 from masterba.api.settings import settings_from_env
@@ -49,6 +52,12 @@ def add_account_parsers(commands: Any) -> None:
     limit.add_argument("--session", type=_limit, default=keep, help="tokens per 5 hours, or none")
     limit.add_argument("--weekly", type=_limit, default=keep, help="tokens per 7 days, or none")
     limit.add_argument("--clear", action="store_true", help="return the user to the defaults")
+    for action, text in (
+        ("disable", "stop a user from signing in and end their sessions"),
+        ("enable", "let a disabled user sign in again"),
+        ("signout", "end every session of a user"),
+    ):
+        users.add_parser(action, help=text).add_argument("name")
     usage = users.add_parser("usage", help="usage windows of one user")
     usage.add_argument("name")
     usage.add_argument("--reset", action="store_true", help="start new windows now")
@@ -66,6 +75,12 @@ def add_account_parsers(commands: Any) -> None:
     unshare = actions.add_parser("unshare", help="remove a member")
     unshare.add_argument("project")
     unshare.add_argument("name")
+
+    log = commands.add_parser("audit", help="administrative and sign-in events, newest first")
+    log.add_argument("--actor")
+    log.add_argument("--action", help="an action such as user.role, or a group such as user")
+    log.add_argument("--target")
+    log.add_argument("--limit", type=int, default=50)
 
 
 def _password(from_stdin: bool) -> str:
@@ -86,6 +101,18 @@ class _Accounts:
         self.access = ProjectAccess(
             settings.state_dir / "access.json", settings.projects, self.users.list
         )
+        self.audit = AuditLog(settings.state_dir / "audit.sqlite3")
+
+    def log(self, action: str, target: str | None = None, **detail: object) -> None:
+        project = detail.pop("project", None)
+        self.audit.record(
+            "cli",
+            action,
+            target=target,
+            project=str(project) if project else None,
+            detail=detail,
+            source="cli",
+        )
 
     def known(self, name: str) -> None:
         if self.users.get(name) is None:
@@ -99,24 +126,45 @@ def dispatch_user(args: argparse.Namespace, root: Path) -> int:
     if command == "add":
         accounts.access.migrate()  # projects already there are not shared with the new user
         user = store.add(args.name, args.role, _password(args.password_stdin))
+        accounts.log("user.create", user.name, role=user.role)
         _emit({"name": user.name, "role": user.role})
     elif command == "list":
-        _emit({"users": [{"name": u.name, "role": u.role} for u in store.list()]})
+        _emit(
+            {
+                "users": [
+                    {"name": u.name, "role": u.role, "disabled": u.disabled} for u in store.list()
+                ]
+            }
+        )
     elif command == "remove":
         store.remove(args.name)
+        accounts.log("user.remove", args.name)
         _emit({"removed": args.name})
     elif command == "role":
+        previous = store.get(args.name)
         user = store.set_role(args.name, args.role)
+        accounts.log("user.role", user.name, old=previous.role if previous else None, new=user.role)
         _emit({"name": user.name, "role": user.role})
     elif command == "password":
         store.set_password(args.name, _password(args.password_stdin))
+        store.end_sessions(args.name)
+        accounts.log("user.password", args.name)
         _emit({"name": args.name, "password": "changed"})
+    elif command in {"disable", "enable", "signout"}:
+        accounts.known(args.name)
+        if command == "signout":
+            user = store.end_sessions(args.name)
+        else:
+            user = store.set_disabled(args.name, command == "disable")
+        accounts.log(f"user.{command}", args.name)
+        _emit({"name": user.name, "role": user.role, "disabled": user.disabled})
     elif command == "limit":
         return _limit_command(args, accounts)
     else:
         accounts.known(args.name)
         if args.reset:
             accounts.usage.reset(args.name)
+            accounts.log("user.usage_reset", args.name)
         _emit(
             {
                 "name": args.name,
@@ -133,6 +181,7 @@ def _limit_command(args: argparse.Namespace, accounts: _Accounts) -> int:
     if args.default:
         current = accounts.limits.default()
         accounts.limits.set_default(_merged(current, args))
+        accounts.log("limits.default", limits=accounts.limits.default().to_json())
         _emit({"default": accounts.limits.default().to_json()})
         return 0
     accounts.known(args.name)
@@ -141,6 +190,8 @@ def _limit_command(args: argparse.Namespace, accounts: _Accounts) -> int:
     else:
         current = accounts.limits.effective(args.name)
         accounts.limits.set_override(args.name, _merged(current, args))
+    override = accounts.limits.override(args.name)
+    accounts.log("user.limits", args.name, limits=override.to_json() if override else "default")
     _emit({"name": args.name, "limits": accounts.limits.effective(args.name).to_json()})
     return 0
 
@@ -161,10 +212,22 @@ def dispatch_access(args: argparse.Namespace, root: Path) -> int:
         raise ValueError(f"no project {pid} with an owner; add an admin user first")
     command = args.access_command
     if command == "owner":
+        previous = (access.entry(pid) or {}).get("owner")
         access.set_owner(pid, args.name)
+        accounts.log("project.owner", args.name, project=pid, previous=previous)
     elif command == "share":
         access.set_member(pid, args.name, args.role)
+        accounts.log("project.member_set", args.name, project=pid, role=args.role)
     elif command == "unshare":
         access.remove_member(pid, args.name)
+        accounts.log("project.member_remove", args.name, project=pid)
     _emit({"project_id": pid, **(access.entry(pid) or {})})
+    return 0
+
+
+def dispatch_audit(args: argparse.Namespace, root: Path) -> int:
+    log = _Accounts(root).audit
+    found = AuditFilter(actor=args.actor, action=args.action, target=args.target)
+    events, _ = log.query(found, limit=max(1, min(args.limit, 1000)))
+    _emit({"events": events})
     return 0

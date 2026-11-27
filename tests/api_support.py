@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
+from factories import intake_path
 from masterba.api import Settings, create_app
 from masterba.api.deps import AppState
 from masterba.llm import LLM, FakeLLM, LLMResult
@@ -87,3 +88,26 @@ def new_project(admin: TestClient, body: dict[str, Any]) -> Any:
             shared = admin.post(f"/api/projects/{pid}/members", json=member)
             assert shared.status_code == 200, shared.text
     return created
+
+
+# Spec 23/24 account tests: one project PRJ-001 with an uploaded intake.
+LOGIN = "login_system.txt"
+P = "/api/projects/PRJ-001"
+
+
+def sign_in(app: FastAPI, name: str) -> TestClient:
+    client = TestClient(app, headers={"X-MasterBA": "1"})
+    assert client.post("/api/login", json={"name": name, "password": PASSWORD}).status_code == 200
+    return client
+
+
+def brd_project(client: ClientFor) -> tuple[TestClient, TestClient]:
+    admin, approver = client("admin"), client("approver")
+    assert new_project(admin, {"project_id": "PRJ-001", "document_language": "en"}).is_success
+    upload = approver.post(f"{P}/intake", files={"file": (LOGIN, intake_path(LOGIN).read_bytes())})
+    assert upload.status_code == 201
+    return admin, approver
+
+
+def start_brd(client: TestClient) -> Any:
+    return client.post(f"{P}/stages/brd/run", json={"intake": LOGIN})

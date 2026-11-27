@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException, Request
 
-from masterba.accounts import ProjectAccess, UsageLedger, UserMeter
+from masterba.accounts import AuditLog, PriceStore, ProjectAccess, UsageLedger, UserMeter
 from masterba.api.auth import RANK, LoginThrottle, SessionSigner, User, UserStore
 from masterba.api.jobs import JobManager
 from masterba.api.schemas import DOC_ID, DR_ID, PROJECT_ID, QUESTION_ID, RUN_ID, SOURCE_ID
@@ -25,6 +25,8 @@ class AppState:
     jobs: JobManager
     access: ProjectAccess
     usage: UsageLedger
+    audit: AuditLog
+    prices: PriceStore
 
 
 def state_of(request: Request) -> AppState:
@@ -33,14 +35,45 @@ def state_of(request: Request) -> AppState:
 
 
 def current_user(request: Request) -> User:
-    """The signed-in user; the role is read from the users file on every request."""
+    """The signed-in user; the role is read from the users file on every request.
+
+    A disabled account and a cookie issued before the user's sessions were ended answer 401
+    (spec 24 section 1).
+    """
     app = state_of(request)
     token = request.cookies.get(COOKIE)
-    name = app.signer.verify(token) if token else None
-    user = app.users.get(name) if name else None
-    if user is None:
+    session = app.signer.session(token) if token else None
+    user = app.users.get(session.name) if session else None
+    if session is None or user is None or user.disabled:
         raise HTTPException(status_code=401, detail="sign in first")
+    if user.sessions_after is not None:
+        issued = session.issued
+        if issued is None:
+            issued = session.expiry - app.settings.session_hours * 3600
+        if issued < user.sessions_after:
+            raise HTTPException(status_code=401, detail="sign in first")
     return user
+
+
+def audit(
+    request: Request,
+    actor: str,
+    action: str,
+    *,
+    target: str | None = None,
+    project: str | None = None,
+    **detail: object,
+) -> None:
+    """One audit row for an action taken through the API (spec 24 section 2)."""
+    client = request.client.host if request.client else None
+    state_of(request).audit.record(
+        actor,
+        action,
+        target=target,
+        project=project,
+        detail=detail,
+        source=f"api {client}" if client else "api",
+    )
 
 
 def project_role(request: Request, user: User, pid: str) -> str:
@@ -75,16 +108,22 @@ def project_store(request: Request, pid: str) -> ProjectStore:
         raise HTTPException(status_code=404, detail="no such project") from exc
 
 
-def limit_detail(app: AppState, user: User) -> dict[str, object] | None:
-    """The 429 detail when a usage window of `user` is used up (spec 23 section 7)."""
+def limit_detail(
+    app: AppState, user: User, context: str = "auto_propagation"
+) -> dict[str, object] | None:
+    """The 429 detail when a usage window of `user` is used up (spec 23 section 7).
+
+    A reached limit is also recorded as a limit event under `context` (spec 24 section 3).
+    """
     reached = app.usage.blocking(user.name)
     if reached is None:
         return None
+    app.usage.limit_hit(user.name, reached, context)
     return {"code": "usage_limit", "message": reached.message(), **reached.to_json()}
 
 
 def require_quota(app: AppState, user: User) -> None:
-    detail = limit_detail(app, user)
+    detail = limit_detail(app, user, "job_start")
     if detail is not None:
         raise HTTPException(status_code=429, detail=detail)
 

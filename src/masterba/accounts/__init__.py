@@ -4,6 +4,8 @@ Spec 23. Nothing here is stored in git; both files live under `.masterba/`.
 """
 
 from masterba.accounts.access import AccessError, ProjectAccess
+from masterba.accounts.audit import AuditFilter, AuditLog
+from masterba.accounts.prices import PriceStore, PriceTable
 from masterba.accounts.usage import (
     WINDOWS,
     Limits,
@@ -16,7 +18,11 @@ from masterba.accounts.usage import (
 __all__ = [
     "WINDOWS",
     "AccessError",
+    "AuditFilter",
+    "AuditLog",
     "LimitStore",
+    "PriceStore",
+    "PriceTable",
     "Limits",
     "ProjectAccess",
     "UsageLedger",

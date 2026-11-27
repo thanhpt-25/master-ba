@@ -68,3 +68,29 @@ def test_projects_are_handed_over_and_shared_from_the_command_line(
     assert run(git_repo, "access", "unshare", "PRJ-001", "root") == 0
     assert out(capsys)["members"] == {}
     assert run(git_repo, "access", "show", "PRJ-404") == 1
+
+
+def test_disable_enable_sign_out_and_the_audit_log_from_the_command_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add(tmp_path, monkeypatch, "alice", "viewer")
+    capsys.readouterr()
+    assert run(tmp_path, "user", "disable", "alice") == 0
+    assert out(capsys) == {"name": "alice", "role": "viewer", "disabled": True}
+    assert run(tmp_path, "user", "enable", "alice") == 0
+    assert out(capsys)["disabled"] is False
+    assert run(tmp_path, "user", "signout", "alice") == 0
+    capsys.readouterr()
+    assert run(tmp_path, "user", "list") == 0
+    assert out(capsys) == {"users": [{"name": "alice", "role": "viewer", "disabled": False}]}
+    assert run(tmp_path, "user", "disable", "ghost") == 1
+    capsys.readouterr()
+    assert run(tmp_path, "audit", "--action", "user") == 0
+    events = out(capsys)["events"]
+    assert [e["action"] for e in events] == [  # type: ignore[attr-defined]
+        "user.signout",
+        "user.enable",
+        "user.disable",
+        "user.create",
+    ]
+    assert {e["actor"] for e in events} == {"cli"}  # type: ignore[attr-defined]

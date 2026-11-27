@@ -176,6 +176,10 @@ class UsageLedger:
                     user TEXT NOT NULL, window TEXT NOT NULL, start REAL NOT NULL,
                     PRIMARY KEY (user, window)
                 );
+                CREATE TABLE IF NOT EXISTS limit_events (
+                    ts REAL NOT NULL, user TEXT NOT NULL, window TEXT NOT NULL,
+                    used INTEGER NOT NULL, limit_tokens INTEGER, context TEXT NOT NULL
+                );
                 """
             )
 
@@ -243,7 +247,74 @@ class UsageLedger:
     def check(self, user: str) -> None:
         reached = self.blocking(user)
         if reached is not None:
+            self.limit_hit(user, reached, "run")
             raise UsageLimitError(reached.message())
+
+    def limit_hit(self, user: str, reached: WindowStatus, context: str) -> None:
+        """Remember that a limit stopped something (spec 24 section 3)."""
+        with self._lock, self._db() as db:
+            db.execute(
+                "INSERT INTO limit_events VALUES (?, ?, ?, ?, ?, ?)",
+                (self._clock(), user, reached.window, reached.used, reached.limit, context),
+            )
+
+    def limit_events(self, since: float, until: float | None = None) -> list[dict[str, Any]]:
+        query = (
+            "SELECT ts, user, window, used, limit_tokens, context FROM limit_events WHERE ts >= ?"
+        )
+        values: list[Any] = [since]
+        if until is not None:
+            query += " AND ts < ?"
+            values.append(until)
+        with self._db() as db:
+            rows = db.execute(query + " ORDER BY ts DESC", values).fetchall()
+        return [
+            {"at": iso(ts), "user": u, "window": w, "used": used, "limit": lim, "context": c}
+            for ts, u, w, used, lim, c in rows
+        ]
+
+    def call_rows(
+        self, since: float, until: float | None = None, tz_offset_minutes: int = 0
+    ) -> list[dict[str, Any]]:
+        """Calls grouped by local day, user, project, model and kind (spec 24 section 5).
+
+        `tz_offset_minutes` is the browser's `Date.getTimezoneOffset()` (minutes behind UTC).
+        """
+        shift = -tz_offset_minutes * 60
+        query = (
+            "SELECT date(ts + ?, 'unixepoch'), user, project, model, kind, COUNT(*), "
+            "SUM(input_tokens), SUM(output_tokens) FROM calls WHERE ts >= ?"
+        )
+        values: list[Any] = [shift, since]
+        if until is not None:
+            query += " AND ts < ?"
+            values.append(until)
+        query += " GROUP BY 1, 2, 3, 4, 5"
+        with self._db() as db:
+            rows = db.execute(query, values).fetchall()
+        return [
+            {
+                "day": day,
+                "user": u,
+                "project": project,
+                "model": model,
+                "kind": kind,
+                "calls": int(calls),
+                "input": int(inp),
+                "output": int(out),
+            }
+            for day, u, project, model, kind, calls, inp, out in rows
+        ]
+
+    def models(self) -> list[str | None]:
+        with self._db() as db:
+            return [r[0] for r in db.execute("SELECT DISTINCT model FROM calls").fetchall()]
+
+    def last_call(self) -> dict[str | None, float]:
+        """The time of the latest call per project."""
+        with self._db() as db:
+            rows = db.execute("SELECT project, MAX(ts) FROM calls GROUP BY project").fetchall()
+        return {p: float(ts) for p, ts in rows}
 
     def reset(self, user: str) -> None:
         with self._lock, self._db() as db:

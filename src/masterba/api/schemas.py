@@ -116,3 +116,15 @@ class MemberBody(Body):
 
 class OwnerBody(Body):
     name: str = Field(min_length=1, max_length=40)
+
+
+class PriceBody(Body):
+    input: float = Field(ge=0, le=10_000)
+    output: float = Field(ge=0, le=10_000)
+
+
+class PricesBody(Body):
+    """Prices per million tokens by model id (spec 24 section 4)."""
+
+    currency: str = Field(default="USD", pattern=r"^[A-Z]{3}$")
+    models: dict[str, PriceBody] = Field(default_factory=dict, max_length=50)
