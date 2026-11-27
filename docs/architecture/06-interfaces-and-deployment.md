@@ -69,23 +69,59 @@ sequenceDiagram
     M->>R: forward
     R->>D: require_role (viewer, approver or admin)
     D->>D: verify signed cookie, re-read role from users.json
-    D-->>R: user, or 401 or 403
+    D->>D: under /projects/{pid}: project role from access.json (404 when none)
+    D-->>R: user, or 401, 403 or 404
     R->>L: call the library function
     L-->>R: result or a domain error
     R-->>B: JSON (domain errors become 400 or 404)
     Note over M,B: every response carries CSP, nosniff, frame deny and referrer headers
 ```
 
-### Roles
+### Roles and project access (spec 23)
 
-Roles are ordered **viewer < approver < admin** and are re-read from `.masterba/users.json` on every
-request, so changing a role takes effect at once without signing out.
+Roles are ordered **viewer < approver < admin** and are re-read on every request, so a change takes
+effect at once without signing out. There are two of them:
 
-| Role | May |
+- The **global role** in `.masterba/users.json`: a viewer may open projects shared with them, an
+  approver may also create projects (and owns them), an admin sees every project and manages users,
+  limits and templates.
+- The **project role** in `.masterba/access.json` (owner and members per project, not in git): the
+  owner and global admins are `admin` in the project, a member is `viewer` or `approver`. Every
+  route under `/api/projects/{pid}` checks the project role; a user with none gets `404`, so other
+  people's projects are not revealed, and `GET /projects` lists only the user's own and shared
+  projects. `GET /jobs/{id}` checks the job's project the same way.
+
+| Project role | May |
 |---|---|
-| viewer | read projects, documents, diffs, runs, jobs, the trace graph and DRs |
-| approver | also upload an intake, start stage runs, and create, approve, reject, propagate and close DRs. The approver recorded on a DR is the signed-in user's name, not a field the client can set. |
-| admin | also create projects and manage templates (the calibration endpoints) |
+| viewer | read the project: documents, diffs, runs, jobs, the trace graph, questions and DRs |
+| approver | also upload an intake, start stage runs, answer questions, approve or reject phases, and create, approve, reject, propagate and close DRs. The name recorded on a DR or review is the signed-in user's, not a field the client can set. |
+| admin (owner) | also change project settings (run token budget, propagation mode), members and the owner |
+
+The first time `access.json` is read after an upgrade, every existing project goes to the first
+admin (by name) and every other existing user becomes a member with their global role, so nobody
+loses access. A project created later with the CLI goes to the first admin alone.
+
+### Usage metering and limits (spec 23)
+
+Every model the API creates for a job is a `MeteredLLM` (`llm/metered.py`) bound to the user who
+started the job (`accounts/usage.py` `UserMeter`). Before each call it checks the user's limits;
+after it, it records input and output tokens with project, job kind and model in
+`.masterba/usage.sqlite3`. Two windows count, as in a Claude plan: `session` (5 hours) and
+`weekly` (7 days), each starting at the first call after the previous one ended. Limits come from
+the user's own entry in `.masterba/limits.json`, else its `default`, else
+`MASTERBA_LIMIT_SESSION_TOKENS` / `MASTERBA_LIMIT_WEEKLY_TOKENS`, else no limit.
+
+```mermaid
+flowchart LR
+    A[POST run / propagate / reject] -->|limit reached| X[429 usage_limit + resets_at]
+    A -->|ok| J[job thread]
+    J --> M[MeteredLLM.generate]
+    M -->|limit reached| E[UsageLimitError: run escalates with checkpoint]
+    M -->|ok| C[model call] --> R[record tokens for the user]
+```
+
+A run that hits the limit mid-way escalates like any failed model request and resumes after the
+reset. The CLI is the operator and is not metered.
 
 ### Endpoints
 
@@ -93,7 +129,9 @@ request, so changing a role takes effect at once without signing out.
 
 | Area | Endpoints (all under `/api`) |
 |---|---|
-| Session | `POST /login`, `POST /logout`, `GET /me` |
+| Session | `POST /login`, `POST /logout`, `GET /me` (with usage windows), `GET /me/usage` |
+| Users and limits (admin) | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/{name}`, `POST /admin/users/{name}/reset-usage`, `GET/PUT /admin/limits` |
+| Sharing | `GET /projects/{pid}/access`, `POST /projects/{pid}/members`, `DELETE /projects/{pid}/members/{name}`, `POST /projects/{pid}/owner` |
 | Projects | `GET/POST /projects`, `GET /projects/{pid}`, `POST /projects/{pid}/intake` (`.txt`, `.md`, `.docx`, `.pdf`, `.xlsx`; a binary file passes `check_upload` and is converted at once, the response names the stored `.md`) |
 | Stage runs | `POST /projects/{pid}/stages/{stage}/run` (returns `202` and a job), `GET /projects/{pid}/jobs`, `GET /jobs/{job_id}` |
 | Documents | `GET /projects/{pid}/documents`, `.../documents/{doc_id}`, `.../documents/{doc_id}/preview` (the default workbook layout as JSON, spec 19 section 14), `.../documents/{doc_id}/xlsx`, `.../documents/{doc_id}/diff` |

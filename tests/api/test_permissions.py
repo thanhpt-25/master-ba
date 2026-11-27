@@ -14,7 +14,7 @@ UPLOAD = {"file": ("note.txt", b"hello")}
 # (method, path, request options, minimum role)
 ROUTES: list[tuple[str, str, dict[str, Any], str]] = [
     ("GET", "/api/projects", {}, "viewer"),
-    ("POST", "/api/projects", {"json": NEW_PROJECT}, "admin"),
+    ("POST", "/api/projects", {"json": NEW_PROJECT}, "approver"),
     ("GET", P, {}, "viewer"),
     ("POST", f"{P}/intake", {"files": UPLOAD}, "approver"),
     ("POST", f"{P}/stages/brd/run", {"json": {}}, "approver"),
@@ -78,12 +78,16 @@ def test_a_viewer_can_read_everything_but_change_nothing(seeded_client: ClientFo
     assert viewer.get(f"{P}/rtm/REQ-0001").status_code == 200
 
 
-def test_only_an_admin_can_create_a_project(seeded_client: ClientFor) -> None:
-    assert seeded_client("approver").post("/api/projects", json=NEW_PROJECT).status_code == 403
-    created = seeded_client("admin").post("/api/projects", json=NEW_PROJECT)
+def test_an_approver_creates_a_project_and_owns_it(seeded_client: ClientFor) -> None:
+    assert seeded_client("viewer").post("/api/projects", json=NEW_PROJECT).status_code == 403
+    created = seeded_client("approver").post("/api/projects", json=NEW_PROJECT)
     assert created.status_code == 201
     assert created.json()["project_id"] == "PRJ-002"
-    assert seeded_client("admin").post("/api/projects", json=NEW_PROJECT).status_code == 400
+    assert created.json()["owner"] == "alice"
+    assert created.json()["my_role"] == "admin"
+    taken = seeded_client("admin").post("/api/projects", json=NEW_PROJECT)
+    assert taken.status_code == 400
+    assert "alice" not in taken.text
 
 
 @pytest.mark.parametrize("company_id", ["../outside", "a/b", "a\\b", "", "x" * 41])

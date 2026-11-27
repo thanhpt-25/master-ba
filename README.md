@@ -312,10 +312,11 @@ An answer becomes an approved clarification Decision Record and reaches every la
 
 ```bash
 masterba user add alice --role admin          # roles: viewer < approver < admin
+masterba user limit --default --session 200000 --weekly 2000000   # optional token limits
 masterba serve --port 8000                    # then open http://127.0.0.1:8000
 ```
 
-Users are stored in `.masterba/`, which git ignores. The project overview opens with the workflow strip; a phase in review shows Approve and Reject with comments, and the next stage's Run button waits until the phase before it is approved. The Questions and Knowledge tabs cover the side loops.
+Users are stored in `.masterba/`, which git ignores. Each user sees only the projects they own or that were shared with them (Members tab); an approver can create projects. Every model call of a dashboard job counts towards the user's 5-hour and weekly token limits, shown under Usage; an admin manages users and limits under Users, or with `masterba user role|password|limit|usage` and `masterba access show|owner|share|unshare`. The project overview opens with the workflow strip; a phase in review shows Approve and Reject with comments, and the next stage's Run button waits until the phase before it is approved. The Questions and Knowledge tabs cover the side loops.
 
 ### Docker Compose
 

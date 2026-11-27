@@ -1667,3 +1667,37 @@ th { font-family: var(--mono); font-size: 0.6875rem; font-weight: 500; letter-sp
   .stage-gate { padding-left: calc(28px + var(--s3)); }
 }
 .wf-loops .sub, .stage-gate { font-family: var(--sans); }
+
+/* Spec 23: usage windows, the limit banner, users and members. */
+a.menu-item { display: flex; align-items: center; gap: var(--s2); text-decoration: none; border-radius: var(--r-md); }
+.usage-banner {
+  display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap;
+  margin: var(--s3) var(--s6) 0; padding: var(--s2) var(--s4);
+  border: 1px solid; border-radius: var(--r-md); font-size: var(--fs-sm);
+}
+.usage-banner.warn { color: var(--warn); background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+.usage-banner.bad { color: var(--bad); background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 35%, transparent); font-weight: 600; }
+.usage-banner a { margin-left: auto; color: inherit; font-weight: 600; }
+.usage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--s5); margin: var(--s4) 0; }
+.usage-window { display: grid; gap: var(--s2); }
+.usage-window.compact { gap: 2px; min-width: 11rem; font-size: var(--fs-xs); }
+.usage-head { display: flex; justify-content: space-between; gap: var(--s3); align-items: baseline; }
+.usage-amount { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+progress.usage-bar { height: 8px; border-radius: 8px; }
+.usage-window.compact progress.usage-bar { height: 5px; }
+progress.usage-bar.ok::-webkit-progress-value { background: var(--ok); }
+progress.usage-bar.ok::-moz-progress-bar { background: var(--ok); }
+progress.usage-bar.warn::-webkit-progress-value { background: var(--warn); }
+progress.usage-bar.warn::-moz-progress-bar { background: var(--warn); }
+progress.usage-bar.bad::-webkit-progress-value { background: var(--bad); }
+progress.usage-bar.bad::-moz-progress-bar { background: var(--bad); }
+.usage-cells { display: grid; gap: var(--s2); }
+.user-cell { display: inline-flex; align-items: center; gap: var(--s2); }
+.user-cell .avatar { width: 26px; height: 26px; font-size: var(--fs-xs); }
+label.check { display: flex; align-items: center; gap: var(--s2); margin: var(--s3) 0; }
+button.link.danger { color: var(--bad); }
+.project-owner { color: var(--ink-3); }
+@media (max-width: 720px) {
+  .usage-banner { margin: var(--s3) var(--s4) 0; }
+  .usage-banner a { margin-left: 0; }
+}

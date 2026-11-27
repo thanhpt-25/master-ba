@@ -75,3 +75,15 @@ class BlockingLLM:
         self.started.set()
         self.release.wait(10)
         raise RuntimeError("released")
+
+
+def new_project(admin: TestClient, body: dict[str, Any]) -> Any:
+    """Create a project as the admin and share it with the viewer and approver (spec 23)."""
+    created = admin.post("/api/projects", json=body)
+    if created.status_code == 201:
+        pid = body["project_id"]
+        for role in ("viewer", "approver"):
+            member = {"name": ROLE_NAMES[role], "role": role}
+            shared = admin.post(f"/api/projects/{pid}/members", json=member)
+            assert shared.status_code == 200, shared.text
+    return created

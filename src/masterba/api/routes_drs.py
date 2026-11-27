@@ -5,7 +5,15 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from masterba.api.auth import User
-from masterba.api.deps import checked, project_store, require_role, state_of
+from masterba.api.deps import (
+    checked,
+    limit_detail,
+    metered,
+    project_store,
+    require_quota,
+    require_role,
+    state_of,
+)
 from masterba.api.jobs import Job, JobBusyError
 from masterba.api.schemas import DecisionBody, FromRunBody, NewDrBody
 from masterba.change import (
@@ -68,7 +76,7 @@ def approve(
     return {
         "dr": dr.model_dump(mode="json"),
         "impact": impact.to_json(),
-        **auto_propagation(request, store, dr_id),
+        **auto_propagation(request, store, dr_id, user),
     }
 
 
@@ -84,14 +92,16 @@ def close(store: Store, dr_id: str) -> dict[str, Any]:
     return close_dr(store, dr_id).model_dump(mode="json")
 
 
-def submit_propagation(request: Request, store: ProjectStore, dr_id: str) -> Job:
+def submit_propagation(request: Request, store: ProjectStore, dr_id: str, user: User) -> Job:
     """Queue the `propagate:<dr>` job; raises JobBusyError when another job runs."""
     app = state_of(request)
     settings = app.settings
+    kind = f"propagate:{dr_id}"
+    llm_factory = metered(app, user, store.project_id, kind)
 
     def work() -> dict[str, Any]:
-        reviser = settings.llm_factory(settings.model)
-        qa = settings.llm_factory(settings.qa_model) if settings.qa_model else None
+        reviser = llm_factory(settings.model)
+        qa = llm_factory(settings.qa_model) if settings.qa_model else None
         result = propagate_dr(store, settings.templates, dr_id, reviser, qa_llm=qa)
         payload = result.to_json()
         payload["dr_status"] = payload["status"]
@@ -100,25 +110,31 @@ def submit_propagation(request: Request, store: ProjectStore, dr_id: str) -> Job
         )
         return payload
 
-    return app.jobs.submit(store.project_id, f"propagate:{dr_id}", work)
+    return app.jobs.submit(store.project_id, kind, work, user.name)
 
 
-def auto_propagation(request: Request, store: ProjectStore, dr_id: str) -> dict[str, Any]:
+def auto_propagation(
+    request: Request, store: ProjectStore, dr_id: str, user: User
+) -> dict[str, Any]:
     """Extra response fields after an approval: the job, or why none was started (spec 07 5.1)."""
     if not auto_propagates(store, get_decision_record(store, dr_id)):
         return {}
+    limit = limit_detail(state_of(request), user)
+    if limit is not None:
+        return {"propagation_note": f"{limit['message']}; press Propagate after the reset"}
     try:
-        return {"job": submit_propagation(request, store, dr_id).to_json()}
+        return {"job": submit_propagation(request, store, dr_id, user).to_json()}
     except JobBusyError as exc:
         return {"propagation_note": f"{exc}; press Propagate when it ends"}
 
 
-@router.post("/{dr_id}/propagate", status_code=202, dependencies=[Approver])
-def propagate(request: Request, store: Store, dr_id: str) -> dict[str, Any]:
+@router.post("/{dr_id}/propagate", status_code=202)
+def propagate(request: Request, store: Store, dr_id: str, user: Signed) -> dict[str, Any]:
     checked("dr", dr_id)
     get_decision_record(store, dr_id)
+    require_quota(state_of(request), user)
     try:
-        job = submit_propagation(request, store, dr_id)
+        job = submit_propagation(request, store, dr_id, user)
     except JobBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return job.to_json()

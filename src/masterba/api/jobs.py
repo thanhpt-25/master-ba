@@ -43,6 +43,7 @@ class Job:
     result: dict[str, Any] | None = None
     error: str | None = None
     log: list[str] = field(default_factory=list)
+    user: str | None = None  # who started it, charged for its model calls (spec 23)
     thread: threading.Thread | None = None
 
     def to_json(self) -> dict[str, Any]:
@@ -56,6 +57,7 @@ class Job:
             "result": self.result,
             "error": self.error,
             "log": self.log[-MAX_LOG_LINES:],
+            "user": self.user,
         }
 
 
@@ -75,7 +77,8 @@ class JobManager:
             for path in project.glob("*.json"):
                 try:
                     data = json.loads(path.read_text(encoding="utf-8"))
-                    loaded.append((Job(**{k: data[k] for k in _FIELDS}), path))
+                    job = Job(**{k: data[k] for k in _FIELDS}, user=data.get("user"))
+                    loaded.append((job, path))
                 except (OSError, ValueError, KeyError, TypeError):
                     logger.warning("skipping unreadable job file %s", path)
             loaded.sort(key=lambda pair: (pair[0].started, pair[0].id), reverse=True)
@@ -106,12 +109,12 @@ class JobManager:
         job.log.append(line)
         self._save(job)
 
-    def submit(self, project_id: str, kind: str, work: Work) -> Job:
+    def submit(self, project_id: str, kind: str, work: Work, user: str | None = None) -> Job:
         with self._lock:
             if project_id in self._busy:
                 raise JobBusyError(f"a job is already running for {project_id}")
             self._busy.add(project_id)
-            job = Job(id=uuid.uuid4().hex[:12], project_id=project_id, kind=kind)
+            job = Job(id=uuid.uuid4().hex[:12], project_id=project_id, kind=kind, user=user)
             self._jobs[job.id] = job
         self._save(job)
         job.thread = threading.Thread(target=self._run, args=(job, work), daemon=True)

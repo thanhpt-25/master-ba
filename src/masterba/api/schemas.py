@@ -88,3 +88,31 @@ class SetColumnBody(Body):
     sheet: str = Field(min_length=1, max_length=64)
     col: str = Field(pattern=r"^[A-Z]{1,3}$")
     field: str | None = Field(default=None, max_length=40)
+
+
+class LimitsBody(Body):
+    """Token limits per usage window; null means no limit (spec 23 section 6)."""
+
+    session: int | None = Field(default=None, ge=0)
+    weekly: int | None = Field(default=None, ge=0)
+
+
+class NewUserBody(Body):
+    name: str = Field(min_length=1, max_length=40)
+    role: str = Field(pattern=r"^(viewer|approver|admin)$")
+    password: str = Field(min_length=1, max_length=200)
+
+
+class UserChangeBody(Body):
+    role: str | None = Field(default=None, pattern=r"^(viewer|approver|admin)$")
+    password: str | None = Field(default=None, min_length=1, max_length=200)
+    limits: LimitsBody | None = None  # sent as null: return to the default limits
+
+
+class MemberBody(Body):
+    name: str = Field(min_length=1, max_length=40)
+    role: str = Field(pattern=r"^(viewer|approver)$")
+
+
+class OwnerBody(Body):
+    name: str = Field(min_length=1, max_length=40)

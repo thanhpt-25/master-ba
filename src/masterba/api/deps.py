@@ -5,10 +5,12 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException, Request
 
+from masterba.accounts import ProjectAccess, UsageLedger, UserMeter
 from masterba.api.auth import RANK, LoginThrottle, SessionSigner, User, UserStore
 from masterba.api.jobs import JobManager
 from masterba.api.schemas import DOC_ID, DR_ID, PROJECT_ID, QUESTION_ID, RUN_ID, SOURCE_ID
 from masterba.api.settings import Settings
+from masterba.llm import LLM, MeteredLLM
 from masterba.trace_store import NotFoundError, ProjectStore, open_project
 
 COOKIE = "masterba_session"
@@ -21,6 +23,8 @@ class AppState:
     signer: SessionSigner
     throttle: LoginThrottle
     jobs: JobManager
+    access: ProjectAccess
+    usage: UsageLedger
 
 
 def state_of(request: Request) -> AppState:
@@ -39,10 +43,24 @@ def current_user(request: Request) -> User:
     return user
 
 
+def project_role(request: Request, user: User, pid: str) -> str:
+    """The user's role in project `pid` (spec 23 section 2); 404 when they may not open it."""
+    if not PROJECT_ID.match(pid):
+        raise HTTPException(status_code=404, detail="no such project")
+    role = state_of(request).access.role_of(pid, user)
+    if role is None:
+        raise HTTPException(status_code=404, detail="no such project")
+    return role
+
+
 def require_role(minimum: str) -> Callable[[Request], User]:
+    """Under `/api/projects/{pid}` the project role counts, elsewhere the global role."""
+
     def dependency(request: Request) -> User:
         user = current_user(request)
-        if RANK[user.role] < RANK[minimum]:
+        pid = request.path_params.get("pid")
+        role = project_role(request, user, pid) if isinstance(pid, str) else user.role
+        if RANK[role] < RANK[minimum]:
             raise HTTPException(status_code=403, detail="your role may not do this")
         return user
 
@@ -50,12 +68,35 @@ def require_role(minimum: str) -> Callable[[Request], User]:
 
 
 def project_store(request: Request, pid: str) -> ProjectStore:
-    if not PROJECT_ID.match(pid):
-        raise HTTPException(status_code=404, detail="no such project")
+    project_role(request, current_user(request), pid)
     try:
         return open_project(state_of(request).settings.projects, pid)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail="no such project") from exc
+
+
+def limit_detail(app: AppState, user: User) -> dict[str, object] | None:
+    """The 429 detail when a usage window of `user` is used up (spec 23 section 7)."""
+    reached = app.usage.blocking(user.name)
+    if reached is None:
+        return None
+    return {"code": "usage_limit", "message": reached.message(), **reached.to_json()}
+
+
+def require_quota(app: AppState, user: User) -> None:
+    detail = limit_detail(app, user)
+    if detail is not None:
+        raise HTTPException(status_code=429, detail=detail)
+
+
+def metered(app: AppState, user: User, project_id: str, kind: str) -> Callable[[str], LLM]:
+    """An LLM factory whose models check and charge `user` on every call (spec 23 section 5)."""
+    meter = UserMeter(app.usage, user.name, project_id, kind)
+
+    def factory(model: str) -> LLM:
+        return MeteredLLM(app.settings.llm_factory(model), meter, model)
+
+    return factory
 
 
 def checked(pattern_name: str, value: str) -> str:

@@ -52,6 +52,7 @@ function projectCard(project, summary) {
     h("span", { class: "project-card-bottom" },
       h("span", {}, icon("documents", 14), summary ? t("{n} documents", { n: summary.documents }) : "–"),
       h("span", {}, icon("language", 14), project.document_language === "ja" ? t("Documents in Japanese") : t("Documents in English")),
+      project.owner ? h("span", { class: "project-owner" }, icon("users", 14), project.my_role === "admin" ? t("Owner: {name}", { name: project.owner }) : t("Shared by {name}", { name: project.owner })) : null,
     ),
   ));
 }
@@ -84,7 +85,8 @@ export async function render({ main, api, me, go, toast }) {
       h("button", { type: "button", "aria-pressed": value === languageFilter ? "true" : "false", onClick: () => { languageFilter = value; for (const button of filters.children) button.setAttribute("aria-pressed", button.textContent === label ? "true" : "false"); drawList(); } }, label),
     ),
   );
-  const isAdmin = me.role === "admin";
+  // Approvers and admins create projects and own them (spec 23 section 2).
+  const canCreate = me.role !== "viewer";
   const openCreate = () => createDialog({ api, go, toast });
   function drawList() {
     const term = search.trim().toLocaleLowerCase();
@@ -94,7 +96,7 @@ export async function render({ main, api, me, go, toast }) {
     );
     count.textContent = t("{shown} of {total} projects", { shown: visible.length, total: projects.length });
     if (!projects.length) {
-      clear(listHost).append(empty(t("No projects yet."), isAdmin
+      clear(listHost).append(empty(canCreate ? t("No projects yet.") : t("No project is shared with you yet. Ask its owner to add you."), canCreate
         ? h("button", { class: "primary", type: "button", onClick: openCreate }, icon("plus", 16), t("Create the first project"))
         : null));
       return;
@@ -112,7 +114,7 @@ export async function render({ main, api, me, go, toast }) {
   clear(main).append(
     h("div", { class: "page-heading" },
       h("div", {}, h("p", { class: "eyebrow" }, t("Control room")), h("h1", {}, t("Projects")), h("p", { class: "muted" }, t("Your requirements, documents, and decisions."))),
-      isAdmin ? h("button", { class: "primary", type: "button", onClick: openCreate }, icon("plus", 17), t("New project")) : null,
+      canCreate ? h("button", { class: "primary", type: "button", onClick: openCreate }, icon("plus", 17), t("New project")) : null,
     ),
     h("section", { class: "metrics", "aria-label": t("Workspace summary") },
       metric("projects", "accent", t("Total projects"), projects.length, t("in this workspace")),

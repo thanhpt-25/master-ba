@@ -107,7 +107,9 @@ def test_login_sets_a_strict_http_only_cookie(empty_client: ClientFor) -> None:
     assert "httponly" in cookie
     assert "samesite=strict" in cookie
     assert "path=/" in cookie
-    assert client.get("/api/me").json() == {"name": "alice", "role": "approver"}
+    me = client.get("/api/me").json()
+    assert (me["name"], me["role"]) == ("alice", "approver")
+    assert [w["window"] for w in me["usage"]] == ["session", "weekly"]
 
 
 def test_failures_look_the_same_whether_or_not_the_name_exists(empty_client: ClientFor) -> None:
@@ -164,4 +166,5 @@ def test_state_changing_requests_need_the_csrf_header(empty_client: ClientFor) -
 
 def test_every_role_name_in_the_fixture_can_sign_in(empty_client: ClientFor) -> None:
     for role, name in ROLE_NAMES.items():
-        assert empty_client(role).get("/api/me").json() == {"name": name, "role": role}
+        me = empty_client(role).get("/api/me").json()
+        assert (me["name"], me["role"]) == (name, role)
