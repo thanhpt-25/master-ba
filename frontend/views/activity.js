@@ -1,5 +1,6 @@
-import { asyncView, badge, clear, empty, fmtTime, h, spinner, table } from "../dom.js";
+import { asyncView, badge, clear, empty, fmtTime, h, pageHeader, spinner, table } from "../dom.js";
 import { t } from "../i18n.js";
+import { describeCommit } from "./history.js";
 import { STAGE_NAMES } from "./questions.js";
 
 const stageName = (stage) => t(STAGE_NAMES[stage] ?? stage);
@@ -40,7 +41,7 @@ export async function render({ main, api, params, toast, me, go }) {
     h(
       "span",
       {},
-      h("button", { class: "link", onClick: () => show(r.run_id) }, t("Open")),
+      h("button", { class: "link", onClick: () => show(r.run_id) }, t("Show run")),
       canRun && r.resumable && RESUMABLE[r.stage] ? h("button", { class: "link", onClick: () => resume(r) }, t("Resume")) : null,
       r.waiting_questions?.length ? h("a", { class: "link", href: `#/p/${pid}/questions` }, t("Answer {n} blocker question(s)", { n: r.waiting_questions.length })) : null,
     );
@@ -58,7 +59,7 @@ export async function render({ main, api, params, toast, me, go }) {
     }
   };
 
-  clear(main).append(h("h1", {}, t("Activity")));
+  clear(main).append(pageHeader(t("Activity"), t("Review project tasks, team activity, and audit history.")));
   const runsHost = h("div", {});
   const logHost = h("div", {});
   const runsSection = h("section", {}, h("h2", {}, t("Team runs")), runsHost);
@@ -89,7 +90,10 @@ export async function render({ main, api, params, toast, me, go }) {
     (log, host) => {
       host.append(
         log.length
-          ? table([t("Time"), t("By"), t("Commit"), t("Action")], log.map((e) => [fmtTime(e.time), e.author, h("code", {}, e.commit), e.subject]), t("Audit log"), { dense: true, stickyFirst: true })
+          ? table([t("Time"), t("By"), t("Action"), t("Detail"), t("Commit")], log.map((e) => {
+              const info = describeCommit(e.subject);
+              return [fmtTime(e.time), e.author, h("strong", {}, info.label), h("span", { title: e.subject }, info.detail), h("code", {}, e.commit)];
+            }), t("Audit log"), { dense: true, stickyFirst: true })
           : empty(t("Nothing recorded yet.")),
       );
     },

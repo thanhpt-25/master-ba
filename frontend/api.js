@@ -1,6 +1,7 @@
 // JSON client for /api. Every state-changing call carries the CSRF header.
 
 import { usageLimitText } from "./dom.js";
+import { t } from "./i18n.js";
 
 export class ApiError extends Error {
   constructor(status, detail, data = null) {
@@ -8,6 +9,17 @@ export class ApiError extends Error {
     this.status = status;
     this.data = data; // the structured detail, e.g. a usage limit (spec 23)
   }
+}
+
+// FastAPI validation errors (422) as one readable sentence: which field, and what is wrong.
+export function validationText(errors) {
+  return errors.map((error) => {
+    const field = (error.loc ?? []).filter((part) => part !== "body").join(".");
+    const what = error.type === "string_pattern_mismatch"
+      ? t("uses characters that are not allowed")
+      : error.type === "missing" ? t("is required") : String(error.msg ?? "");
+    return field ? t("{field} {what}", { field, what }) : what;
+  }).join(" ");
 }
 
 async function request(method, path, { json, form } = {}) {
@@ -29,7 +41,8 @@ async function request(method, path, { json, form } = {}) {
       else if (body.detail?.code === "usage_limit") {
         data = body.detail;
         detail = usageLimitText(body.detail);
-      } else detail = JSON.stringify(body.detail);
+      } else if (Array.isArray(body.detail)) detail = validationText(body.detail);
+      else detail = JSON.stringify(body.detail);
     } catch {
       /* keep the status text */
     }

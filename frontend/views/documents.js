@@ -1,7 +1,7 @@
 // Documents: each version shown as the workbook prints it (spec 19 section 14), with the
 // review of its phase in place and the version comparison below.
 
-import { asyncView, badge, cellText, clear, empty, h, spinner, splitNav, table } from "../dom.js";
+import { asyncView, badge, cellText, clear, empty, h, pageHeader, spinner, splitNav, table } from "../dom.js";
 import { N_, t } from "../i18n.js";
 import { phaseOfDocument, phaseTitle } from "./journey.js";
 import { reviewBox } from "./review.js";
@@ -199,7 +199,7 @@ function renderDetail(pid, selected, loaded, overview, context) {
   const type = loaded.document.type;
   const review = reviewPanel(pid, selected, overview, context);
   const parts = [
-    h("div", { class: "vcard-head" }, h("div", {}, h("p", { class: "eyebrow" }, t(TYPE_NAMES[type] ?? type)), h("h2", {}, h("code", {}, selected))), statusHost),
+    h("div", { class: "doc-head" }, h("div", {}, h("h2", {}, selected), h("p", { class: "doc-type" }, t(TYPE_NAMES[type] ?? type))), statusHost),
     h("div", { class: "toolbar" }, h("label", { for: "version" }, t("Version")), versionSelect, download, h("span", { class: "hint" }, t("The preview shows the standard layout; the Excel file follows the project's template."))),
     review ? h("p", { class: "review-note" }, h("span", { "aria-hidden": "true" }, "◔ "), t("This phase is waiting for your review. Read the sheets, then approve or reject at the end of the page."), " ", h("a", { href: "#review-title", onClick: (event) => { event.preventDefault(); review.scrollIntoView({ behavior: "smooth" }); review.querySelector("button")?.focus({ preventScroll: true }); } }, t("Go to the review"))) : null,
     body,
@@ -255,7 +255,7 @@ export async function render(context) {
   const navBody = docs.length
     ? list
     : empty(t("No documents yet."), h("a", { class: "button primary", href: `#/p/${pid}/overview` }, t("Go to the Overview to run a stage")));
-  clear(main).append(h("h1", {}, t("Documents")), h("div", { class: "split" }, splitNav(t("Documents"), navBody), detail));
+  clear(main).append(pageHeader(t("Documents"), t("Browse versioned project documents and compare changes.")), h("div", { class: "split" }, splitNav(t("Documents"), navBody), detail));
   if (!selected) return;
 
   asyncView(

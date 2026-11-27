@@ -43,7 +43,7 @@ export async function render({ main, params, api, toast }) {
     const heir = h("input", { type: "text", maxlength: "40", autocomplete: "off", spellcheck: "false", required: true, placeholder: t("User name") });
     clear(main).append(
       h("div", { class: "page-heading" },
-        h("div", {}, h("p", { class: "eyebrow" }, h("code", {}, pid)), h("h1", {}, t("Members")),
+        h("div", {}, h("h1", {}, t("Members")),
           h("p", { class: "muted" }, t("Only the people listed here can see this project.")),
         ),
       ),

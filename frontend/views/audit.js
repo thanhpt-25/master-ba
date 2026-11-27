@@ -140,7 +140,7 @@ export async function render({ main, api, params }) {
 
   clear(main).append(
     h("div", { class: "page-heading" },
-      h("div", {}, h("p", { class: "eyebrow" }, t("Administration")), h("h1", {}, t("Audit log")),
+      h("div", {}, h("h1", {}, t("Audit log")),
         h("p", { class: "muted" }, t("Sign-ins and every change to accounts, limits, prices and sharing, newest first. The log cannot be edited.")),
       ),
       csv,

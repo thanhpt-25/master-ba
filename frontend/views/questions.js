@@ -1,4 +1,4 @@
-import { badge, clear, confirmDialog, empty, field, h } from "../dom.js";
+import { badge, clear, confirmDialog, empty, field, h, pageHeader } from "../dom.js";
 import { N_, t } from "../i18n.js";
 
 const ORIGIN = { agent: N_("Question"), qa_blocker: N_("QA objection") };
@@ -104,8 +104,7 @@ export async function render({ main, api, params, me, toast }) {
     const open = all.filter((q) => q.status === "open");
     const closed = all.filter((q) => q.status !== "open");
     clear(main).append(
-      h("h1", {}, t("Questions for the customer")),
-      h("p", { class: "muted" }, t("{open} open, {closed} closed. A QA blocker pauses its run until you answer or withdraw it; other questions remain informational.", { open: open.length, closed: closed.length })),
+      pageHeader(t("Questions for the customer"), t("{open} open, {closed} closed. A QA blocker pauses its run until you answer or withdraw it; other questions remain informational.", { open: open.length, closed: closed.length })),
       ...(all.length ? [...open, ...closed].map(card) : [empty(t("No questions yet."))]),
     );
   }
