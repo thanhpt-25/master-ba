@@ -1,5 +1,5 @@
 // User administration (spec 23, 24): accounts, roles, status, usage and token limits. Admins only.
-import { badge, clear, confirmDialog, empty, field, fmtTime, h, icon, modal, table, tokens, usageMeter } from "../dom.js";
+import { badge, clear, confirmDialog, empty, field, fmtTime, h, icon, modal, rowMenu, table, tokens, usageMeter } from "../dom.js";
 import { N_, t } from "../i18n.js";
 
 const ROLES = [["viewer", "Viewer"], ["approver", "Approver"], ["admin", "Admin"]];
@@ -97,21 +97,57 @@ export async function render({ main, api, me, toast }) {
 
   function actions(user) {
     const self = user.name === me.name;
-    return h("span", { class: "row" },
+    return h("span", { class: "row-actions" },
       h("button", { type: "button", class: "link", onClick: () => editDialog(user) }, t("Edit")),
-      h("button", { type: "button", class: "link", onClick: () => act(() => api.post(path(user, "reset-usage")), t("Usage of {name} starts again now", { name: user.name })) }, t("Reset usage")),
-      self ? null : h("button", { type: "button", class: "link", onClick: () => confirmThen(
-        { title: t("Sign {name} out everywhere?", { name: user.name }), message: t("Every open session of this user ends now; they can sign in again."), confirmLabel: t("Sign out everywhere") },
-        () => api.post(path(user, "signout")), t("{name} was signed out everywhere", { name: user.name })) }, t("Sign out everywhere")),
-      self ? null : user.disabled
-        ? h("button", { type: "button", class: "link", onClick: () => act(() => api.post(path(user, "enable")), t("{name} can sign in again", { name: user.name })) }, t("Enable"))
-        : h("button", { type: "button", class: "link danger", onClick: () => confirmThen(
-          { title: t("Disable {name}?", { name: user.name }), message: t("They are signed out at once and cannot sign in. Projects, memberships, limits and history stay."), confirmLabel: t("Disable"), danger: true },
-          () => api.post(path(user, "disable")), t("{name} is disabled", { name: user.name })) }, t("Disable")),
-      self ? null : h("button", { type: "button", class: "link danger", onClick: () => confirmThen(
-        { title: t("Remove {name}?", { name: user.name }), message: t("Their projects move to you; their usage history is kept."), confirmLabel: t("Remove"), danger: true },
-        () => api.del(`/admin/users/${encodeURIComponent(user.name)}`), t("Removed {name}", { name: user.name })) }, t("Remove")),
+      rowMenu(t("More actions for {name}", { name: user.name }), [
+        { label: t("Reset usage"), onClick: () => act(() => api.post(path(user, "reset-usage")), t("Usage of {name} starts again now", { name: user.name })) },
+        self ? null : { label: t("Sign out everywhere"), onClick: () => confirmThen(
+          { title: t("Sign {name} out everywhere?", { name: user.name }), message: t("Every open session of this user ends now; they can sign in again."), confirmLabel: t("Sign out everywhere") },
+          () => api.post(path(user, "signout")), t("{name} was signed out everywhere", { name: user.name })) },
+        self ? null : user.disabled
+          ? { label: t("Enable"), onClick: () => act(() => api.post(path(user, "enable")), t("{name} can sign in again", { name: user.name })) }
+          : { label: t("Disable"), danger: true, onClick: () => confirmThen(
+            { title: t("Disable {name}?", { name: user.name }), message: t("They are signed out at once and cannot sign in. Projects, memberships, limits and history stay."), confirmLabel: t("Disable"), danger: true },
+            () => api.post(path(user, "disable")), t("{name} is disabled", { name: user.name })) },
+        self ? null : { label: t("Remove"), danger: true, onClick: () => confirmThen(
+          { title: t("Remove {name}?", { name: user.name }), message: t("Their projects move to you; their usage history is kept."), confirmLabel: t("Remove"), danger: true },
+          () => api.del(`/admin/users/${encodeURIComponent(user.name)}`), t("Removed {name}", { name: user.name })) },
+      ]),
     );
+  }
+
+  // Adding an account is occasional: a dialog from the page header.
+  function addDialog() {
+    const name = h("input", { type: "text", maxlength: "40", autocomplete: "off", spellcheck: "false", required: true, pattern: "[A-Za-z0-9._\\-]{1,40}" });
+    const role = roleSelect("approver");
+    const password = h("input", { type: "password", autocomplete: "new-password", minlength: "8", required: true });
+    queueMicrotask(() => name.focus({ preventScroll: true }));
+    modal((close) => h("form", {
+      class: "dialog create-dialog",
+      onSubmit: async (event) => {
+        event.preventDefault();
+        try {
+          await api.post("/admin/users", { name: name.value.trim(), role: role.value, password: password.value });
+          close();
+          toast(t("Added {name}", { name: name.value.trim() }));
+          await refresh();
+        } catch (error) {
+          toast(error.message, "error");
+        }
+      },
+    },
+    h("div", { class: "dialog-top" },
+      h("span", { class: "dialog-icon", "aria-hidden": "true" }, icon("users", 18)),
+      h("h2", { id: "add-user-title" }, t("Add a user")),
+      h("button", { type: "button", class: "icon-button", "aria-label": t("Close"), onClick: close }, icon("close", 18)),
+    ),
+    field(t("User name"), name, t("Letters, digits, dots, dashes or underscores.")),
+    h("div", { class: "field-pair" }, field(t("Role"), role), field(t("Password"), password, t("At least 8 characters."))),
+    h("div", { class: "dialog-actions" },
+      h("button", { type: "button", onClick: close }, t("Cancel")),
+      h("button", { class: "primary", type: "submit" }, icon("plus", 16), t("Add user")),
+    ),
+    ), { labelledBy: "add-user-title" });
   }
 
   function draw(data) {
@@ -138,17 +174,15 @@ export async function render({ main, api, me, toast }) {
     filter.addEventListener("change", () => { status = filter.value; paint(); });
     paint();
 
-    const name = h("input", { type: "text", maxlength: "40", autocomplete: "off", spellcheck: "false", required: true, pattern: "[A-Za-z0-9._\\-]{1,40}" });
-    const role = roleSelect("approver");
-    const password = h("input", { type: "password", autocomplete: "new-password", minlength: "8", required: true });
     const session = limitInput(data.default_limits.session, t("Tokens per 5 hours"));
     const weekly = limitInput(data.default_limits.weekly, t("Tokens per week"));
 
     clear(main).append(
       h("div", { class: "page-heading" },
-        h("div", {}, h("p", { class: "eyebrow" }, t("Administration")), h("h1", {}, t("Users")),
+        h("div", {}, h("h1", {}, t("Users")),
           h("p", { class: "muted" }, t("Accounts, their roles and how many model tokens each may use.")),
         ),
+        h("div", { class: "page-actions" }, h("button", { class: "primary", type: "button", onClick: addDialog }, icon("plus", 16), t("Add user"))),
       ),
       h("section", { class: "panel", "aria-labelledby": "users-list" },
         h("div", { class: "panel-heading" },
@@ -157,16 +191,6 @@ export async function render({ main, api, me, toast }) {
         ),
         listHost,
       ),
-      h("div", { class: "overview-columns" },
-        h("form", { class: "panel form-grid", onSubmit: (event) => {
-          event.preventDefault();
-          act(() => api.post("/admin/users", { name: name.value.trim(), role: role.value, password: password.value }), t("Added {name}", { name: name.value.trim() }));
-        } },
-        h("h2", {}, t("Add a user")),
-        field(t("User name"), name, t("Letters, digits, dots, dashes or underscores.")),
-        h("div", { class: "field-pair" }, field(t("Role"), role), field(t("Password"), password, t("At least 8 characters."))),
-        h("button", { class: "primary", type: "submit" }, icon("plus", 16), t("Add user")),
-        ),
         h("form", { class: "panel form-grid", onSubmit: (event) => {
           event.preventDefault();
           act(() => api.put("/admin/limits", { session: limitValue(session), weekly: limitValue(weekly) }), t("Default limits saved"));
@@ -176,7 +200,6 @@ export async function render({ main, api, me, toast }) {
         h("div", { class: "field-pair" }, field(t("Tokens per 5 hours"), session), field(t("Tokens per week"), weekly)),
         h("button", { class: "primary", type: "submit" }, t("Save default limits")),
         ),
-      ),
     );
   }
 

@@ -7,7 +7,7 @@ export async function render({ main, api }) {
   const limited = data.windows.some((w) => w.limit !== null);
   clear(main).append(
     h("div", { class: "page-heading" },
-      h("div", {}, h("p", { class: "eyebrow" }, t("Account")), h("h1", {}, t("Usage")),
+      h("div", {}, h("h1", {}, t("Usage")),
         h("p", { class: "muted" }, t("Model tokens used for you across all your projects.")),
       ),
     ),

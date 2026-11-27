@@ -1,6 +1,6 @@
 // Knowledge tab: sources of the project knowledge base and a search box (spec 12, Requirement 14).
 
-import { badge, clear, confirmDialog, empty, field, fmtTime, h, spinner, table } from "../dom.js";
+import { badge, clear, confirmDialog, empty, field, fmtTime, h, pageHeader, spinner, table } from "../dom.js";
 import { t } from "../i18n.js";
 
 const ACCEPT = ".md,.txt,.xlsx,.docx,.pdf";
@@ -96,8 +96,7 @@ export async function render({ main, api, params, me, toast }) {
   };
 
   clear(main).append(
-    h("h1", {}, t("Knowledge base")),
-    h("p", { class: "muted" }, t("Files the stages may quote from. Writers cite passages by ref; QA checks drafts against them.")),
+    pageHeader(t("Knowledge base"), t("Files the stages may quote from. Writers cite passages by ref; QA checks drafts against them.")),
     canAct
       ? h(
           "section",

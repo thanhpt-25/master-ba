@@ -149,6 +149,7 @@ function accountMenu() {
       state.me.role === "admin" ? h("a", { class: "menu-item", href: "#/users" }, icon("users", 16), t("Users")) : null,
       h("button", { id: "lang-toggle", class: "menu-item lang-toggle", type: "button", lang: lang() === "ja" ? "en" : "ja", onClick: switchLanguage }, icon("language", 16), lang() === "ja" ? "English" : "日本語"),
       h("button", { id: "theme-toggle", class: "menu-item theme-toggle", type: "button", onClick: cycleTheme, "aria-label": t("Color theme: {name}. Activate to change theme.", { name: t(THEME_NAMES[theme]) }) }, icon("theme", 16), h("span", {}, themeLabel())),
+      h("div", { class: "menu-sep", role: "separator" }),
       h("button", { class: "menu-item", type: "button", onClick: logout }, icon("signout", 16), t("Sign out")),
     ),
   );
@@ -164,7 +165,7 @@ let shellCleanup = null;
 function shell(params, content) {
   if (shellCleanup) { shellCleanup(); shellCleanup = null; }
   const section = params.pid ? TABS.find(([key]) => key === params.name) : null;
-  const crumbs = [h("span", {}, t("Workspace")), h("span", { class: "crumb-slash", "aria-hidden": "true" }, "/")];
+  const crumbs = [];
   if (params.pid) {
     crumbs.push(h("a", { href: "#/projects" }, t("Projects")), h("span", { class: "crumb-slash", "aria-hidden": "true" }, "/"));
     if (section && section[0] !== "overview") {
@@ -185,18 +186,32 @@ function shell(params, content) {
         ),
       )
     : null;
+  const isAdmin = state.me.role === "admin";
+  const inAdmin = !params.pid && ADMIN_PAGES.includes(params.name);
   return [
     h("div", { class: "app-shell" },
       h("aside", { class: "sidebar" },
-        h("a", { class: "brand", href: "#/projects", "aria-label": t("MasterBA, go to projects") }, h("span", { class: "seal", "aria-hidden": "true" }, "要"), h("span", {}, "MasterBA"), h("span", { class: "brand-dot", "aria-hidden": "true" }, ".")),
+        h("a", { class: "brand", href: "#/projects", "aria-label": t("MasterBA, go to projects") }, h("span", { class: "seal", "aria-hidden": "true" }, "要"), h("span", {}, "MasterBA")),
+        // Inside a project its sections come first, so they are never below the fold.
+        params.pid
+          ? [
+              h("div", { class: "project-block" },
+                h("span", { class: "project-block-label" }, h("span", {}, t("Project")), h("a", { href: "#/projects" }, t("Switch"))),
+                h("span", { class: "project-block-id" }, params.pid),
+              ),
+              h("nav", { class: "workspace-nav project-nav", "aria-label": t("Project navigation") },
+                TABS.map(([key, label]) => navLink(`#/p/${params.pid}/${key}`, TAB_ICONS[key], t(label), params.name === key)),
+              ),
+            ]
+          : null,
         h("p", { class: "sidebar-label" }, t("Workspace")),
         h("nav", { class: "workspace-nav", "aria-label": t("Workspace") },
           navLink("#/projects", "projects", t("Projects"), !params.pid && params.name === "projects"),
           navLink("#/usage", "gauge", t("Usage"), params.name === "usage"),
         ),
-        state.me.role === "admin"
-          ? [
-              h("p", { class: "sidebar-label" }, t("Administration")),
+        isAdmin
+          ? h("details", { class: "admin-group", open: inAdmin || !params.pid },
+              h("summary", {}, h("span", {}, t("Administration")), icon("chevron", 14)),
               h("nav", { class: "workspace-nav admin-nav", "aria-label": t("Administration") },
                 navLink("#/admin", "dashboard", t("Admin dashboard"), !params.pid && params.name === "admin"),
                 navLink("#/users", "users", t("Users"), params.name === "users"),
@@ -204,15 +219,7 @@ function shell(params, content) {
                 navLink("#/audit", "audit", t("Audit log"), params.name === "audit"),
                 navLink("#/templates", "templates", t("Templates"), params.name === "templates"),
               ),
-            ]
-          : null,
-        params.pid
-          ? [
-              h("p", { class: "sidebar-label project-label" }, h("span", {}, t("Project")), h("code", {}, params.pid)),
-              h("nav", { class: "workspace-nav project-nav", "aria-label": t("Project navigation") },
-                TABS.map(([key, label]) => navLink(`#/p/${params.pid}/${key}`, TAB_ICONS[key], t(label), params.name === key)),
-              ),
-            ]
+            )
           : null,
         h("div", { class: "sidebar-foot" }, h("span", { class: "sidebar-live", "aria-hidden": "true" }), t("V-model workspace")),
       ),

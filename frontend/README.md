@@ -57,19 +57,21 @@ Everything is built from a tiny `h(tag, attrs, ...children)` helper that inserts
 - `shortcutsDialog(list)` — focus-trapped keyboard-shortcut help.
 - `modal(build, opts)` — the shared focus-trap all dialogs are built on, including New project (Escape + backdrop close, Tab wraps, restores focus, one open at a time).
 - `icon(name, size)` — a decorative line icon (Lucide shapes, ISC) built with `createElementNS`, so the CSP needs no inline markup. Always next to a word.
-- `monogram(text)` — the two letters on project cards and activity avatars.
+- `monogram(text)` — two letters that stand for a project or a person.
+- `pageHeader(title, description, ...actions)` — the one page header (spec 25).
+- `rowMenu(label, items)` — secondary row actions behind a "more" button, placed against the viewport so a scrolling table does not clip it.
 
 ### Styling
 
 `app.css` is driven entirely by CSS custom properties (colour, type, spacing, radius, motion). It ships:
 
-- Light and dark themes (`prefers-color-scheme`).
+- Light and dark themes (`prefers-color-scheme`, or the account menu's choice).
 - `prefers-reduced-motion` and `forced-colors` support.
 - No hard-coded colours in component rules — everything references a token.
 - Theme control cycles System, Light, and Dark and remembers the selection locally.
 - Workspace navigation stays in a compact sidebar on desktop and moves into the top bar on small screens.
 
-The look follows the `master-frontend-refresh` design (spec 19 part 5): a full-height sidebar that also lists the project sections, breadcrumbs and one account menu (language, theme, sign out) in the top bar, mono kickers above headings. The Projects screen shows a metric strip, then cards with each project's current phase, status, progress and document count (from `GET /api/projects/{pid}`), with search and a language filter; New project opens a dialog. The Overview leads with the next step, four counts, then the delivery pipeline (phases, review gates, side loops) beside recent activity, then the V-model detail.
+The look is the design ledger of spec 25 (`specs/25-design-ledger-ui.md`): cool paper neutrals, indigo for everything you can act on, vermilion only for the seal (the brand mark and approval). `app.css` is ordered tokens, base, shell, controls, surfaces, data, feedback, screens, responsive. Inside a project the sidebar starts with the project and its sections; 管理 folds. The Projects screen is a register (one row per project with a four-segment phase track). The Overview leads with the next step and a figures strip, then draws the V-model (design down the left arm, tests up the right, review gates between phases), then recent activity in plain words (`views/history.js`) and open customer questions; project settings fold at the bottom.
 
 Page titles and descriptions update with the active route so browser tabs and shared links identify the current screen.
 

@@ -63,7 +63,7 @@ const STATUS = {
   failed: { icon: "✕", label: N_("Failed"), cls: "bad" },
   draft: { icon: "✎", label: N_("Draft"), cls: "idle" },
   proposed: { icon: "○", label: N_("Proposed"), cls: "idle" },
-  approved: { icon: "✓", label: N_("Approved"), cls: "run" },
+  approved: { icon: "✓", label: N_("Approved"), cls: "seal" },
   propagated: { icon: "✓", label: N_("Propagated"), cls: "ok" },
   closed: { icon: "■", label: N_("Closed"), cls: "idle" },
   planned: { icon: "·", label: N_("Planned"), cls: "idle" },
@@ -107,6 +107,15 @@ export function table(headers, rows, caption = "", opts = {}) {
       h("thead", {}, h("tr", {}, headers.map((text) => h("th", { scope: "col" }, text)))),
       h("tbody", {}, rows.map((row) => h("tr", {}, row.map((cell) => h("td", {}, cell))))),
     ),
+  );
+}
+
+// The page header every screen opens with: title, one line on what the page is for, actions right.
+export function pageHeader(title, description = "", ...actions) {
+  actions = actions.filter(Boolean);
+  return h("div", { class: "page-heading" },
+    h("div", {}, h("h1", {}, title), description ? h("p", { class: "muted" }, description) : null),
+    actions.length ? h("div", { class: "page-actions" }, actions) : null,
   );
 }
 
@@ -334,6 +343,7 @@ const ICONS = {
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   gauge: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
   dashboard: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
   audit: '<path d="M12 8v4l3 3"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>',
 };
 const SVG = "http://www.w3.org/2000/svg";
@@ -352,6 +362,43 @@ export function icon(name, size = 17) {
     svg.append(shape);
   }
   return svg;
+}
+
+// Secondary row actions behind one "more" button, so a table row shows one primary action
+// (spec 25 section 4). items: [{ label, onClick, danger }]; null items are skipped.
+let menuWatch = false;
+export function rowMenu(label, items) {
+  const menu = h("details", { class: "row-menu" },
+    h("summary", { class: "icon-button", "aria-label": label, title: label }, icon("more", 16)),
+    h("div", { class: "account-menu", role: "menu" },
+      items.filter(Boolean).map((item) => h("button", {
+        type: "button",
+        role: "menuitem",
+        class: `menu-item${item.danger ? " danger" : ""}`,
+        onClick: () => { menu.open = false; item.onClick(); },
+      }, item.label)),
+    ),
+  );
+  // Tables scroll, so the list is placed against the viewport instead of inside the table.
+  menu.addEventListener("toggle", () => {
+    if (!menu.open) return;
+    const list = menu.querySelector(".account-menu");
+    const box = menu.querySelector("summary").getBoundingClientRect();
+    list.style.setProperty("top", `${Math.round(box.bottom + 4)}px`);
+    list.style.setProperty("right", `${Math.round(window.innerWidth - box.right)}px`);
+  });
+  const closeOnScroll = () => { menu.open = false; };
+  menu.addEventListener("toggle", () => {
+    if (menu.open) window.addEventListener("scroll", closeOnScroll, { capture: true, once: true });
+  });
+  menu.addEventListener("keydown", (event) => { if (event.key === "Escape" && menu.open) { menu.open = false; menu.querySelector("summary").focus(); } });
+  if (!menuWatch && typeof document.addEventListener === "function") {
+    menuWatch = true;
+    document.addEventListener("click", (event) => {
+      for (const open of document.querySelectorAll("details.row-menu[open]")) if (!open.contains(event.target)) open.open = false;
+    });
+  }
+  return menu;
 }
 
 // Up to two letters that stand for a project or a person.

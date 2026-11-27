@@ -13,13 +13,16 @@ export function matchProjects(projects, query) {
     .some((v) => String(v ?? "").toLowerCase().includes(q)));
 }
 
+// The four phases as one ruled track (spec 25): colour plus a spoken label per segment.
 function phases(project) {
-  return h("ol", { class: "phase-dots", "aria-label": t("Phases") },
-    project.stages.map((s) => {
-      const state = s.review === "in_review" ? "in_review" : s.review === "approved" ? "approved" : s.status;
-      return h("li", { class: `phase-dot ${state}`, title: `${t(STAGE_LABELS[s.stage] ?? s.stage)}: ${statusLabel(state)}` },
-        h("span", { class: "phase-name" }, t(STAGE_LABELS[s.stage] ?? s.stage)), badge(state));
-    }),
+  const states = project.stages.map((s) => ({ stage: s.stage, state: s.review === "in_review" ? "in_review" : s.review === "approved" ? "approved" : s.status }));
+  const open = states.find((s) => !["approved", "done"].includes(s.state));
+  return h("div", { class: "phase-cell" },
+    h("ol", { class: "phase-track", "aria-label": t("Phases") },
+      states.map(({ stage, state }) => h("li", { class: state, title: `${t(STAGE_LABELS[stage] ?? stage)}: ${statusLabel(state)}` },
+        h("span", { class: "sr-only" }, `${t(STAGE_LABELS[stage] ?? stage)}: ${statusLabel(state)}`))),
+    ),
+    open ? h("span", { class: "muted" }, `${t(STAGE_LABELS[open.stage] ?? open.stage)} · ${statusLabel(open.state)}`) : badge("done"),
   );
 }
 
@@ -108,7 +111,7 @@ export async function render({ main, api, toast }) {
   search.addEventListener("input", () => data && paint());
   clear(main).append(
     h("div", { class: "page-heading" },
-      h("div", {}, h("p", { class: "eyebrow" }, t("Administration")), h("h1", {}, t("All projects")),
+      h("div", {}, h("h1", {}, t("All projects")),
         h("p", { class: "muted" }, t("Every project on this server with its owner, members, phases and model use.")),
       ),
     ),

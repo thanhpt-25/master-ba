@@ -1,4 +1,4 @@
-import { badge, clear, empty, field, h, icon, modal, monogram } from "../dom.js";
+import { badge, clear, empty, field, h, icon, modal } from "../dom.js";
 import { t } from "../i18n.js";
 import { phaseTitle, workflowSteps } from "./journey.js";
 
@@ -23,44 +23,35 @@ export function projectSummary(overview) {
     documents: overview.stages.reduce((sum, stage) => sum + stage.documents.length, 0),
     reviews: states.filter((s) => s === "in_review").length,
     questions: overview.counts?.open_questions ?? 0,
+    steps: flow.steps.map((step) => ({ key: step.key, state: step.state })),
   };
 }
 
-function projectMark(project) {
-  return project.company_id && project.company_id !== "default"
-    ? monogram(project.company_id)
-    : String(project.project_id).replace(/\D/g, "").slice(-2) || monogram(project.project_id);
-}
-
+// One ruled row of the project register: name, where it stands in the V, facts, status.
 function projectCard(project, summary) {
   return h("li", {}, h("a", { class: "project-card", href: `#/p/${project.project_id}/overview` },
-    h("span", { class: "project-card-top" },
-      h("span", { class: "monogram", "aria-hidden": "true" }, projectMark(project)),
-      summary ? badge(summary.status) : null,
-      h("span", { class: "project-card-open" }, icon("open", 16)),
-    ),
     h("span", { class: "project-card-title" },
       h("code", { class: "project-id" }, project.project_id),
       h("strong", {}, project.company_id === "default" ? t("Standard templates") : project.company_id),
     ),
     summary
-      ? [
-          h("span", { class: "project-stage" }, h("span", {}, t("Current stage")), h("span", { class: "project-stage-name" }, summary.stage, icon("next", 13))),
-          h("progress", { class: "meter", value: String(summary.progress), max: "100", "aria-label": t("{n}% complete", { n: summary.progress }) }),
-        ]
+      ? h("span", { class: "project-stage" },
+          h("span", { class: "project-stage-name" }, h("span", {}, t("Current stage"), " ", h("strong", {}, summary.stage)), h("span", {}, t("{n}% complete", { n: summary.progress }))),
+          h("ul", { class: "phase-track", "aria-hidden": "true" }, summary.steps.map((step) => h("li", { class: step.state }))),
+        )
       : h("span", { class: "project-stage muted" }, t("Status not available")),
     h("span", { class: "project-card-bottom" },
-      h("span", {}, icon("documents", 14), summary ? t("{n} documents", { n: summary.documents }) : "–"),
-      h("span", {}, icon("language", 14), project.document_language === "ja" ? t("Documents in Japanese") : t("Documents in English")),
-      project.owner ? h("span", { class: "project-owner" }, icon("users", 14), project.my_role === "admin" ? t("Owner: {name}", { name: project.owner }) : t("Shared by {name}", { name: project.owner })) : null,
+      h("span", {}, icon("documents", 13), summary ? t("{n} documents", { n: summary.documents }) : "–"),
+      h("span", {}, icon("language", 13), project.document_language === "ja" ? t("Documents in Japanese") : t("Documents in English")),
+      project.owner ? h("span", { class: "project-owner" }, icon("users", 13), project.my_role === "admin" ? t("Owner: {name}", { name: project.owner }) : t("Shared by {name}", { name: project.owner })) : null,
     ),
+    h("span", { class: "project-card-top" }, summary ? badge(summary.status) : null, h("span", { class: "project-card-open" }, icon("next", 16))),
   ));
 }
 
-function metric(iconName, tone, label, value, note) {
+function metric(label, value, note) {
   return h("div", { class: "metric" },
-    h("span", { class: `metric-icon ${tone}` }, icon(iconName, 17)),
-    h("span", { class: "metric-body" }, h("span", { class: "metric-label" }, label), h("strong", {}, String(value).padStart(2, "0"))),
+    h("span", { class: "metric-body" }, h("span", { class: "metric-label" }, label), h("strong", {}, String(value))),
     h("span", { class: "metric-note" }, note),
   );
 }
@@ -80,7 +71,7 @@ export async function render({ main, api, me, go, toast }) {
     icon("search", 17),
     h("input", { type: "search", placeholder: t("Find a project by ID or company"), onInput: (event) => { search = event.target.value; drawList(); } }),
   );
-  const filters = h("div", { class: "project-filters", role: "group", "aria-label": t("Filter projects by document language") },
+  const filters = h("div", { class: "project-filters segmented", role: "group", "aria-label": t("Filter projects by document language") },
     ...[["all", t("All languages")], ["en", t("English")], ["ja", t("Japanese")]].map(([value, label]) =>
       h("button", { type: "button", "aria-pressed": value === languageFilter ? "true" : "false", onClick: () => { languageFilter = value; for (const button of filters.children) button.setAttribute("aria-pressed", button.textContent === label ? "true" : "false"); drawList(); } }, label),
     ),
@@ -113,17 +104,17 @@ export async function render({ main, api, me, go, toast }) {
   const questions = known.reduce((sum, s) => sum + s.questions, 0);
   clear(main).append(
     h("div", { class: "page-heading" },
-      h("div", {}, h("p", { class: "eyebrow" }, t("Control room")), h("h1", {}, t("Projects")), h("p", { class: "muted" }, t("Your requirements, documents, and decisions."))),
+      h("div", {}, h("h1", {}, t("Projects")), h("p", { class: "muted" }, t("Your requirements, documents, and decisions."))),
       canCreate ? h("button", { class: "primary", type: "button", onClick: openCreate }, icon("plus", 17), t("New project")) : null,
     ),
     h("section", { class: "metrics", "aria-label": t("Workspace summary") },
-      metric("projects", "accent", t("Total projects"), projects.length, t("in this workspace")),
-      metric("workflow", "run", t("In progress"), active, t("active workflows")),
-      metric("shield", "warn", t("Reviews waiting"), reviews, t("{n} open customer question(s)", { n: questions })),
+      metric(t("Total projects"), projects.length, t("in this workspace")),
+      metric(t("In progress"), active, t("active workflows")),
+      metric(t("Reviews waiting"), reviews, t("{n} open customer question(s)", { n: questions })),
     ),
     h("section", { class: "panel project-browser", "aria-labelledby": "all-projects" },
-      h("div", { class: "browser-heading" }, h("h2", { id: "all-projects" }, t("All projects")), count),
-      projects.length ? h("div", { class: "project-tools" }, searchBox, filters) : null,
+      h("div", { class: "browser-heading" }, h("h2", { id: "all-projects" }, t("All projects")), count,
+        projects.length ? h("div", { class: "project-tools" }, searchBox, filters) : null),
       listHost,
     ),
   );
@@ -133,22 +124,27 @@ export async function render({ main, api, me, go, toast }) {
 // The New project form, in a focus-trapped dialog (refresh design) instead of below the list.
 function createDialog({ api, go, toast }) {
   const id = h("input", { type: "text", id: "project_id", name: "project_id", autocomplete: "off", spellcheck: "false", placeholder: "PRJ-001…", pattern: "PRJ-[0-9]{3}", required: true });
-  const company = h("input", { type: "text", name: "company_id", value: "default", required: true });
+  const company = h("input", { type: "text", name: "company_id", value: "default", required: true, spellcheck: "false", autocomplete: "off" });
   const language = h("select", { name: "document_language" }, h("option", { value: "ja" }, t("Japanese")), h("option", { value: "en" }, t("English")));
   const rounds = h("input", { type: "number", name: "team_max_rounds", min: "1", max: "20", value: "3" });
   const budget = h("input", { type: "number", name: "team_token_budget", min: "1", value: "100000" });
   const mode = h("select", { name: "propagation_mode" }, h("option", { value: "manual_gate" }, t("Manual: press Propagate")), h("option", { value: "auto" }, t("Automatic: update documents when a decision is made")));
   const idField = field(t("Project id"), id, t("Format PRJ-001"));
-  const setIdError = (msg) => {
-    idField.classList.toggle("invalid", Boolean(msg));
-    idField.querySelector(".field-error")?.remove();
+  const companyField = field(t("Company"), company, t("Selects the template set; “default” uses the baseline."));
+  // Inline errors next to the field (spec 25 section 4), the same rule the server applies.
+  const fieldError = (box, control, msg) => {
+    box.classList.toggle("invalid", Boolean(msg));
+    box.querySelector(".field-error")?.remove();
     if (msg) {
-      id.setAttribute("aria-invalid", "true");
-      idField.append(h("p", { class: "field-error", role: "alert" }, msg));
+      control.setAttribute("aria-invalid", "true");
+      box.append(h("p", { class: "field-error", role: "alert" }, msg));
     } else {
-      id.removeAttribute("aria-invalid");
+      control.removeAttribute("aria-invalid");
     }
   };
+  const setIdError = (msg) => fieldError(idField, id, msg);
+  const COMPANY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
+  company.addEventListener("input", () => { if (COMPANY.test(company.value.trim())) fieldError(companyField, company, null); });
   id.addEventListener("input", () => { if (/^PRJ-[0-9]{3}$/.test(id.value.trim())) setIdError(null); });
   modal((close) => h(
     "form",
@@ -163,10 +159,16 @@ function createDialog({ api, go, toast }) {
           return;
         }
         setIdError(null);
+        if (!COMPANY.test(company.value.trim())) {
+          fieldError(companyField, company, t("Use letters, digits, dots, dashes or underscores, without spaces (for example koyo-mfg)."));
+          company.focus();
+          return;
+        }
+        fieldError(companyField, company, null);
         try {
           const created = await api.post("/projects", {
             project_id: id.value.trim(),
-            company_id: company.value,
+            company_id: company.value.trim(),
             document_language: language.value,
             team_max_rounds: Number(rounds.value),
             team_token_budget: budget.value ? Number(budget.value) : null,
@@ -187,7 +189,7 @@ function createDialog({ api, go, toast }) {
     ),
     h("p", { class: "muted" }, t("Set up a workspace for a new document workflow.")),
     idField,
-    field(t("Company"), company, t("Selects the template set; “default” uses the baseline.")),
+    companyField,
     h("div", { class: "field-pair" },
       field(t("Document language"), language, t("The language of everything the agents write.")),
       field(t("Max team rounds"), rounds, t("How many drafts a team may make before it escalates.")),

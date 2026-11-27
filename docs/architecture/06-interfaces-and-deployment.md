@@ -203,7 +203,7 @@ stateDiagram-v2
 
 `frontend/` is plain ES modules with no build step: `app.js` starts it, `api.js` is the only place
 that calls the server, `dom.js` builds elements, and `views/` has one module per screen (login,
-overview, projects, activity, documents, trace, questions, DRs, knowledge, templates). Text is inserted only as text nodes
+overview, projects, activity, documents, trace, questions, DRs, knowledge, templates, members, usage, users, admin, all projects, audit). Text is inserted only as text nodes
 and the CSP forbids inline script and style, so content from a model cannot run in the page.
 
 Spec 19 part 3 shapes the pilot path:
@@ -219,6 +219,23 @@ Spec 19 part 3 shapes the pilot path:
 - **Language.** `i18n.js` `t(text, vars)`: the English text is the key and `i18n-ja.js` maps it to
   Japanese. Japanese is the default; the header switch keeps the choice per user in the browser.
   `test/i18n.test.mjs` fails on a string without a translation or a stale entry.
+
+Spec 25 (the design ledger) sets the look and the shared patterns:
+
+- **Tokens.** `app.css` is one token-driven file in nine sections. Indigo is the only interactive
+  colour; vermilion is kept for the seal (the brand mark and `badge("approved")`); status colours
+  always come with an icon and a word. Light and dark redefine the same tokens.
+- **Shell.** Inside a project the sidebar starts with the project block and its sections; 管理 folds.
+  Every screen opens with `dom.js` `pageHeader(title, description, ...actions)`.
+- **Overview.** The next step, a figures strip, then the V (`pipelinePanel`): design phases down the
+  left arm, test levels up the right arm, pairs joined by their trace, review gates between phases.
+  The run control of the current phase appears only in the next-step panel. Project settings fold
+  at the bottom.
+- **Activity in plain words.** `views/history.js` turns commit subjects into a label and a detail and
+  folds runs of one kind; the raw subject stays as a tooltip in the Activity view.
+- **Row menus and dialogs.** `rowMenu` holds secondary row actions; occasional forms (propose a
+  change, add a user, new project) are dialogs from the page header. `api.js` turns a 422 into one
+  sentence.
 
 ## 6.4 Rendering: JSON to Excel
 

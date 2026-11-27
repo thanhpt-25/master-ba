@@ -1,4 +1,4 @@
-import { badge, cellText, clear, confirmDialog, empty, field, h, liveDot, table } from "../dom.js";
+import { badge, cellText, clear, confirmDialog, empty, field, h, icon, liveDot, modal, pageHeader, table } from "../dom.js";
 import { N_, t } from "../i18n.js";
 
 const TRIGGERS = {
@@ -60,44 +60,58 @@ export async function render({ main, api, params, me, toast, go }) {
     ),
   );
 
-  const trigger = h("select", { id: "trigger" }, PROPOSABLE.map((v) => h("option", { value: v }, trigger_(v))));
-  const description = h("textarea", { id: "description", rows: "3", required: true });
-  const items = h("textarea", { id: "items", rows: "3", spellcheck: "false", autocomplete: "off", placeholder: "REQ-0002\nDOC-SRS-0001#item.2…" });
-  const createForm = canAct
-    ? h(
-        "form",
-        {
-          class: "panel",
-          onSubmit: async (event) => {
-            event.preventDefault();
-            try {
-              const made = await api.post(`/projects/${pid}/drs`, {
-                trigger: trigger.value,
-                description: description.value,
-                items: items.value.split("\n").map((s) => s.trim()).filter(Boolean),
-              });
-              toast(t("Created {id}", { id: made.id }));
-              go(`#/p/${pid}/drs/${made.id}`);
-            } catch (error) {
-              toast(error.message, "error");
-            }
-          },
+  // Proposing a change is an occasional action: a dialog from the page header, not a form in the list.
+  const openCreate = () => modal((close) => {
+    const trigger = h("select", { id: "trigger" }, PROPOSABLE.map((v) => h("option", { value: v }, trigger_(v))));
+    const description = h("textarea", { id: "description", rows: "3", required: true });
+    const items = h("textarea", { id: "items", rows: "3", spellcheck: "false", autocomplete: "off", placeholder: "REQ-0002\nDOC-SRS-0001#item.2…" });
+    queueMicrotask(() => trigger.focus({ preventScroll: true }));
+    return h(
+      "form",
+      {
+        class: "dialog create-dialog",
+        onSubmit: async (event) => {
+          event.preventDefault();
+          try {
+            const made = await api.post(`/projects/${pid}/drs`, {
+              trigger: trigger.value,
+              description: description.value,
+              items: items.value.split("\n").map((s) => s.trim()).filter(Boolean),
+            });
+            close();
+            toast(t("Created {id}", { id: made.id }));
+            go(`#/p/${pid}/drs/${made.id}`);
+          } catch (error) {
+            toast(error.message, "error");
+          }
         },
-        h("h2", {}, t("Propose a change")),
-        field(t("Kind of change"), trigger),
-        field(t("What changes and why"), description),
-        field(t("Affected requirements or items"), items, t("One id per line. A clarification may have none.")),
+      },
+      h("div", { class: "dialog-top" },
+        h("span", { class: "dialog-icon", "aria-hidden": "true" }, icon("drs", 18)),
+        h("h2", { id: "dr-create-title" }, t("Propose a change")),
+        h("button", { type: "button", class: "icon-button", "aria-label": t("Close"), onClick: close }, icon("close", 18)),
+      ),
+      field(t("Kind of change"), trigger),
+      field(t("What changes and why"), description),
+      field(t("Affected requirements or items"), items, t("One id per line. A clarification may have none.")),
+      h("div", { class: "dialog-actions" },
+        h("button", { type: "button", onClick: close }, t("Cancel")),
         h("button", { type: "submit", class: "primary" }, t("Propose")),
-      )
-    : null;
+      ),
+    );
+  }, { labelledBy: "dr-create-title" });
 
   const detail = h("div", { class: "doc-detail" });
   clear(main).append(
-    h("h1", {}, t("Decision Records")),
-    h("div", { class: "split" }, h("nav", { "aria-label": t("Decision Records") }, drs.length ? list : empty(t("No decision records.")), createForm), detail),
+    pageHeader(t("Decision Records"), t("Review project decisions, impacts, and change propagation."),
+      canAct ? h("button", { class: "primary", type: "button", onClick: openCreate }, icon("plus", 16), t("Propose a change")) : null),
+    h("div", { class: "split" }, h("nav", { "aria-label": t("Decision Records") }, drs.length ? list : h("p", { class: "muted" }, t("No decision records."))), detail),
   );
   if (!drId) {
-    detail.append(empty(t("Select a record to see its impact and decide.")));
+    detail.append(drs.length
+      ? empty(t("Select a record to see its impact and decide."))
+      : empty(t("No Decision Record yet. Propose one when a requirement or design has to change; its impact is analysed before anything is rewritten."),
+        canAct ? h("button", { class: "primary", type: "button", onClick: openCreate }, icon("plus", 16), t("Propose a change")) : null));
     return;
   }
 

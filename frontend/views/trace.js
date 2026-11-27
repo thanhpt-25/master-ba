@@ -199,7 +199,7 @@ export async function render({ main, api, params, toast }) {
   select.value = first;
   clear(main).append(
     h("header", { class: "page-heading trace-page-heading" },
-      h("div", {}, h("p", { class: "eyebrow" }, t("Traceability")), h("h1", {}, t("Follow every requirement")), h("p", { class: "muted" }, t("See how a requirement flows through design and reaches its test cases."))),
+      h("div", {}, h("h1", {}, t("Follow every requirement")), h("p", { class: "muted" }, t("See how a requirement flows through design and reaches its test cases."))),
       h("span", { class: "trace-count" }, t("{n} requirements", { n: requirements.length })),
     ),
     h("section", { class: "panel trace-explorer", "aria-labelledby": "trace-explorer-title" },
@@ -213,7 +213,7 @@ export async function render({ main, api, params, toast }) {
       pathList,
     ),
     h("section", { class: "panel trace-impact", "aria-labelledby": "impact-title" },
-      h("div", { class: "trace-section-heading" }, h("div", {}, h("p", { class: "eyebrow" }, t("Change analysis")), h("h2", { id: "impact-title" }, t("Explore impact")), h("p", { id: "trace-impact-help", class: "muted" }, t("Find the upstream and downstream items connected to any requirement, document item, or test case.")))),
+      h("div", { class: "trace-section-heading" }, h("div", {}, h("h2", { id: "impact-title" }, t("Explore impact")), h("p", { id: "trace-impact-help", class: "muted" }, t("Find the upstream and downstream items connected to any requirement, document item, or test case.")))),
       impactForm,
       impact,
     ),

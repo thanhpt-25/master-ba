@@ -100,7 +100,7 @@ export async function render({ main, api, toast }) {
 
   clear(main).append(
     h("div", { class: "page-heading" },
-      h("div", {}, h("p", { class: "eyebrow" }, t("Administration")), h("h1", {}, t("Admin dashboard")),
+      h("div", {}, h("h1", {}, t("Admin dashboard")),
         h("p", { class: "muted" }, t("Usage, cost, delivery and security across every user and project.")),
       ),
       h("div", { class: "admin-tools" }, switcher,

@@ -1,4 +1,4 @@
-import { badge, clear, empty, field, h, loadError, spinner, table } from "../dom.js";
+import { badge, clear, empty, field, h, loadError, pageHeader, spinner, table } from "../dom.js";
 import { t } from "../i18n.js";
 
 const tr = t; // `t` is a mapping table inside mappingTables
@@ -126,8 +126,7 @@ export async function render({ main, api, toast }) {
   };
 
   clear(main).append(
-    h("h1", {}, t("Company templates")),
-    h("p", { class: "hint" }, t("A calibrated template is used for rendering only after an administrator confirms it.")),
+    pageHeader(t("Company templates"), t("A calibrated template is used for rendering only after an administrator confirms it.")),
     h("section", { class: "panel" }, field(t("Company"), company), field(t("Document type"), docType), field(t("Sample workbook (.xlsx, up to 5 MB)"), sample), h("button", { class: "primary", onClick: upload }, t("Calibrate from sample"))),
     list,
     detail,
