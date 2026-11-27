@@ -1,6 +1,6 @@
-// User administration (spec 23): accounts, roles, usage and token limits. Admins only.
-import { clear, confirmDialog, field, h, icon, modal, table, tokens, usageMeter } from "../dom.js";
-import { t } from "../i18n.js";
+// User administration (spec 23, 24): accounts, roles, status, usage and token limits. Admins only.
+import { badge, clear, confirmDialog, empty, field, fmtTime, h, icon, modal, table, tokens, usageMeter } from "../dom.js";
+import { N_, t } from "../i18n.js";
 
 const ROLES = [["viewer", "Viewer"], ["approver", "Approver"], ["admin", "Admin"]];
 
@@ -19,6 +19,22 @@ function limitText(limits) {
   const part = (n) => (n === null ? t("no limit") : tokens(n));
   return t("5 h: {session} · week: {weekly}", { session: part(limits.session), weekly: part(limits.weekly) });
 }
+
+// The users a search and a status filter keep (spec 24 section 7).
+export function matchUsers(users, query, status) {
+  const q = String(query ?? "").trim().toLowerCase();
+  return users.filter((u) => {
+    if (status === "active" && u.disabled) return false;
+    if (status === "disabled" && !u.disabled) return false;
+    if (status === "limited" && !u.usage.some((w) => w.percent !== null && w.percent >= 80)) return false;
+    if (["viewer", "approver", "admin"].includes(status) && u.role !== status) return false;
+    return !q || u.name.toLowerCase().includes(q);
+  });
+}
+
+const FILTERS = [["", N_("All users")], ["active", N_("Active")], ["disabled", N_("Disabled")], ["limited", N_("Near a limit")], ["admin", N_("Admin")], ["approver", N_("Approver")], ["viewer", N_("Viewer")]];
+let query = "";
+let status = "";
 
 export async function render({ main, api, me, toast }) {
   const refresh = async () => draw(await api.get("/admin/users"));
@@ -74,22 +90,53 @@ export async function render({ main, api, me, toast }) {
     ), { labelledBy: "user-title" });
   }
 
+  const confirmThen = async (options, work, done) => {
+    if (await confirmDialog(options)) await act(work, done);
+  };
+  const path = (user, action) => `/admin/users/${encodeURIComponent(user.name)}/${action}`;
+
+  function actions(user) {
+    const self = user.name === me.name;
+    return h("span", { class: "row" },
+      h("button", { type: "button", class: "link", onClick: () => editDialog(user) }, t("Edit")),
+      h("button", { type: "button", class: "link", onClick: () => act(() => api.post(path(user, "reset-usage")), t("Usage of {name} starts again now", { name: user.name })) }, t("Reset usage")),
+      self ? null : h("button", { type: "button", class: "link", onClick: () => confirmThen(
+        { title: t("Sign {name} out everywhere?", { name: user.name }), message: t("Every open session of this user ends now; they can sign in again."), confirmLabel: t("Sign out everywhere") },
+        () => api.post(path(user, "signout")), t("{name} was signed out everywhere", { name: user.name })) }, t("Sign out everywhere")),
+      self ? null : user.disabled
+        ? h("button", { type: "button", class: "link", onClick: () => act(() => api.post(path(user, "enable")), t("{name} can sign in again", { name: user.name })) }, t("Enable"))
+        : h("button", { type: "button", class: "link danger", onClick: () => confirmThen(
+          { title: t("Disable {name}?", { name: user.name }), message: t("They are signed out at once and cannot sign in. Projects, memberships, limits and history stay."), confirmLabel: t("Disable"), danger: true },
+          () => api.post(path(user, "disable")), t("{name} is disabled", { name: user.name })) }, t("Disable")),
+      self ? null : h("button", { type: "button", class: "link danger", onClick: () => confirmThen(
+        { title: t("Remove {name}?", { name: user.name }), message: t("Their projects move to you; their usage history is kept."), confirmLabel: t("Remove"), danger: true },
+        () => api.del(`/admin/users/${encodeURIComponent(user.name)}`), t("Removed {name}", { name: user.name })) }, t("Remove")),
+    );
+  }
+
   function draw(data) {
-    const rows = data.users.map((user) => [
-      h("span", { class: "user-cell" }, h("span", { class: "avatar", "aria-hidden": "true" }, user.name.slice(0, 1).toUpperCase()), h("strong", {}, user.name), user.name === me.name ? h("span", { class: "muted" }, ` (${t("you")})`) : null),
-      t(ROLES.find(([r]) => r === user.role)?.[1] ?? user.role),
-      h("div", { class: "usage-cells" }, user.usage.map((w) => usageMeter(w, { compact: true }))),
-      h("span", {}, user.custom_limits ? h("span", { class: "badge run" }, t("Custom")) : null, " ", limitText(user.limits), user.custom_limits ? "" : h("span", { class: "muted" }, ` (${t("default")})`)),
-      h("span", { class: "row" },
-        h("button", { type: "button", class: "link", onClick: () => editDialog(user) }, t("Edit")),
-        h("button", { type: "button", class: "link", onClick: () => act(() => api.post(`/admin/users/${encodeURIComponent(user.name)}/reset-usage`), t("Usage of {name} starts again now", { name: user.name })) }, t("Reset usage")),
-        user.name === me.name ? null : h("button", { type: "button", class: "link danger", onClick: async () => {
-          if (await confirmDialog({ title: t("Remove {name}?", { name: user.name }), message: t("Their projects move to you; their usage history is kept."), confirmLabel: t("Remove"), danger: true })) {
-            await act(() => api.del(`/admin/users/${encodeURIComponent(user.name)}`), t("Removed {name}", { name: user.name }));
-          }
-        } }, t("Remove")),
-      ),
-    ]);
+    const listHost = h("div", {});
+    const paint = () => {
+      const shown = matchUsers(data.users, query, status);
+      count.textContent = t("{shown} of {total} users", { shown: shown.length, total: data.users.length });
+      clear(listHost).append(shown.length
+        ? table([t("User"), t("Status"), t("Role"), t("Usage"), t("Limits"), t("Last sign-in"), ""], shown.map((user) => [
+            h("span", { class: "user-cell" }, h("span", { class: "avatar", "aria-hidden": "true" }, user.name.slice(0, 1).toUpperCase()), h("strong", {}, user.name), user.name === me.name ? h("span", { class: "muted" }, ` (${t("you")})`) : null),
+            user.disabled ? badge("disabled") : badge("active"),
+            t(ROLES.find(([r]) => r === user.role)?.[1] ?? user.role),
+            h("div", { class: "usage-cells" }, user.usage.map((w) => usageMeter(w, { compact: true }))),
+            h("span", {}, user.custom_limits ? h("span", { class: "badge run" }, t("Custom")) : null, " ", limitText(user.limits), user.custom_limits ? "" : h("span", { class: "muted" }, ` (${t("default")})`)),
+            h("span", { class: "when" }, user.last_login ? fmtTime(user.last_login) : h("span", { class: "muted" }, t("Never")), user.created ? h("span", { class: "muted" }, t("Added {time}", { time: fmtTime(user.created) })) : null),
+            actions(user),
+          ]), t("All users"), { dense: true, stickyFirst: true })
+        : empty(t("No user matches this filter.")));
+    };
+    const search = h("input", { type: "search", value: query, placeholder: t("Search by name"), "aria-label": t("Search users") });
+    const filter = h("select", { "aria-label": t("Show") }, FILTERS.map(([value, label]) => h("option", { value, selected: value === status }, t(label))));
+    const count = h("span", { class: "muted" });
+    search.addEventListener("input", () => { query = search.value; paint(); });
+    filter.addEventListener("change", () => { status = filter.value; paint(); });
+    paint();
 
     const name = h("input", { type: "text", maxlength: "40", autocomplete: "off", spellcheck: "false", required: true, pattern: "[A-Za-z0-9._\\-]{1,40}" });
     const role = roleSelect("approver");
@@ -104,8 +151,11 @@ export async function render({ main, api, me, toast }) {
         ),
       ),
       h("section", { class: "panel", "aria-labelledby": "users-list" },
-        h("h2", { id: "users-list" }, t("All users")),
-        table([t("User"), t("Role"), t("Usage"), t("Limits"), ""], rows, t("All users"), { dense: true, stickyFirst: true }),
+        h("div", { class: "panel-heading" },
+          h("h2", { id: "users-list" }, t("All users")),
+          h("div", { class: "table-tools" }, h("label", { class: "project-search" }, icon("search", 16), search), filter, count),
+        ),
+        listHost,
       ),
       h("div", { class: "overview-columns" },
         h("form", { class: "panel form-grid", onSubmit: (event) => {

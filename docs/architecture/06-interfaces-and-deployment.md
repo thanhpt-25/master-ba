@@ -123,6 +123,28 @@ flowchart LR
 A run that hits the limit mid-way escalates like any failed model request and resumes after the
 reset. The CLI is the operator and is not metered.
 
+### Admin console (spec 24)
+
+Accounts get a life cycle in `users.json`: `created`, `last_login`, `disabled` and
+`sessions_after`. The session cookie carries the time it was issued (`name\nexpiry\nissued`), and
+`deps.current_user` refuses a disabled user and any cookie issued before `sessions_after`, so
+*disable*, *sign out everywhere* and an admin password reset end open sessions at the next request.
+
+`accounts/audit.py` `AuditLog` appends one row per administrative or security event to
+`.masterba/audit.sqlite3` (sign-in and failed sign-in, every account, limit, price and sharing
+change, and `job.start` through `JobManager(on_submit=)`); the CLI writes the same rows with actor
+`cli`. Nothing updates or deletes a row. The usage ledger also keeps `limit_events` (a 429 at job
+start, a stopped run, an automatic propagation not started), and `accounts/prices.py` holds
+optional per-model prices in `.masterba/prices.json` for a cost estimate.
+
+`api/admin_dashboard.py` computes the dashboard from these stores only: calls grouped by local
+day, user, project, model and kind (`UsageLedger.call_rows`, the browser's time-zone offset
+decides the day), the job list, the audit counts, and each project's stage status, review state,
+documents, questions and DRs (`routes_projects.stage_status`). The web app shows it on
+`#/admin` (KPIs, tokens per day, top users and projects, models and cost, delivery status, items
+needing attention), `#/admin-projects`, `#/audit` (filters, paging, CSV) and the extended
+`#/users`; charts are SVG built with DOM calls (`frontend/charts.js`), each with a table view.
+
 ### Endpoints
 
 
@@ -130,7 +152,8 @@ reset. The CLI is the operator and is not metered.
 | Area | Endpoints (all under `/api`) |
 |---|---|
 | Session | `POST /login`, `POST /logout`, `GET /me` (with usage windows), `GET /me/usage` |
-| Users and limits (admin) | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/{name}`, `POST /admin/users/{name}/reset-usage`, `GET/PUT /admin/limits` |
+| Users and limits (admin) | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/{name}`, `POST /admin/users/{name}/reset-usage`, `.../disable`, `.../enable`, `.../signout`, `GET/PUT /admin/limits` |
+| Admin console (admin) | `GET /admin/dashboard?days=7\|30\|90&tz=`, `GET /admin/projects`, `GET /admin/audit`, `GET /admin/audit.csv`, `GET/PUT /admin/prices` |
 | Sharing | `GET /projects/{pid}/access`, `POST /projects/{pid}/members`, `DELETE /projects/{pid}/members/{name}`, `POST /projects/{pid}/owner` |
 | Projects | `GET/POST /projects`, `GET /projects/{pid}`, `POST /projects/{pid}/intake` (`.txt`, `.md`, `.docx`, `.pdf`, `.xlsx`; a binary file passes `check_upload` and is converted at once, the response names the stored `.md`) |
 | Stage runs | `POST /projects/{pid}/stages/{stage}/run` (returns `202` and a job), `GET /projects/{pid}/jobs`, `GET /jobs/{job_id}` |

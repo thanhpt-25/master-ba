@@ -64,6 +64,9 @@ const VIEWS = {
   templates: () => import("./views/templates.js"),
   usage: () => import("./views/usage.js"),
   users: () => import("./views/users.js"),
+  admin: () => import("./views/admin.js"),
+  "admin-projects": () => import("./views/admin-projects.js"),
+  audit: () => import("./views/audit.js"),
   members: () => import("./views/members.js"),
 };
 
@@ -92,8 +95,12 @@ const PAGE_META = {
   usage: [N_("Usage"), N_("See how many model tokens you used and when your limits reset.")],
   users: [N_("Users"), N_("Manage accounts, roles and token limits.")],
   members: [N_("Members"), N_("Choose who can open this project.")],
+  admin: [N_("Admin dashboard"), N_("Usage, cost, delivery and security across every user and project.")],
+  "admin-projects": [N_("All projects"), N_("Every project on this server with its owner, members, phases and model use.")],
+  audit: [N_("Audit log"), N_("Sign-ins and every change to accounts, limits, prices and sharing.")],
 };
-const WORKSPACE_PAGES = { projects: N_("Projects"), templates: N_("Templates"), usage: N_("Usage"), users: N_("Users") };
+const WORKSPACE_PAGES = { projects: N_("Projects"), templates: N_("Templates"), usage: N_("Usage"), users: N_("Users"), admin: N_("Admin dashboard"), "admin-projects": N_("All projects"), audit: N_("Audit log") };
+const ADMIN_PAGES = ["admin", "users", "admin-projects", "audit", "templates"];
 const ROLES = { viewer: N_("Viewer"), approver: N_("Approver"), admin: N_("Admin") };
 
 export function go(hash) {
@@ -138,6 +145,7 @@ function accountMenu() {
     ),
     h("div", { class: "account-menu" },
       h("a", { class: "menu-item", href: "#/usage" }, icon("gauge", 16), t("Usage")),
+      state.me.role === "admin" ? h("a", { class: "menu-item", href: "#/admin" }, icon("dashboard", 16), t("Admin dashboard")) : null,
       state.me.role === "admin" ? h("a", { class: "menu-item", href: "#/users" }, icon("users", 16), t("Users")) : null,
       h("button", { id: "lang-toggle", class: "menu-item lang-toggle", type: "button", lang: lang() === "ja" ? "en" : "ja", onClick: switchLanguage }, icon("language", 16), lang() === "ja" ? "English" : "日本語"),
       h("button", { id: "theme-toggle", class: "menu-item theme-toggle", type: "button", onClick: cycleTheme, "aria-label": t("Color theme: {name}. Activate to change theme.", { name: t(THEME_NAMES[theme]) }) }, icon("theme", 16), h("span", {}, themeLabel())),
@@ -165,6 +173,7 @@ function shell(params, content) {
       crumbs.push(h("code", { class: "crumb-current", "aria-current": "page" }, params.pid));
     }
   } else {
+    if (ADMIN_PAGES.includes(params.name)) crumbs.push(h("span", {}, t("Administration")), h("span", { class: "crumb-slash", "aria-hidden": "true" }, "/"));
     crumbs.push(h("span", { class: "crumb-current", "aria-current": "page" }, t(WORKSPACE_PAGES[params.name] ?? WORKSPACE_PAGES.projects)));
   }
   const nav = params.pid
@@ -184,9 +193,19 @@ function shell(params, content) {
         h("nav", { class: "workspace-nav", "aria-label": t("Workspace") },
           navLink("#/projects", "projects", t("Projects"), !params.pid && params.name === "projects"),
           navLink("#/usage", "gauge", t("Usage"), params.name === "usage"),
-          state.me.role === "admin" ? navLink("#/users", "users", t("Users"), params.name === "users") : null,
-          state.me.role === "admin" ? navLink("#/templates", "templates", t("Templates"), params.name === "templates") : null,
         ),
+        state.me.role === "admin"
+          ? [
+              h("p", { class: "sidebar-label" }, t("Administration")),
+              h("nav", { class: "workspace-nav admin-nav", "aria-label": t("Administration") },
+                navLink("#/admin", "dashboard", t("Admin dashboard"), !params.pid && params.name === "admin"),
+                navLink("#/users", "users", t("Users"), params.name === "users"),
+                navLink("#/admin-projects", "projects", t("All projects"), params.name === "admin-projects"),
+                navLink("#/audit", "audit", t("Audit log"), params.name === "audit"),
+                navLink("#/templates", "templates", t("Templates"), params.name === "templates"),
+              ),
+            ]
+          : null,
         params.pid
           ? [
               h("p", { class: "sidebar-label project-label" }, h("span", {}, t("Project")), h("code", {}, params.pid)),

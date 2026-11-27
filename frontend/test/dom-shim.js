@@ -184,6 +184,7 @@ class Doc {
     this.hidden = false;
   }
   createElement(tag) { return new El(tag); }
+  createElementNS(_ns, tag) { return new El(tag); }
   createTextNode(value) { return El.text(value); }
   getElementById(id) { return this.body.querySelector(`#${id}`); }
   get activeElement() { return activeElement; }

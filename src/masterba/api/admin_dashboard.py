@@ -86,6 +86,13 @@ def _grouped(
     return out[:limit] if limit else out
 
 
+def _kind(kind: str | None) -> str | None:
+    """`propagate:DR-0003` counts as `propagate`; stage runs and rejections keep their stage."""
+    if kind and kind.startswith("propagate:"):
+        return "propagate"
+    return kind
+
+
 def _renamed(groups: list[dict[str, Any]], old: str, new: str) -> list[dict[str, Any]]:
     return [{new: g[old], **{k: v for k, v in g.items() if k != old}} for g in groups]
 
@@ -258,7 +265,7 @@ def dashboard(app: AppState, days: int, tz_offset_minutes: int) -> dict[str, Any
         "top_users": _renamed(_grouped(rows, "user", costing), "user", "name"),
         "top_projects": _renamed(_grouped(rows, "project", costing), "project", "project_id"),
         "models": _grouped(rows, "model", costing, None),
-        "kinds": _grouped(rows, "kind", costing, None),
+        "kinds": _grouped([{**r, "kind": _kind(r["kind"])} for r in rows], "kind", costing, None),
         "delivery": _delivery(projects),
         "attention": {
             "jobs": [_job_json(j) for j in jobs if j.status in ATTENTION][:TOP],
