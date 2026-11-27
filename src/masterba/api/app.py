@@ -9,10 +9,18 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from masterba.accounts import AccessError, LimitStore, ProjectAccess, UsageLedger
+from masterba.accounts import (
+    AccessError,
+    AuditLog,
+    LimitStore,
+    PriceStore,
+    ProjectAccess,
+    UsageLedger,
+)
 from masterba.agents import QaOutputInvalidError
 from masterba.api import (
     routes_accounts,
+    routes_admin,
     routes_docs,
     routes_drs,
     routes_knowledge,
@@ -24,7 +32,7 @@ from masterba.api import (
 )
 from masterba.api.auth import AuthError, LoginThrottle, SessionSigner, UserStore
 from masterba.api.deps import AppState
-from masterba.api.jobs import JobManager
+from masterba.api.jobs import Job, JobManager
 from masterba.api.settings import Settings
 from masterba.calibration import CalibrationError
 from masterba.change import LifecycleError, PatchError
@@ -58,16 +66,29 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="MasterBA", docs_url=None, redoc_url=None, openapi_url=None)
     users = UserStore(settings.state_dir / "users.json", settings.hash_iterations)
+    audit = AuditLog(settings.state_dir / "audit.sqlite3")
+
+    def job_started(job: Job) -> None:
+        audit.record(
+            job.user or "unknown",
+            "job.start",
+            target=job.id,
+            project=job.project_id,
+            detail={"kind": job.kind},
+        )
+
     app.state.masterba = AppState(
         settings=settings,
         users=users,
         signer=SessionSigner(settings.state_dir / "secret"),
         throttle=LoginThrottle(),
-        jobs=JobManager(settings.state_dir / "jobs"),
+        jobs=JobManager(settings.state_dir / "jobs", on_submit=job_started),
         access=ProjectAccess(settings.state_dir / "access.json", settings.projects, users.list),
         usage=UsageLedger(
             settings.state_dir / "usage.sqlite3", LimitStore(settings.state_dir / "limits.json")
         ),
+        audit=audit,
+        prices=PriceStore(settings.state_dir / "prices.json"),
     )
 
     # Hand existing projects to the first admin before anyone new signs in (spec 23 section 3).
@@ -138,6 +159,7 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
 
     for module in (
         routes_accounts,
+        routes_admin,
         routes_projects,
         routes_docs,
         routes_trace,

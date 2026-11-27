@@ -62,7 +62,10 @@ class Job:
 
 
 class JobManager:
-    def __init__(self, folder: Path | None = None) -> None:
+    def __init__(
+        self, folder: Path | None = None, on_submit: Callable[[Job], None] | None = None
+    ) -> None:
+        self._on_submit = on_submit  # the audit log hears of every job (spec 24 section 2)
         self._jobs: dict[str, Job] = {}
         self._busy: set[str] = set()
         self._lock = threading.Lock()
@@ -117,6 +120,11 @@ class JobManager:
             job = Job(id=uuid.uuid4().hex[:12], project_id=project_id, kind=kind, user=user)
             self._jobs[job.id] = job
         self._save(job)
+        if self._on_submit is not None:
+            try:
+                self._on_submit(job)
+            except Exception:  # the audit record must not stop the job
+                logger.exception("could not record job %s", job.id)
         job.thread = threading.Thread(target=self._run, args=(job, work), daemon=True)
         job.thread.start()
         return job
@@ -152,6 +160,9 @@ class JobManager:
     def for_project(self, project_id: str) -> list[Job]:
         jobs = [j for j in self._jobs.values() if j.project_id == project_id]
         return sorted(jobs, key=lambda j: (j.started, j.id), reverse=True)
+
+    def all(self) -> list[Job]:
+        return sorted(self._jobs.values(), key=lambda j: (j.started, j.id), reverse=True)
 
     def running(self, project_id: str) -> Job | None:
         return next(

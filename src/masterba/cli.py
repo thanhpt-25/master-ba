@@ -27,7 +27,12 @@ from masterba.change import (
     reject_dr,
     rows,
 )
-from masterba.cli_accounts import add_account_parsers, dispatch_access, dispatch_user
+from masterba.cli_accounts import (
+    add_account_parsers,
+    dispatch_access,
+    dispatch_audit,
+    dispatch_user,
+)
 from masterba.cli_kb import KB_ERRORS, add_kb_parsers, dispatch_kb
 from masterba.cli_review import REVIEW_ERRORS, add_review_parsers, dispatch_review
 from masterba.doctor import init_root, run_checks
@@ -455,6 +460,8 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
         return dispatch_user(args, root)
     if args.command == "access":
         return dispatch_access(args, root)
+    if args.command == "audit":
+        return dispatch_audit(args, root)
     if args.command == "doctor":
         if args.init:
             init_root(root)

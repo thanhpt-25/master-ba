@@ -1,34 +1,21 @@
 """Spec 23: project isolation, sharing, usage metering, limits and user administration."""
 
-from typing import Any
-
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
-from api_support import PASSWORD, ClientFor, Script, new_project, wait_for
-from factories import draft_for, intake_path, qa_pass
+from api_support import (
+    LOGIN,
+    PASSWORD,
+    ClientFor,
+    Script,
+    brd_project,
+    sign_in,
+    start_brd,
+    wait_for,
+)
+from factories import draft_for, qa_pass
 from masterba.trace_store import open_project
 
-LOGIN = "login_system.txt"
 P = "/api/projects/PRJ-001"
-
-
-def sign_in(app: FastAPI, name: str) -> TestClient:
-    client = TestClient(app, headers={"X-MasterBA": "1"})
-    assert client.post("/api/login", json={"name": name, "password": PASSWORD}).status_code == 200
-    return client
-
-
-def brd_project(client: ClientFor) -> tuple[TestClient, TestClient]:
-    admin, approver = client("admin"), client("approver")
-    assert new_project(admin, {"project_id": "PRJ-001", "document_language": "en"}).is_success
-    upload = approver.post(f"{P}/intake", files={"file": (LOGIN, intake_path(LOGIN).read_bytes())})
-    assert upload.status_code == 201
-    return admin, approver
-
-
-def start_brd(client: TestClient) -> Any:
-    return client.post(f"{P}/stages/brd/run", json={"intake": LOGIN})
 
 
 def test_the_seeded_project_is_migrated_to_the_admin_with_users_kept(

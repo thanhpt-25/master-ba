@@ -11,6 +11,7 @@ from masterba.api.auth import User
 from masterba.api.deps import (
     COOKIE,
     AppState,
+    audit,
     current_user,
     metered,
     project_store,
@@ -81,12 +82,16 @@ REQUIRES = {"brd": None, "srs": "brd", "basic": "srs", "detail": "basic"}
 def login(request: Request, body: LoginBody, response: Response) -> dict[str, str]:
     app = state_of(request)
     if app.throttle.locked(body.name):
+        audit(request, "anonymous", "auth.login_failed", target=body.name, reason="locked")
         raise HTTPException(status_code=401, detail="sign-in failed")
     user = app.users.verify(body.name, body.password)
     if user is None:
         app.throttle.failure(body.name)
+        audit(request, "anonymous", "auth.login_failed", target=body.name)
         raise HTTPException(status_code=401, detail="sign-in failed")
     app.throttle.success(body.name)
+    app.users.touch_login(user.name)
+    audit(request, user.name, "auth.login", target=user.name)
     response.set_cookie(
         COOKIE,
         app.signer.issue(user.name, app.settings.session_hours),
@@ -100,7 +105,11 @@ def login(request: Request, body: LoginBody, response: Response) -> dict[str, st
 
 
 @router.post("/logout")
-def logout(response: Response) -> dict[str, bool]:
+def logout(request: Request, response: Response) -> dict[str, bool]:
+    token = request.cookies.get(COOKIE)
+    session = state_of(request).signer.session(token) if token else None
+    if session is not None:
+        audit(request, session.name, "auth.logout", target=session.name)
     response.delete_cookie(COOKIE, path="/")
     return {"ok": True}
 
@@ -146,6 +155,7 @@ def new_project(request: Request, body: CreateProjectBody, user: Signed) -> dict
             status_code=400, detail=f"{body.project_id} is taken; choose another project id"
         ) from exc
     app.access.create(store.project_id, user.name)
+    audit(request, user.name, "project.create", project=store.project_id, target=store.project_id)
     return _project_json(app, store, user)
 
 
@@ -164,7 +174,7 @@ def update_propagation_mode(store: Store, body: PropagationModeBody) -> dict[str
     return get_config(store).model_dump(mode="json")
 
 
-def _stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, Any]:
+def stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, Any]:
     docs = []
     for doc_id in STAGE_DOCS[stage]:
         versions = document_versions(store, doc_id)
@@ -209,7 +219,7 @@ def overview(request: Request, store: Store, user: Annotated[User, Viewer]) -> d
     app = state_of(request)
     job = app.jobs.running(store.project_id)
     stages = [
-        _stage_status(store, stage, job is not None and job.kind == f"stage:{stage}")
+        stage_status(store, stage, job is not None and job.kind == f"stage:{stage}")
         for stage in STAGES
     ]
     questions = [

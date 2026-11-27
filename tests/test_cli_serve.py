@@ -20,7 +20,9 @@ def test_users_are_managed_from_the_command_line(
     assert run(tmp_path, "user", "add", "alice", "--role", "approver", "--password-stdin") == 0
     assert json.loads(capsys.readouterr().out) == {"name": "alice", "role": "approver"}
     assert run(tmp_path, "user", "list") == 0
-    assert json.loads(capsys.readouterr().out) == {"users": [{"name": "alice", "role": "approver"}]}
+    assert json.loads(capsys.readouterr().out) == {
+        "users": [{"name": "alice", "role": "approver", "disabled": False}]
+    }
     users_file = tmp_path / ".masterba" / "users.json"
     assert "a long enough password" not in users_file.read_text("utf-8")
     assert run(tmp_path, "user", "remove", "alice") == 0
