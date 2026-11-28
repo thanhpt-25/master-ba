@@ -38,3 +38,16 @@ test("translations keep every {placeholder} of the English text", () => {
   const broken = Object.entries(JA).filter(([en, ja]) => names(en).join() !== names(ja).join()).map(([en]) => en);
   assert.deepEqual(broken, []);
 });
+
+// A parameter or local named `t` hides the translator, so a later `t("…")` throws
+// "t is not a function" (the template viewer did this with `open(company, t)`).
+test("no source shadows the translator t", () => {
+  const SHADOW = /[(,]\s*t\s*\)\s*=>|[(,]\s*t\s*,[^()]*\)\s*=>|(?:^|[^\w.$])t\s*=>|\b(?:const|let|var)\s+t\s*=|function\s*\w*\s*\(\s*(?:[^)]*,\s*)?t\s*[,)=]/m;
+  const offenders = [];
+  for (const file of sources()) {
+    readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+      if (SHADOW.test(line)) offenders.push(`${file.slice(ROOT.length)}:${i + 1}`);
+    });
+  }
+  assert.deepEqual(offenders, []);
+});
