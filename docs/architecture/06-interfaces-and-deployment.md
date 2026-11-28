@@ -37,6 +37,7 @@ CLI refuses to run outside a work tree that can commit (only `doctor` runs witho
 | `run detail --project P` | Basic Design to Detail Design with UT tests |
 | `dr new / from-run / approve / reject / propagate / close / list / show / diff` | Decision Records ([document 5](05-change-management-flow.md)) |
 | `template calibrate / show / check / set / preview / confirm / unconfirm / list` | company templates from a sample workbook (6.6) |
+| `template sets / share / clone`, `project set-template / coverage / reissue` | the template library and a project's set (6.7) |
 | `question list / show / answer / withdraw` | the ledger of customer questions ([document 7](07-customer-questions.md)) |
 | `review status / list / approve / reject` | phase review gates ([document 9](09-phase-review-gates.md)) |
 | `kb setup / add / list / replace / remove / reindex / search` | the project knowledge base ([document 8](08-knowledge-base.md)) |
@@ -164,7 +165,8 @@ needing attention), `#/admin-projects`, `#/audit` (filters, paging, CSV) and the
 | Phase reviews | `GET /projects/{pid}/reviews`, `POST /projects/{pid}/stages/{stage}/approve`, `POST /projects/{pid}/stages/{stage}/reject` (a background job) |
 | Knowledge base | `GET/POST /projects/{pid}/knowledge`, `PUT/DELETE .../knowledge/{source_id}`, `GET .../knowledge/search?q=&k=` |
 | Decision Records | `GET/POST /projects/{pid}/drs`, `.../drs/from-run`, `.../drs/{dr_id}`, `.../approve`, `.../reject`, `.../close`, `.../propagate`, `.../diff` |
-| Templates (admin) | `GET /templates`, `POST /templates/{company}/{type}/calibrate`, `.../mapping`, `.../preview`, `.../confirm`, `.../unconfirm` |
+| Templates | `GET /templates`, `POST /templates/{company}/{type}/calibrate` (approver+, the uploader owns a new set), `.../mapping`, `.../preview`, `.../confirm`, `.../unconfirm` (owner of the set or admin) |
+| Template library | `GET /template-sets`, `POST /template-sets/{set}/visibility`, `.../title`, `.../clone`; `GET/PUT /projects/{pid}/template`, `GET .../template/coverage?set=`, `GET .../template/preview/{doc_id}.xlsx?set=`, `POST .../documents/{doc_id}/reissue` |
 | Health | `GET /health`, the only endpoint that needs no sign-in |
 
 ### Background jobs
@@ -311,7 +313,7 @@ flowchart LR
   deterministic, rendering unchanged content makes no commit.
 - **Which template:** for company `default`, the default set. For another company the calibrated
   template is used only if `<TYPE>.confirmed` exists next to it; otherwise the default is used and a
-  warning is logged.
+  warning is logged. A project names its set in `ProjectConfig.company_id` (6.7).
 
 ## 6.5 Where the code finds its files
 
@@ -423,3 +425,20 @@ Between the stages, read the documents and `question list`; instead of approving
 `escalations` in its output, then either `run <stage> --resume RUN-#### --rounds N`, or
 `dr from-run --run RUN-####` when the problem is an open fact rather than too few rounds. A run
 that escalated because a model request failed resumes the same way.
+
+## 6.7 Template library (spec 29)
+
+A template set is a folder `templates/companies/<set>/` or the built-in `default`, which the app
+copies from its own bundle over the work tree's copy at server start and in `doctor`
+(`library.sync_builtin`), so an upgrade reaches old work trees. Ownership lives outside git in
+`.masterba/template_access.json` (`library.TemplateAccess`): owner, `private` / `shared` (named
+users) / `public` (no approval), optional title. Existing sets go to the first admin as private;
+`sample-sier` becomes public. A removed user's sets go to the admin who removed them.
+
+Switching a project (`library.switch_template`) is a render, not a change: the coverage report
+(`library.coverage`, bindings of the set against the built-in set per document type) must have no
+dropped data kind or the caller must accept the gaps; then `project.json` and the workbooks of
+every `draft` and `in_review` latest version are written in one commit
+`project(P): template <set>`. Approved and superseded versions keep their committed workbook, and
+the xlsx download serves that file for them; `library.reissue` (approver+) renders one again with
+the current set. No model call, no Decision Record, no new version.

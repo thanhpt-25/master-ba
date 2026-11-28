@@ -1,6 +1,7 @@
 """Request bodies and shared patterns of the API (spec 08 section 3)."""
 
 import re
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -128,3 +129,23 @@ class PricesBody(Body):
 
     currency: str = Field(default="USD", pattern=r"^[A-Z]{3}$")
     models: dict[str, PriceBody] = Field(default_factory=dict, max_length=50)
+
+
+class VisibilityBody(Body):
+    """Who may use a template set (spec 29 section 1.2)."""
+
+    visibility: Literal["private", "shared", "public"]
+    shared_with: list[str] = Field(default_factory=list, max_length=100)
+
+
+class TitleBody(Body):
+    title: str | None = Field(default=None, max_length=80)
+
+
+class CloneBody(Body):
+    target: str = Field(pattern=COMPANY_ID_PATTERN)
+
+
+class ProjectTemplateBody(Body):
+    set: str = Field(pattern=COMPANY_ID_PATTERN)
+    accept_gaps: bool = False

@@ -133,6 +133,7 @@ def remove_user(request: Request, name: str, admin: AdminUser) -> dict[str, Any]
     if name == admin.name:
         raise HTTPException(status_code=400, detail="you cannot remove yourself")
     app.access.forget_user(name, admin.name)
+    app.templates.forget_user(name, admin.name)
     app.usage.limits.set_override(name, None)
     app.users.remove(name)
     audit(request, admin.name, "user.remove", target=name, projects_to=admin.name)

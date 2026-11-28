@@ -94,12 +94,18 @@ def get_config(store: ProjectStore) -> ProjectConfig:
     return ProjectConfig.model_validate(data)
 
 
-def set_config(store: ProjectStore, config: ProjectConfig) -> None:
-    """Persist a validated project configuration change as an auditable commit."""
+def write_config(store: ProjectStore, config: ProjectConfig) -> Path:
+    """Write `project.json` without a commit; the caller commits it with other files."""
     if config.project_id != store.project_id:
         raise ValueError("project id cannot be changed")
     path = store.path / "project.json"
-    _write_json(path, _data(config))
+    _write_json(path, _data(ProjectConfig.model_validate(config.model_dump())))
+    return path
+
+
+def set_config(store: ProjectStore, config: ProjectConfig) -> None:
+    """Persist a validated project configuration change as an auditable commit."""
+    path = write_config(store, config)
     _commit(store, [path], f"project({store.project_id}): update settings")
 
 

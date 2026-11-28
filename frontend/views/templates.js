@@ -1,5 +1,6 @@
-import { badge, clear, empty, field, h, loadError, pageHeader, spinner, table } from "../dom.js";
+import { append, badge, clear, empty, field, h, loadError, pageHeader, spinner, table } from "../dom.js";
 import { t } from "../i18n.js";
+import { setLabel, VISIBILITY } from "./library.js";
 
 const DOC_TYPES = ["BRD", "SRS", "BASIC_DESIGN", "DETAIL_DESIGN", "TEST_IT", "TEST_ST", "TEST_UT"];
 const STATE_BADGE = { confirmed: "approved", draft: "proposed" };
@@ -25,7 +26,76 @@ function mappingTables(data, onSet) {
   return h("div", {}, sections);
 }
 
-export async function render({ main, api, toast }) {
+// The set register (spec 29 section 6.3): every set the user sees, sharing for its owner.
+function setRegister({ api, toast, me }, onChange) {
+  const host = h("section", { class: "panel" }, spinner(t("Loading templates…")));
+  const mayClone = me?.role === "approver" || me?.role === "admin";
+
+  const share = (set) => {
+    const mode = h("select", { "aria-label": t("Who may use {set}", { set: set.id }) },
+      Object.entries(VISIBILITY).map(([value, label]) => h("option", { value, selected: value === set.visibility }, t(label))));
+    const names = h("input", { type: "text", value: (set.shared_with ?? []).join(", "), placeholder: t("user names, comma separated"), "aria-label": t("Users {set} is shared with", { set: set.id }) });
+    const save = h("button", { type: "button", onClick: async () => {
+      try {
+        const body = { visibility: mode.value, shared_with: names.value.split(",").map((n) => n.trim()).filter(Boolean) };
+        await api.post(`/template-sets/${set.id}/visibility`, body);
+        toast(mode.value === "public" ? t("Public: everyone can use it. Check that no sample text is left in the workbook.") : t("Sharing saved."), "info");
+        await load();
+      } catch (error) { toast(error.message, "error"); }
+    } }, t("Save"));
+    return h("span", { class: "row" }, mode, names, save);
+  };
+
+  // Copy a set: the button turns into an id field and a confirm button in place.
+  const cloneCell = (set) => {
+    const cell = h("span", { class: "row" });
+    const ask = h("button", { type: "button", class: "link", onClick: () => {
+      const target = h("input", { type: "text", value: `${set.id}-copy`, maxlength: "40", spellcheck: "false", "aria-label": t("Id of the copy of {set}", { set: set.id }) });
+      const ok = h("button", { type: "button", onClick: async () => {
+        try {
+          await api.post(`/template-sets/${set.id}/clone`, { target: target.value.trim() });
+          toast(t("Copied to {id}; it is private to you.", { id: target.value.trim() }), "info");
+          await load();
+          onChange();
+        } catch (error) { toast(error.message, "error"); }
+      } }, t("Copy"));
+      clear(cell).append(target, ok);
+      target.focus();
+    } }, t("Copy"));
+    cell.append(ask);
+    return cell;
+  };
+
+  const load = async () => {
+    let sets;
+    try {
+      sets = await api.get("/template-sets");
+    } catch (error) {
+      clear(host).append(loadError(error, load));
+      return;
+    }
+    clear(host).append(
+      h("h2", {}, t("Template sets")),
+      h("p", { class: "muted" }, t("A project uses one set. Uploaded sets are private until their owner shares them.")),
+      table(
+        [t("Name"), t("Owner"), t("Who may use it"), t("Document types"), ""],
+        sets.map((s) => [
+          setLabel(s),
+          s.owner ?? "—",
+          s.can_manage ? share(s) : t(VISIBILITY[s.visibility] ?? s.visibility),
+          Object.keys(s.types).join(", "),
+          mayClone && !s.builtin ? cloneCell(s) : "",
+        ]),
+        t("Template sets"),
+        { dense: true, stickyFirst: true },
+      ),
+    );
+  };
+  load();
+  return host;
+}
+
+export async function render({ main, api, toast, me }) {
   const company = h("input", { type: "text", name: "company", maxlength: "40", autocomplete: "off", spellcheck: "false", placeholder: "sample-sier…" });
   const docType = h("select", {}, DOC_TYPES.map((d) => h("option", { value: d }, d)));
   const sample = h("input", { type: "file", accept: ".xlsx" });
@@ -123,11 +193,15 @@ export async function render({ main, api, toast }) {
     }
   };
 
-  clear(main).append(
-    pageHeader(t("Company templates"), t("A calibrated template is used for rendering only after an administrator confirms it.")),
-    h("section", { class: "panel" }, field(t("Company"), company), field(t("Document type"), docType), field(t("Sample workbook (.xlsx, up to 5 MB)"), sample), h("button", { class: "primary", onClick: upload }, t("Calibrate from sample"))),
+  const uploads = me?.role === "approver" || me?.role === "admin";
+  append(clear(main), [
+    pageHeader(t("Templates"), t("A calibrated template is used for rendering only after its owner confirms it.")),
+    setRegister({ api, toast, me }, () => refresh()),
+    uploads
+      ? h("section", { class: "panel" }, h("h2", {}, t("Calibrate from a sample")), field(t("Company"), company), field(t("Document type"), docType), field(t("Sample workbook (.xlsx, up to 5 MB)"), sample), h("button", { class: "primary", onClick: upload }, t("Calibrate from sample")))
+      : null,
     list,
     detail,
-  );
+  ]);
   await refresh();
 }

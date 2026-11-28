@@ -24,6 +24,7 @@ from masterba.api import (
     routes_docs,
     routes_drs,
     routes_knowledge,
+    routes_library,
     routes_projects,
     routes_questions,
     routes_reviews,
@@ -44,6 +45,7 @@ from masterba.knowledge import (
     UnknownSourceError,
 )
 from masterba.knowledge.embedder import RagUnavailableError
+from masterba.library import TemplateAccess, TemplateAccessError, UnknownSetError, sync_builtin
 from masterba.llm import LLMError
 from masterba.rendering import RenderError
 from masterba.review import ReviewError
@@ -89,10 +91,18 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
         ),
         audit=audit,
         prices=PriceStore(settings.state_dir / "prices.json"),
+        templates=TemplateAccess(
+            settings.state_dir / "template_access.json", settings.templates, users.list
+        ),
     )
 
     # Hand existing projects to the first admin before anyone new signs in (spec 23 section 3).
     app.state.masterba.access.migrate()
+    # Template sets get an owner too, and the built-in set is the one this app ships (spec 29).
+    app.state.masterba.templates.migrate()
+    updated = sync_builtin(settings.root)
+    if updated:
+        logger.info("updated %d built-in template file(s) from the app bundle", len(updated))
 
     @app.middleware("http")
     async def guard(
@@ -116,6 +126,10 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
     async def not_found(_: Request, exc: NotFoundError) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=404)
 
+    @app.exception_handler(UnknownSetError)
+    async def unknown_set(_: Request, exc: UnknownSetError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=404)
+
     @app.exception_handler(UnknownSourceError)
     async def unknown_source(_: Request, exc: UnknownSourceError) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=404)
@@ -133,6 +147,7 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
         return JSONResponse({"detail": str(exc)}, status_code=500)
 
     @app.exception_handler(AccessError)
+    @app.exception_handler(TemplateAccessError)
     @app.exception_handler(AuthError)
     @app.exception_handler(KbError)
     @app.exception_handler(SearchArgumentError)
@@ -168,6 +183,7 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
         routes_reviews,
         routes_knowledge,
         routes_templates,
+        routes_library,
     ):
         app.include_router(module.router)
 
