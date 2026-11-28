@@ -19,13 +19,19 @@ const TRIGGERS = {
 const PROPOSABLE = ["requirement_change", "design_change", "defect", "clarification"];
 const trigger_ = (key) => t(TRIGGERS[key] ?? key);
 
-export const DR_STATUSES = ["proposed", "approved", "propagated", "closed"];
+export const DR_STATUSES = ["proposed", "approved", "propagated", "closed", "rejected"];
+
+// The status a reader sees: a record closed without an impact analysis was rejected (却下),
+// the same rule as 変更管理台帳; the API marks it with `rejected`.
+export function shownStatus(dr) {
+  return dr.rejected ? "rejected" : dr.status;
+}
 const OUTCOMES = { revised: N_("Revised"), unchanged: N_("Unchanged") };
 
 // Counts per status for the filter chips; "all" counts every record.
 export function statusCounts(drs) {
   const counts = { all: drs.length };
-  for (const s of DR_STATUSES) counts[s] = drs.filter((d) => d.status === s).length;
+  for (const s of DR_STATUSES) counts[s] = drs.filter((d) => shownStatus(d) === s).length;
   return counts;
 }
 
@@ -33,7 +39,7 @@ export function statusCounts(drs) {
 export function filterRecords(drs, status = "all", query = "") {
   const q = String(query).trim().toLowerCase();
   return drs
-    .filter((d) => status === "all" || d.status === status)
+    .filter((d) => status === "all" || shownStatus(d) === status)
     .filter((d) => !q || `${d.id} ${trigger_(d.trigger)} ${d.trigger} ${d.description}`.toLowerCase().includes(q))
     .sort((a, b) => b.id.localeCompare(a.id));
 }
@@ -55,7 +61,7 @@ export function drSheets(dr, { impact = null, propagation = null, diff = null, h
       ["管理番号", dr.id],
       ["変更区分", trigger_(dr.trigger)],
       ["起票日", dr.date],
-      ["状態", statusLabel(dr.status)],
+      ["状態", statusLabel(shownStatus(dr))],
       ["変更内容", dr.description],
       ["対象項目", dr.impacted_items.join("\n") || none],
       ["影響文書", (impact?.documents ?? dr.affected_documents).join("\n") || none],
@@ -87,7 +93,11 @@ export function drSheets(dr, { impact = null, propagation = null, diff = null, h
     result = { key: "result", kind: "note", name: "反映結果", note: t("Not propagated yet. Approve the record, then propagate it.") };
   } else {
     const changed = new Map((diff?.documents ?? []).map((d) => [d.doc_id, d]));
-    const rows = Object.entries(propagation.documents).flatMap(([doc, v]) => {
+    // The store sorts JSON keys; print the documents in V order (the impact analysis order).
+    const order = impact?.documents ?? dr.affected_documents ?? [];
+    const rank = (doc) => (order.includes(doc) ? order.indexOf(doc) : order.length);
+    const entries = Object.entries(propagation.documents).sort(([a], [b]) => rank(a) - rank(b));
+    const rows = entries.flatMap(([doc, v]) => {
       const outcome = t(OUTCOMES[v.outcome] ?? v.outcome);
       const version = v.version ? `v${v.version}` : t("unchanged");
       const d = changed.get(doc);
@@ -148,7 +158,7 @@ export async function render({ main, api, params, me, toast, go }) {
     const rows = shown.length
         ? shown.map((d) =>
             h("li", {}, h("a", { href: `#/p/${pid}/drs/${d.id}`, "aria-current": d.id === drId ? "page" : null },
-              h("span", { class: "record-top" }, h("code", {}, d.id), badge(d.status)),
+              h("span", { class: "record-top" }, h("code", {}, d.id), badge(shownStatus(d))),
               h("span", { class: "record-kind" }, trigger_(d.trigger), " · ", d.date),
               h("span", { class: "record-text" }, d.description))))
         : [h("li", { class: "muted record-none" }, drs.length ? t("No record matches the filter.") : t("No decision records."))];
@@ -214,6 +224,8 @@ export async function render({ main, api, params, me, toast, go }) {
     detail);
   clear(main).append(
     pageHeader(t("Decision Records"), t("Every change request as a form: its impact, how it was carried into the documents, and its history."),
+      // 変更管理台帳 (spec 27): printed on demand from the records, never committed.
+      h("a", { class: "button", href: api.url(`/projects/${pid}/registers/changes.xlsx`), download: "" }, icon("download", 15), t("Change register (Excel)")),
       canAct ? h("button", { class: "primary", type: "button", onClick: openCreate }, icon("plus", 16), t("Propose a change")) : null),
     explorer,
   );
@@ -257,7 +269,7 @@ export async function render({ main, api, params, me, toast, go }) {
         h("span", { class: "preview-icon", "aria-hidden": "true" }, icon("drs", 22)),
         h("div", { class: "preview-title" }, h("h2", {}, h("code", {}, dr.id), " ", trigger_(dr.trigger)),
           h("p", { class: "muted" }, `${t("Proposed {date}", { date: dr.date })}${dr.approver ? ` · ${t("decided by {name}", { name: dr.approver })}` : ""}`)),
-        badge(dr.status)),
+        badge(shownStatus(dr))),
       band,
       h("div", { class: "workbook" }, sheetTabs(drSheets(dr, { impact: data.impact, propagation: data.propagation, diff, history }))),
     );

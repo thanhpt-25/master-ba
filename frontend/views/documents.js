@@ -4,7 +4,7 @@
 
 import { badge, cellText, clear, empty, h, icon, loadError, modal, pageHeader, spinner, table } from "../dom.js";
 import { N_, t } from "../i18n.js";
-import { recordsFor } from "./drs.js";
+import { recordsFor, shownStatus } from "./drs.js";
 import { ancestorsOf, buildTree, filterTree, findNode, treeView } from "./explorer.js";
 import { phaseOfDocument, phaseTitle } from "./journey.js";
 import { reviewBox } from "./review.js";
@@ -256,7 +256,7 @@ function relatedRecords(pid, docId, drs) {
     { class: "related-records" },
     h("span", { "aria-hidden": "true" }, icon("drs", 15)),
     h("span", {}, t("Change requests: {n}", { n: related.length })),
-    related.map((d) => h("a", { class: "chip-link", href: `#/p/${pid}/drs/${d.id}` }, h("code", {}, d.id), " ", badge(d.status))),
+    related.map((d) => h("a", { class: "chip-link", href: `#/p/${pid}/drs/${d.id}` }, h("code", {}, d.id), " ", badge(shownStatus(d)))),
   );
 }
 

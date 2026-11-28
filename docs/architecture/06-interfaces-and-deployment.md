@@ -294,7 +294,8 @@ flowchart LR
 - **Registers.** `rendering/registers.py` prints 変更管理台帳 (every DR, then one 変更管理票 sheet
   per DR) and QA管理表 (the question ledger) on demand, with no model and no commit:
   `masterba export changes|questions --project P [--out f.xlsx]` and
-  `GET /api/projects/{pid}/registers/{changes|questions}.xlsx`.
+  `GET /api/projects/{pid}/registers/{changes|questions}.xlsx` (ASCII `filename` plus UTF-8
+  `filename*`), linked from the 変更管理 and Questions page headers.
 - **Bindings are parsed into typed models when a template is loaded,** so a malformed template fails
   at load, not halfway through a render. Templates also carry a `max_cell_length` validation rule at
   Excel's cell limit.

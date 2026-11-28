@@ -93,7 +93,7 @@ Printed by `rendering/registers.py` from the DR and question stores; no `Documen
 **QA管理表.xlsx**
 - One sheet QA管理表: No., QA番号, 工程 (the stage's document name), 起票日, 起票元 (作成担当 / QAレビュー指摘), 質問内容, 参照箇所, 回答, 回答者, 回答日, 状態 (未回答 / 回答済 / 取下げ), 関連変更管理番号 (DR id).
 
-CLI `masterba export changes|questions --project P [--out f.xlsx]` (default file `<project>_<name>.xlsx`); API `GET /api/projects/{pid}/registers/{changes|questions}.xlsx` (viewer role, file name in `filename*`). The dashboard links are not part of this spec (the 成果物 view is being reworked separately).
+CLI `masterba export changes|questions --project P [--out f.xlsx]` (default file `<project>_<name>.xlsx`); API `GET /api/projects/{pid}/registers/{changes|questions}.xlsx` (viewer role, file name in `filename*`). The dashboard links them from the 変更管理 and Questions page headers (spec 26 section 7).
 
 ## 5. Compatibility
 

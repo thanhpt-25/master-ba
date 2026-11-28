@@ -6,7 +6,7 @@ import { install } from "./dom-shim.js";
 install();
 const i18n = await import("../i18n.js");
 i18n.setLang("en");
-const { drSheets, filterRecords, recordsFor, statusCounts } = await import("../views/drs.js");
+const { drSheets, filterRecords, recordsFor, shownStatus, statusCounts } = await import("../views/drs.js");
 
 const dr = (id, status, extra = {}) => ({
   id,
@@ -24,7 +24,7 @@ const dr = (id, status, extra = {}) => ({
 const drs = [dr("DR-0001", "closed"), dr("DR-0003", "proposed", { trigger: "defect", affected_documents: ["DOC-TEST_UT-0001"] }), dr("DR-0002", "approved")];
 
 test("the chips count every status and all records", () => {
-  assert.deepEqual(statusCounts(drs), { all: 3, proposed: 1, approved: 1, propagated: 0, closed: 1 });
+  assert.deepEqual(statusCounts(drs), { all: 3, proposed: 1, approved: 1, propagated: 0, closed: 1, rejected: 0 });
 });
 
 test("the list is newest first and filters by status and text", () => {
@@ -66,4 +66,27 @@ test("a propagated record prints the impact, the result per document and what ch
   // Before the diff is read, each document has one row with its version.
   const plain = drSheets(dr("DR-0004", "propagated"), { impact, propagation });
   assert.deepEqual(plain[2].rows, [["DOC-SRS-0001", "Revised", "v2", "", "", "", ""]]);
+});
+
+test("反映結果 lists the documents in V order, not in the order the stored keys sort", () => {
+  // The store writes JSON with sorted keys, so DOC-BASIC_DESIGN comes back before DOC-BRD.
+  const propagation = { documents: {
+    "DOC-BASIC_DESIGN-0001": { outcome: "unchanged", version: null, run_id: "RUN-0007" },
+    "DOC-BRD-0001": { outcome: "revised", version: 2, run_id: "RUN-0005" },
+    "DOC-SRS-0001": { outcome: "unchanged", version: null, run_id: "RUN-0006" },
+  } };
+  const record = dr("DR-0005", "propagated", { affected_documents: ["DOC-BRD-0001", "DOC-SRS-0001", "DOC-BASIC_DESIGN-0001"] });
+  assert.deepEqual(drSheets(record, { propagation })[2].rows.map((r) => r[0]), ["DOC-BRD-0001", "DOC-SRS-0001", "DOC-BASIC_DESIGN-0001"]);
+  // The impact analysis stored at approval wins over the record's own list.
+  const impact = { documents: ["DOC-BRD-0001", "DOC-BASIC_DESIGN-0001", "DOC-SRS-0001"], entries: [] };
+  assert.deepEqual(drSheets(record, { impact, propagation })[2].rows.map((r) => r[0]), ["DOC-BRD-0001", "DOC-BASIC_DESIGN-0001", "DOC-SRS-0001"]);
+});
+
+test("a record closed without an impact analysis shows and filters as rejected (却下)", () => {
+  const list = [dr("DR-0001", "closed"), dr("DR-0002", "closed", { rejected: true }), dr("DR-0003", "proposed")];
+  assert.deepEqual(list.map(shownStatus), ["closed", "rejected", "proposed"]);
+  assert.deepEqual(statusCounts(list), { all: 3, proposed: 1, approved: 0, propagated: 0, closed: 1, rejected: 1 });
+  assert.deepEqual(filterRecords(list, "rejected").map((d) => d.id), ["DR-0002"]);
+  assert.deepEqual(filterRecords(list, "closed").map((d) => d.id), ["DR-0001"]);
+  assert.equal(Object.fromEntries(drSheets(list[1])[0].rows)["状態"], "Rejected");
 });

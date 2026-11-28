@@ -56,12 +56,13 @@ Decision Records are not in the tree (decided by the owner): they keep their own
 
 The 変更管理 page uses the same two panes as Documents: a list on the left, the selected record on the right.
 
-- **List**: one row per Decision Record (id, kind, date, status), newest first. Status chips above it filter the list: すべて, 起票 (proposed), 承認済 (approved), 反映済 (propagated), 完了 (closed), each with its count; the choice is kept per browser. A filter field narrows by id, kind or description.
+- **List**: one row per Decision Record (id, kind, date, status), newest first. Status chips above it filter the list: すべて, 起票 (proposed), 承認済 (approved), 反映済 (propagated), 完了 (closed), 却下 (rejected: closed without an impact analysis, the same rule as 変更管理台帳; the API marks such a record `rejected: true` in the list and in `GET .../drs/{dr_id}`), each with its count; the choice is kept per browser. A filter field narrows by id, kind or description.
 - **Preview**: the record's id, kind and status, then the action band of its state above the sheets (decide while proposed, propagate once approved, close once propagated, the live job while propagating). The record prints as four sheets with tabs along the bottom, like a workbook:
   - 変更管理票: the form (管理番号, 変更区分, 起票日, 状態, 変更内容, 対象項目, 影響文書, 判断, 理由, 承認者) with the seal boxes.
   - 影響分析: the documents to revise in V order and the affected items (depth, link), or the preview of named documents while the record is proposed.
-  - 反映結果: propagation per document (outcome, version, run) and, once propagated, what changed per document.
+  - 反映結果: propagation per document (outcome, version, run) in V order (the order of the impact analysis) and, once propagated, what changed per document.
   - 履歴: the commits that touched the record, oldest first, in plain words.
+- **Register**: the page header links 変更管理台帳 (`GET .../registers/changes.xlsx`, spec 27); the Questions page header links QA管理表 (`GET .../registers/questions.xlsx`).
 - **Links from documents**: a document's preview names the records whose affected documents include it ("変更管理票 N件"), each linking to `#/p/<pid>/drs/<DR-ID>`.
 - URLs: `#/p/<pid>/drs/<DR-ID>`; the list filter is not in the URL. Below 760 px the list takes the screen and a record opens full width with a back control.
 

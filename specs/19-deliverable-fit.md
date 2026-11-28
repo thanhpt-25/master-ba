@@ -198,7 +198,7 @@ No model call, store format or library function changes. The dashboard keeps cal
 | The current phase is `in_review` | Review `<document>` | link to the document preview, where approve and reject are |
 | The current phase is ready (BRD) | Upload the intake and run BRD | file picker and button |
 | The current phase is ready (later phase) | Run `<phase>` | button |
-| Every phase is finished | Changes go through a Decision Record | link to DRs |
+| Every phase is finished | 「すべての工程が承認済みです」 with review gates, 「すべての工程が完了しました」 without; changes go through a Decision Record | link to DRs |
 
 The step shows as one panel at the top of the Overview with a single primary button; a viewer sees the same text with no button ("an approver does this"). The V-model cards stay below it.
 

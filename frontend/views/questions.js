@@ -1,4 +1,4 @@
-import { badge, clear, confirmDialog, empty, field, h, pageHeader } from "../dom.js";
+import { badge, clear, confirmDialog, empty, field, h, icon, pageHeader } from "../dom.js";
 import { N_, t } from "../i18n.js";
 
 const ORIGIN = { agent: N_("Question"), qa_blocker: N_("QA objection") };
@@ -104,7 +104,9 @@ export async function render({ main, api, params, me, toast }) {
     const open = all.filter((q) => q.status === "open");
     const closed = all.filter((q) => q.status !== "open");
     clear(main).append(
-      pageHeader(t("Questions for the customer"), t("{open} open, {closed} closed. A QA blocker pauses its run until you answer or withdraw it; other questions remain informational.", { open: open.length, closed: closed.length })),
+      pageHeader(t("Questions for the customer"), t("{open} open, {closed} closed. A QA blocker pauses its run until you answer or withdraw it; other questions remain informational.", { open: open.length, closed: closed.length }),
+        // QA管理表 (spec 27): printed on demand from the question ledger, never committed.
+        h("a", { class: "button", href: api.url(`/projects/${pid}/registers/questions.xlsx`), download: "" }, icon("download", 15), t("QA register (Excel)"))),
       ...(all.length ? [...open, ...closed].map(card) : [empty(t("No questions yet."))]),
     );
   }

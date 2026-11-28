@@ -122,6 +122,8 @@ def test_the_registers_download_as_workbooks(seeded_client: ClientFor) -> None:
     for register, sheet in (("questions", "QA管理表"), ("changes", "変更管理台帳")):
         reply = viewer.get(f"{P}/registers/{register}.xlsx")
         assert reply.status_code == 200
-        assert "attachment; filename*=UTF-8''PRJ-001_" in reply.headers["content-disposition"]
+        disposition = reply.headers["content-disposition"]
+        assert disposition.startswith(f'attachment; filename="PRJ-001_{register}.xlsx"; ')
+        assert "filename*=UTF-8''PRJ-001_" in disposition
         assert load_workbook(BytesIO(reply.content)).sheetnames[0] == sheet
     assert viewer.get(f"{P}/registers/secrets.xlsx").status_code == 422

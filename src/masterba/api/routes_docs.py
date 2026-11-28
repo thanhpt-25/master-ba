@@ -128,10 +128,14 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 def download_register(store: Store, register: Register) -> Response:
     """変更管理台帳 or QA管理表, printed from the stored DRs and questions (spec 27)."""
     name = quote(register_filename(store, register))
+    # An ASCII `filename` first as the RFC 6266 fallback for clients that skip `filename*`.
+    plain = f"{store.project_id}_{register}.xlsx"
     return Response(
         register_bytes(store, register),
         media_type=XLSX,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{name}"},
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{plain}\"; filename*=UTF-8''{name}"
+        },
     )
 
 

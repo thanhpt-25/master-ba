@@ -82,6 +82,14 @@ test("when every phase is approved the next step is a Decision Record", () => {
   const done = { status: "done", review: "approved" };
   const step = nextStep(overview({ stages: { brd: done, srs: done, basic: done, detail: done } }), PID);
   assert.equal(step.action.href, "#/p/PRJ-001/drs");
+  assert.equal(step.title, "Every phase is approved.");
+});
+
+test("without review gates every phase is done, not approved", () => {
+  const done = { status: "done", review: "not_started" };
+  const step = nextStep(overview({ gates: false, stages: { brd: done, srs: done, basic: done, detail: done } }), PID);
+  assert.equal(step.title, "Every phase is done.");
+  assert.equal(step.action.href, "#/p/PRJ-001/drs");
 });
 
 test("documents map to the phase whose review covers them", () => {

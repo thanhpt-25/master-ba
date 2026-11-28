@@ -28,6 +28,8 @@ from masterba.change import (
     reject_dr,
     rows,
 )
+from masterba.models import DecisionRecord
+from masterba.models.enums import DrStatus
 from masterba.trace_store import (
     ProjectStore,
     get_decision_record,
@@ -42,9 +44,15 @@ Approver = Depends(require_role("approver"))
 Signed = Annotated[User, Depends(require_role("approver"))]
 
 
+def _shown(store: ProjectStore, dr: DecisionRecord) -> dict[str, Any]:
+    """The record plus `rejected`: closed without an impact analysis (as 却下 in 変更管理台帳)."""
+    rejected = dr.status is DrStatus.CLOSED and get_dr_extra(store, dr.id, "impact") is None
+    return {**dr.model_dump(mode="json"), "rejected": rejected}
+
+
 @router.get("", dependencies=[Viewer])
 def list_drs(store: Store) -> list[dict[str, Any]]:
-    return [d.model_dump(mode="json") for d in list_decision_records(store)]
+    return [_shown(store, d) for d in list_decision_records(store)]
 
 
 @router.post("", status_code=201, dependencies=[Approver])
@@ -62,7 +70,7 @@ def read_dr(store: Store, dr_id: str) -> dict[str, Any]:
     checked("dr", dr_id)
     dr = get_decision_record(store, dr_id)
     return {
-        "dr": dr.model_dump(mode="json"),
+        "dr": _shown(store, dr),
         "impact": get_dr_extra(store, dr_id, "impact"),
         "propagation": get_dr_extra(store, dr_id, "propagation"),
     }
