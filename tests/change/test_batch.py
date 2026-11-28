@@ -142,6 +142,18 @@ def test_waiting_only_gives_waiting_for_input() -> None:
     )
     assert batch.status == "waiting_for_input"
     assert BatchResult(()).status == "done"
+    # Seen live: a DR waiting for an answer, and the DR on the same documents skipped behind it.
+    behind = BatchResult(
+        (
+            BatchEntry("DR-0053", "waiting_for_input"),
+            BatchEntry("DR-0054", "skipped", error="shares", blocked_by="DR-0053"),
+        )
+    )
+    assert behind.status == "waiting_for_input"
+    limited = BatchResult((BatchEntry("DR-0001", "skipped", error="usage limit reached"),))
+    assert limited.status == "escalated"
+    failed = BatchResult((BatchEntry("DR-0001", "failed", error="x"),))
+    assert failed.status == "escalated"
 
 
 def test_approved_dr_ids_lists_approved_records_with_an_impact(chain: ProjectStore) -> None:
