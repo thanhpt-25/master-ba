@@ -116,7 +116,8 @@ export function nextStep(overview, pid) {
     if (last?.resumable) {
       return { state: "escalated", title: t("The {phase} run stopped without agreement", { phase: step.title }), detail: t("Resume it for one more round, or read the escalation in Activity first."), action: { kind: "resume", stage: step.key, runId: last.run_id, label: t("Resume one round") } };
     }
-    return { state: "escalated", title: t("The {phase} run stopped without agreement", { phase: step.title }), detail: t("Read the escalation in Activity and raise a Decision Record from the run."), action: { kind: "link", href: `#/p/${pid}/activity`, label: t("Open Activity") } };
+    // No checkpoint (no draft passed the gate): nothing to resume, so offer a fresh run.
+    return { state: "escalated", title: t("The {phase} run stopped without agreement", { phase: step.title }), detail: t("No draft passed the checks, so it cannot be resumed. Read the escalation in Activity, answer any customer questions, then run the phase again."), action: { kind: "run", stage: step.key, label: t("Run again") } };
   }
   if (step.state === "in_review") {
     return {

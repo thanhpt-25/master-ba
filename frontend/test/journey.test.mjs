@@ -62,7 +62,7 @@ test("an escalated later phase resumes one round; an escalated BRD asks for the 
   const srs = { status: "escalated", last_run: { run_id: "RUN-0003", resumable: true } };
   assert.equal(nextStep(overview({ stages: { brd, srs } }), PID).action.kind, "resume");
   const stuck = nextStep(overview({ stages: { brd, srs: { ...srs, last_run: { run_id: "RUN-0003", resumable: false } } } }), PID);
-  assert.equal(stuck.action.href, "#/p/PRJ-001/activity");
+  assert.deepEqual([stuck.action.kind, stuck.action.stage], ["run", "srs"]);
   const first = nextStep(overview({ stages: { brd: { status: "escalated" } } }), PID);
   assert.deepEqual([first.action.kind, first.action.reuse], ["upload", true]);
 });

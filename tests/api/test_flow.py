@@ -209,6 +209,36 @@ def test_latest_escalation_is_not_hidden_by_existing_documents(
     assert stages[0]["status"] == "escalated"
 
 
+def test_a_run_is_not_offered_for_resume_while_the_project_is_busy(
+    seeded_root: Path, frontend: Path
+) -> None:
+    blocker = BlockingLLM()
+    script = Script()
+    script.factory = lambda model: blocker  # type: ignore[method-assign]
+    app = make_app(seeded_root, script, frontend)
+    run = Path(app.state.masterba.settings.projects) / "PRJ-001" / "runs" / "RUN-9999"
+    run.mkdir(parents=True)
+    (run / "team-summary.json").write_text(
+        '{"run_id":"RUN-9999","stage":"SRS","trigger":"initial","status":"escalated"}',
+        encoding="utf-8",
+    )
+    (run / "checkpoint.json").write_text("{}", encoding="utf-8")
+    approver = clients(app)("approver")
+
+    def resumable() -> bool:
+        flag: bool = approver.get(f"{P}/runs").json()[0]["resumable"]
+        return flag
+
+    assert resumable() is True
+    first = approver.post(f"{P}/drs/{approved_dr(approver)}/propagate")
+    assert blocker.started.wait(10)
+    # A resumed run keeps its escalated summary until it ends: no second Resume meanwhile.
+    assert resumable() is False
+    blocker.release.set()
+    wait_for(app, approver, first.json()["id"])
+    assert resumable() is True
+
+
 def approved_dr(client: TestClient) -> str:
     created = client.post(
         f"{P}/drs",
