@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from masterba.models import Question
 from masterba.models.enums import DrStatus, DrTrigger, QuestionStatus
 from masterba.team import Team
+from masterba.team.workspace import objection_key
 from masterba.trace_store import (
     ProjectStore,
     get_dr_extra,
@@ -90,5 +91,12 @@ def source_blocks(store: ProjectStore) -> str:
 
 
 def attach_facts(team: Team) -> None:
-    """Make every model call of the team carry the confirmed facts and the open questions."""
+    """Make every model call of the team carry the confirmed facts and the open questions.
+
+    The objections the customer waived for this run stop blocking (spec 13 section 6.1).
+    """
     team.facts = lambda: source_blocks(team.store)
+    for question in list_questions(team.store):
+        key = objection_key(question.text) if question.waived else None
+        if key and key[0] == team.run_id:
+            team.waived[(key[1], key[2])] = question.id

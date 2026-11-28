@@ -306,7 +306,7 @@ masterba kb search --project PRJ-001 "受注"
 masterba kb list   --project PRJ-001
 ```
 
-An answer becomes an approved clarification Decision Record and reaches every later model call. For vector search as well as keyword search, install the extra and download the model once: `uv sync --extra rag`, then `masterba kb setup`.
+An answer becomes an approved clarification Decision Record and reaches every later model call. When QA keeps objecting to a point you have settled, answer that objection with `--waive` (or tick "Accept the draft as it is" on the dashboard): the resumed run no longer blocks on it (spec 13 section 6.1). For vector search as well as keyword search, install the extra and download the model once: `uv sync --extra rag`, then `masterba kb setup`.
 
 ### Dashboard
 

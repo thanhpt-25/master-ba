@@ -46,7 +46,9 @@ def answer(
 ) -> dict[str, Any]:
     checked("question", question_id)
     # The recorded name is the signed-in user, never a field the client sends.
-    answered = answer_question(store, question_id, body.answer, user.name, body.source)
+    answered = answer_question(
+        store, question_id, body.answer, user.name, body.source, waive=body.waive
+    )
     extra = auto_propagation(request, store, answered.dr_id, user) if answered.dr_id else {}
     return {**_view(store, answered), **extra}
 

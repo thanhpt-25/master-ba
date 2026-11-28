@@ -128,6 +128,8 @@ class Question(FrozenModel):
     answered_on: dt.date | None = None
     dr_id: DrId | None = None
     source: str | None = None
+    # The customer accepts the draft: QA may not block on this objection again (spec 13 6.1).
+    waived: bool = False
 
     @model_validator(mode="after")
     def _answer_fields(self) -> Self:
@@ -139,6 +141,8 @@ class Question(FrozenModel):
             raise ValueError("only an answered question has answer fields")
         if self.source and not answered:
             raise ValueError("only an answered question has a source")
+        if self.waived and not (answered and self.origin is QuestionOrigin.QA_BLOCKER):
+            raise ValueError("only an answered QA blocker can waive its objection")
         return self
 
 

@@ -39,6 +39,9 @@ export async function render({ main, api, params, me, toast }) {
 
   function form(q) {
     const answer = h("textarea", { id: `answer-${q.id}`, rows: "3", maxlength: "2000", spellcheck: "false", required: true });
+    // Only QA objections can be waived (spec 13 section 6.1); the server checks it too.
+    const waivable = q.origin === "qa_blocker" && /^QA \(/.test(q.text);
+    const waive = waivable ? h("input", { type: "checkbox", name: "waive" }) : null;
     const source = h("input", { type: "text", id: `source-${q.id}`, name: "source", maxlength: "500", autocomplete: "off", placeholder: t("Tanaka, meeting 2026-11-02…") });
     const answerField = field(t("Answer"), answer, t("Recorded as an approved decision record that every later run uses. When it reaches a stored document, that document is updated (automatically in projects set to automatic updates)."));
     const setError = (msg) => {
@@ -67,11 +70,12 @@ export async function render({ main, api, params, me, toast }) {
             answer.focus();
             return;
           }
-          return act(`${q.id}/answer`, { answer: answer.value, source: source.value.trim() || null });
+          return act(`${q.id}/answer`, { answer: answer.value, source: source.value.trim() || null, waive: Boolean(waive?.checked) });
         },
       },
       answerField,
       field(t("Who said it, and where (optional)"), source),
+      waive ? h("label", { class: "check" }, waive, " ", t("Accept the draft as it is: QA may not block on this point again when the run resumes")) : null,
       h("div", { class: "toolbar" },
         h("button", { type: "submit", class: "primary" }, t("Record answer")),
         h("button", { type: "button", onClick: withdraw }, t("Withdraw")),
@@ -93,6 +97,7 @@ export async function render({ main, api, params, me, toast }) {
             {},
             h("p", { class: "prose" }, h("strong", {}, t("Answer: ")), q.answer),
             h("p", { class: "muted" }, `${t("Recorded by {name} on {date}", { name: q.answered_by, date: q.answered_on })}${q.source ? ` · ${q.source}` : ""} · `, h("a", { href: `#/p/${pid}/drs/${q.dr_id}` }, h("code", {}, q.dr_id))),
+            q.waived ? h("p", { class: "muted" }, t("Draft accepted: QA no longer blocks on this point.")) : null,
           )
         : null,
       q.status === "open" && canAct ? form(q) : null,

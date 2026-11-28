@@ -9,6 +9,7 @@ from masterba.guard.detect import describe, has_secret
 from masterba.models import Question
 from masterba.models.enums import DrStatus, DrTrigger, ItemStatus, QuestionStatus
 from masterba.questions.ledger import Clock
+from masterba.team.workspace import objection_key
 from masterba.trace_store import (
     ProjectStore,
     get_question,
@@ -86,9 +87,16 @@ def answer_question(
     by: str,
     source: str | None = None,
     today: Clock = dt.date.today,
+    waive: bool = False,
 ) -> Question:
-    """Create and approve the clarification DR, then save the question as answered."""
+    """Create and approve the clarification DR, then save the question as answered.
+
+    `waive`: the customer accepts the draft as it is, so QA may not block on this objection
+    again when its run resumes (spec 13 section 6.1).
+    """
     question = _open(store, question_id, "answered")
+    if waive and objection_key(question.text) is None:
+        raise QuestionError(f"{question_id} is not a QA objection; only those can be waived")
     if not by.strip():
         raise QuestionError("by must name the person who records the answer")
     text = check_answer(answer)
@@ -116,6 +124,7 @@ def answer_question(
             "answered_on": today(),
             "dr_id": dr.id,
             "source": note,
+            "waived": waive,
         }
     )
     save_question(store, answered, "answer")

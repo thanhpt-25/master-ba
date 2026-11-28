@@ -309,6 +309,11 @@ def _add_question_parsers(commands: Any) -> None:
     answer.add_argument("--by", required=True, help="who records the answer")
     answer.add_argument("--text", required=True, help="the answer")
     answer.add_argument("--source", default=None, help="who gave it and where, outside the system")
+    answer.add_argument(
+        "--waive",
+        action="store_true",
+        help="accept the draft: QA may not block on this objection again (QA blockers only)",
+    )
     answer.add_argument("--model", default=None, help="reviser model when the project is auto")
     answer.add_argument("--qa-model", default=None)
     with_project(subs.add_parser("withdraw")).add_argument("question_id")
@@ -357,7 +362,9 @@ def _dispatch_question(
     if command == "show":
         question = get_question(store, args.question_id)
     elif command == "answer":
-        question = answer_question(store, args.question_id, args.text, args.by, source=args.source)
+        question = answer_question(
+            store, args.question_id, args.text, args.by, source=args.source, waive=args.waive
+        )
     else:
         question = withdraw_question(store, args.question_id)
     data: dict[str, object] = {"question": question.model_dump(mode="json")}

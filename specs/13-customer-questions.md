@@ -131,9 +131,15 @@ Q-0004 [intake/order_portal.txt#L9-L9]: Is the glossary limit of at most three p
 
 ## 6. Surfaces
 
-- **CLI:** `masterba question list --project P [--status open|answered|withdrawn]`, `question show Q-0007`, `question answer Q-0007 --by NAME --text TEXT [--source TEXT]`, `question withdraw Q-0007`. Stage output gains `question_ids` and `reasked`.
-- **API** under `/api/projects/{pid}/questions`: `GET` (viewer; `?status=` filter), `GET /{qid}`, `POST /{qid}/answer` with `{"answer": "...", "source": "..."}` (approver), `POST /{qid}/withdraw` (approver). Same error mapping and CSRF header as the other routes.
+- **CLI:** `masterba question list --project P [--status open|answered|withdrawn]`, `question show Q-0007`, `question answer Q-0007 --by NAME --text TEXT [--source TEXT] [--waive]`, `question withdraw Q-0007`. Stage output gains `question_ids` and `reasked`.
+- **API** under `/api/projects/{pid}/questions`: `GET` (viewer; `?status=` filter), `GET /{qid}`, `POST /{qid}/answer` with `{"answer": "...", "source": "...", "waive": false}` (approver), `POST /{qid}/withdraw` (approver). Same error mapping and CSRF header as the other routes.
 - **Dashboard:** a Questions tab that shows the number of open questions, lists open questions first, marks `qa_blocker` ones as objections, shows their references (each a link to its document or requirement), the stage and run that raised them, and an answer form with a source field. An answered question shows its DR as a link. The overview stage card shows "N open questions" with a link to the tab.
+
+### 6.1 Waiving a QA objection
+
+A QA model sometimes objects again to a point the customer already settled, and the run never ends. The person answering a `qa_blocker` objection (the "QA (ID), RUN-####, ref of the draft: …" questions) can accept the draft as it is: `question answer … --waive`, `"waive": true` in the API, or the "Accept the draft as it is" box on the dashboard. The answer is still a clarification DR, and the question is stored with `waived: true`.
+
+When that run is resumed, `attach_facts` reads the waived objections of the run, and `Team.settle` turns a blocking issue with the same (checklist id, ref) into an advisory one with the mailbox note `waived by the customer (Q-####)`. Other issues are unchanged. A waiver applies only to the run that raised the objection, because item refs of a new run can name different items. Only QA objections can be waived; any other question is refused.
 
 ## 7. Tests
 

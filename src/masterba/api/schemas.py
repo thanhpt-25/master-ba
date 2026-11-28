@@ -90,6 +90,7 @@ class DecisionBody(Body):
 class AnswerBody(Body):
     answer: str = Field(min_length=1, max_length=2000)
     source: str | None = Field(default=None, max_length=500)
+    waive: bool = False
 
 
 class SetColumnBody(Body):

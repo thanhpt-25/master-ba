@@ -132,6 +132,11 @@
       "minLength": 1,
       "title": "Text",
       "type": "string"
+    },
+    "waived": {
+      "default": false,
+      "title": "Waived",
+      "type": "boolean"
     }
   },
   "required": [
