@@ -25,12 +25,14 @@ from masterba.api.schemas import (
     INTAKE_NAME,
     STAGES,
     CreateProjectBody,
+    GuardSettingsBody,
     LoginBody,
     ProjectBudgetBody,
     PropagationModeBody,
     RunStageBody,
 )
 from masterba.api.settings import MAX_UPLOAD_CHARS
+from masterba.guard import UploadScan, clean_terms, scan_text
 from masterba.intake import CONVERTED_SUFFIXES, intake_name, intake_text
 from masterba.knowledge.safety import MAX_FILE_BYTES, check_upload
 from masterba.models import ProjectConfig
@@ -67,6 +69,7 @@ Approver = Depends(require_role("approver"))
 Admin = Depends(require_role("admin"))
 Signed = Annotated[User, Depends(require_role("approver"))]
 Me = Annotated[User, Depends(current_user)]
+ProjectAdminUser = Annotated[User, Depends(require_role("admin"))]
 
 STAGE_DOCS: dict[str, tuple[str, ...]] = {
     "brd": ("DOC-BRD-0001",),
@@ -176,6 +179,29 @@ def update_propagation_mode(store: Store, body: PropagationModeBody) -> dict[str
     return get_config(store).model_dump(mode="json")
 
 
+@router.post("/projects/{pid}/settings/guard")
+def update_guard(
+    request: Request, store: Store, body: GuardSettingsBody, user: ProjectAdminUser
+) -> dict[str, Any]:
+    """Masking settings (spec 30 section 2.3); only a global admin may switch masking off."""
+    current = get_config(store)
+    if current.pii_masking and not body.pii_masking and user.role != "admin":
+        raise HTTPException(status_code=403, detail="only an administrator may switch masking off")
+    terms = clean_terms(body.masking_terms)
+    updated = current.model_copy(update={"pii_masking": body.pii_masking, "masking_terms": terms})
+    set_config(store, ProjectConfig.model_validate(updated.model_dump()))
+    audit(
+        request,
+        user.name,
+        "project.guard",
+        project=store.project_id,
+        target=store.project_id,
+        pii_masking=body.pii_masking,
+        terms=len(terms),
+    )
+    return get_config(store).model_dump(mode="json")
+
+
 def stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, Any]:
     docs = []
     for doc_id in STAGE_DOCS[stage]:
@@ -261,8 +287,17 @@ def _converted(folder: Path, name: str, data: bytes) -> str:
             raise HTTPException(status_code=400, detail=detail) from exc
 
 
+def _scanned(text: str) -> UploadScan:
+    """Spec 30 section 3.2: a secret refuses the intake; personal data is reported."""
+    scan = scan_text(text)
+    refusal = scan.refusal()
+    if refusal is not None:
+        raise HTTPException(status_code=400, detail=refusal)
+    return scan
+
+
 @router.post("/projects/{pid}/intake", status_code=201, dependencies=[Approver])
-async def upload_intake(request: Request, store: Store, file: UploadFile) -> dict[str, str]:
+async def upload_intake(request: Request, store: Store, file: UploadFile) -> dict[str, Any]:
     """Store an intake for the BRD run; Word, PDF and Excel are converted at once (spec 19)."""
     name = file.filename or ""
     folder = state_of(request).settings.uploads_dir / store.project_id
@@ -277,8 +312,9 @@ async def upload_intake(request: Request, store: Store, file: UploadFile) -> dic
             raise HTTPException(
                 status_code=400, detail=f"longer than {MAX_UPLOAD_CHARS} characters"
             )
+        scan = _scanned(text)
         (folder / stored).write_text(text, encoding="utf-8")
-        return {"name": stored, "converted_from": name}
+        return {"name": stored, "converted_from": name, "findings": scan.report()}
     if not INTAKE_NAME.match(name):
         raise HTTPException(
             status_code=400,
@@ -291,9 +327,10 @@ async def upload_intake(request: Request, store: Store, file: UploadFile) -> dic
         raise HTTPException(status_code=400, detail="the file must be UTF-8 text") from exc
     if len(text) > MAX_UPLOAD_CHARS:
         raise HTTPException(status_code=400, detail=f"longer than {MAX_UPLOAD_CHARS} characters")
+    scan = _scanned(text)
     folder.mkdir(parents=True, exist_ok=True)
     (folder / name).write_text(text, encoding="utf-8")
-    return {"name": name}
+    return {"name": name, "findings": scan.report()}
 
 
 def _stage_work(

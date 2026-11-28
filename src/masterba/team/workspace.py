@@ -15,6 +15,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from masterba.agents.qa_reviewer import QaIssue
+from masterba.guard import Masker, masker_for
 from masterba.llm import LLM, LLMResult
 from masterba.llm.base import T
 from masterba.models import QuestionDraft, TeamRun
@@ -26,7 +27,7 @@ from masterba.team.models import (
     TeamMessage,
     TeamTask,
 )
-from masterba.trace_store import ProjectStore
+from masterba.trace_store import NotFoundError, ProjectStore, get_config
 from masterba.trace_store.git import commit_paths
 
 # A job runner (the dashboard) sets this to receive one-line progress messages.
@@ -50,6 +51,14 @@ class SingleWriterError(Exception):
 
 class ResumeError(Exception):
     """A run cannot be resumed (spec 11 section 3.2)."""
+
+
+def project_masker(store: ProjectStore) -> Masker:
+    """The masker of a project's settings (spec 30); masking is on when there is no config."""
+    try:
+        return masker_for(get_config(store))
+    except (NotFoundError, OSError, ValueError):
+        return Masker()
 
 
 def _dump(path: Path, data: Any) -> None:
@@ -91,6 +100,8 @@ class Team:
     objections: dict[str, list[QaIssue]] = field(default_factory=dict)
     # Chunk_Refs shown to each writer role in this run; shared with the KnowledgeSession
     kb_seen_refs: dict[str, set[str]] = field(default_factory=dict)
+    # Spec 30: one value-to-token table per run, for model requests and transcripts.
+    masker: Masker = field(default_factory=Masker)
 
     @classmethod
     def open(
@@ -105,6 +116,7 @@ class Team:
         used = [int(m[1]) for p in runs.glob("RUN-*") if (m := _RUN_DIR.match(p.name))]
         run_id = f"RUN-{max(used, default=0) + 1:04d}"
         team = cls(store, run_id, stage, max_rounds, token_budget, trigger=trigger)
+        team.masker = project_masker(store)
         team.transcripts_dir.mkdir(parents=True)
         (team.run_dir / ".gitignore").write_text(_RUN_GITIGNORE, encoding="utf-8")
         return team
@@ -164,6 +176,7 @@ class Team:
             blocking_seen={a: set(pairs) for a, pairs in checkpoint.blocking_seen.items()},
             kb_seen_refs={r: set(refs) for r, refs in checkpoint.kb_seen_refs.items()},
         )
+        team.masker = project_masker(store)
         team.transcripts_dir.mkdir(parents=True, exist_ok=True)
         team.log_count = len(list(team.transcripts_dir.iterdir()))
         (run_dir / ".gitignore").write_text(_RUN_GITIGNORE, encoding="utf-8")
@@ -222,7 +235,8 @@ class Team:
     def log(self, name: str, text: str) -> None:
         self.log_count += 1
         path = self.transcripts_dir / f"{self.log_count:03d}-round-{self.rounds}-{name}.txt"
-        path.write_text(text + "\n", encoding="utf-8")
+        # Spec 30: no secret or personal value is ever written to a transcript.
+        path.write_text(self.masker.redact(text) + "\n", encoding="utf-8")
 
     def charge(self, tokens: int) -> None:
         self.tokens_used += tokens
@@ -390,7 +404,11 @@ class RecordingLLM:
         facts = self.team.facts()
         if facts:
             user = f"{user}\n\n{facts}"
+        # Spec 30 section 2.2: the model sees tokens, the gates see the restored answer.
+        masker = self.team.masker
+        user = masker.mask(user)
         self.team.log(f"{tool_name}-request", f"{system}\n\n--- user ---\n\n{user}")
         result = self.inner.generate(system=system, user=user, output=output, tool_name=tool_name)
         self.team.log(f"{tool_name}-response", result.value.model_dump_json(indent=2))
-        return result
+        value = masker.unmask_model(result.value)
+        return LLMResult(value, result.input_tokens, result.output_tokens)

@@ -108,7 +108,11 @@ def test_a_word_intake_is_converted_on_upload_and_bad_files_are_refused(
     path = make_docx(Path(str(tmp_path)) / "RFP v2.docx")
     reply = admin.post(f"{P}/intake", files={"file": ("RFP v2.docx", path.read_bytes())})
     assert reply.status_code == 201, reply.text
-    assert reply.json() == {"name": "RFP-v2-docx.md", "converted_from": "RFP v2.docx"}
+    assert reply.json() == {
+        "name": "RFP-v2-docx.md",
+        "converted_from": "RFP v2.docx",
+        "findings": [],
+    }
     fake = admin.post(f"{P}/intake", files={"file": ("x.docx", b"not a zip at all")})
     assert fake.status_code == 400
     blank = admin.post(f"{P}/intake", files={"file": ("x.pdf", b"%PDF-1.4 nothing")})

@@ -103,8 +103,25 @@ def load_draft(root: Path, company: str, doc_type: DocType) -> MappingDraft:
     return MappingDraft.model_validate_json(paths.calibration.read_text("utf-8"))
 
 
-def _write(root: Path, paths: Paths, draft: MappingDraft, company: str, message: str) -> list[Path]:
-    built = build_template(draft, paths.sample, company)
+def _sample(paths: Paths) -> Path:
+    """The customer sample; it stays on this server and is never committed (spec 30 s. 5)."""
+    if not paths.sample.is_file():
+        raise CalibrationError(
+            f"the sample workbook of {paths.doc_type.value} is not on this server; "
+            "calibrate again with the sample to change the mapping"
+        )
+    return paths.sample
+
+
+def _write(
+    root: Path, paths: Paths, draft: MappingDraft, company: str, message: str
+) -> tuple[list[Path], MappingDraft]:
+    built = build_template(draft, _sample(paths), company)
+    if built.emptied:
+        notes = [f"cleared {cell}: it held personal data or a secret" for cell in built.emptied]
+        draft = draft.model_copy(
+            update={"warnings": list(dict.fromkeys([*draft.warnings, *notes]))}
+        )
     paths.definition.write_text(
         json.dumps(
             built.definition.model_dump(mode="json"), sort_keys=True, indent=2, ensure_ascii=False
@@ -116,9 +133,9 @@ def _write(root: Path, paths: Paths, draft: MappingDraft, company: str, message:
     paths.calibration.write_text(draft.model_dump_json(indent=2) + "\n", encoding="utf-8")
     removed = paths.confirmed.exists()
     paths.confirmed.unlink(missing_ok=True)
-    files = [paths.definition, paths.shell, paths.sample, paths.calibration]
+    files = [paths.definition, paths.shell, paths.calibration]
     commit_paths(root, [*files, paths.confirmed] if removed else files, message)
-    return files
+    return files, draft
 
 
 def calibrate(
@@ -155,7 +172,9 @@ def calibrate(
     )
     paths.folder.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(sample, paths.sample)
-    files = _write(root, paths, draft, company, f"template({company}): calibrate {doc_type.value}")
+    files, draft = _write(
+        root, paths, draft, company, f"template({company}): calibrate {doc_type.value}"
+    )
     return CalibrationResult(draft, tuple(messages), tuple(files))
 
 
@@ -184,11 +203,13 @@ def set_column(
             ]
         }
     )
-    profile = profile_workbook(paths.sample, doc_type)
+    profile = profile_workbook(_sample(paths), doc_type)
     errors = validate_mapping(changed, profile, doc_type)
     if errors:
         raise CalibrationError("; ".join(errors))
-    _write(root, paths, changed, company, f"template({company}): edit {doc_type.value}")
+    _, changed = _write(
+        root, paths, changed, company, f"template({company}): edit {doc_type.value}"
+    )
     return changed
 
 
@@ -203,7 +224,8 @@ def check(root: Path, company: str, doc_type: DocType) -> list[str]:
     except InvalidTemplateError as exc:
         problems.append(str(exc))
     draft = load_draft(root, company, doc_type)
-    problems.extend(validate_mapping(draft, profile_workbook(paths.sample, doc_type), doc_type))
+    if paths.sample.is_file():  # a clone has no sample; its mapping was checked at the source
+        problems.extend(validate_mapping(draft, profile_workbook(paths.sample, doc_type), doc_type))
     return problems
 
 
@@ -248,6 +270,8 @@ def preview(
     else:
         document, content = demo_document(doc_type)
     render_preview(template, document, content, paths.preview)
+    if not paths.sample.is_file():
+        return PreviewResult(paths.preview, ())
     return PreviewResult(paths.preview, tuple(compare_layout(paths.sample, paths.preview, draft)))
 
 

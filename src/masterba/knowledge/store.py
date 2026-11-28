@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
+from masterba.guard.upload import scan_upload
 from masterba.knowledge.errors import (
     KbCommitError,
     KbError,
@@ -169,6 +170,10 @@ def _accept(
         if refusals:
             refused.append((file.name, refusals[0].message))
             continue
+        secret = scan_upload(file.name, file.data).refusal()  # spec 30 section 3.2
+        if secret is not None:
+            refused.append((file.name, secret))
+            continue
         sha = _sha(file.data)
         if sha in seen:
             skipped.append((file.name, seen[sha]))
@@ -286,6 +291,9 @@ def replace_source(
         refusals = check_upload(file.name, file.data)
         if refusals:
             raise UploadRefusedError(f"{file.name}: {refusals[0].message}")
+        secret = scan_upload(file.name, file.data).refusal()
+        if secret is not None:
+            raise UploadRefusedError(f"{file.name}: {secret}")
         sha = _sha(file.data)
         twin = next((s.id for s in manifest.sources if not s.removed and s.sha256 == sha), None)
         if twin is not None:

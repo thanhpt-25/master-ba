@@ -13,6 +13,8 @@ node_modules/
 projects/*/runs/*/transcripts/
 .masterba/
 templates/companies/*/*.preview.xlsx
+# customer samples of calibrated templates stay on the server (spec 30)
+templates/companies/*/*.sample.xlsx
 .env
 work/
 projects/*/runs/*/checkpoint.json

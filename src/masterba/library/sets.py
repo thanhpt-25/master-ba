@@ -13,7 +13,8 @@ from masterba.trace_store.git import commit_paths, ensure_ready
 
 BUNDLED = Path(__file__).resolve().parents[3] / "templates"
 # Files of a set that a clone copies (previews are scratch and stay behind).
-CLONED_SUFFIXES = (".template.json", ".xlsx", ".sample.xlsx", ".calibration.json", ".confirmed")
+# The customer sample is not copied (spec 30 section 5).
+CLONED_SUFFIXES = (".template.json", ".xlsx", ".calibration.json", ".confirmed")
 
 
 def set_types(root: Path, set_id: str) -> dict[str, str]:

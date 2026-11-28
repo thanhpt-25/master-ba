@@ -80,8 +80,19 @@ def intake_lines(text: str) -> list[str]:
     return lines
 
 
+_TAG_START = re.compile(r"<(?=/?[A-Za-z])")
+
+
+def neutralise(line: str) -> str:
+    """`<` that starts a tag becomes `‹`, so intake text cannot close or open a prompt block."""
+    return _TAG_START.sub("‹", line)
+
+
 def number_lines(text: str) -> str:
-    return "\n".join(f"{n:>4}| {line}" for n, line in enumerate(intake_lines(text), start=1))
+    """The intake as the model sees it: numbered, with tag starts neutralised (spec 30 3.1)."""
+    return "\n".join(
+        f"{n:>4}| {neutralise(line)}" for n, line in enumerate(intake_lines(text), start=1)
+    )
 
 
 def _collapse(text: str) -> str:
@@ -114,7 +125,8 @@ def validate_draft(
             )
         else:
             cited = _collapse(" ".join(lines[req.start_line - 1 : req.end_line]))
-            if _collapse(req.evidence_quote) not in cited:
+            quote = _collapse(req.evidence_quote)
+            if quote not in cited and quote not in neutralise(cited):
                 errors.append(
                     f"requirement {index}: evidence_quote is not found in "
                     f"lines {req.start_line}-{req.end_line}"

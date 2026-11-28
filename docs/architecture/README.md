@@ -16,6 +16,7 @@ code as it is today (specs 11, 12, 13 and 15 included); planned work is in
 | 7 | [Customer questions](07-customer-questions.md) | how a point only the customer can settle is recorded, answered as a Decision Record and given back to the agents |
 | 8 | [Knowledge base](08-knowledge-base.md) | how reference files are indexed, retrieved into prompts, checked by the citation gate and traced |
 | 9 | [Phase review gates](09-phase-review-gates.md) | how a person approves or rejects each phase before the next one starts |
+| 10 | [Sensitive-data guardrails](10-sensitive-data-guardrails.md) | how secrets and personal data are kept away from the model, transcripts, errors and shared templates |
 
 ## Suggested reading order
 

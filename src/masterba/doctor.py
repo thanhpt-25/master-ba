@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from masterba.api.auth import UserStore
+from masterba.guard.scan import scan_project
 from masterba.knowledge.paths import KNOWLEDGE_IGNORES
 from masterba.library.sets import sync_builtin
 from masterba.models.enums import DocType
@@ -17,7 +18,10 @@ from masterba.trace_store.git import ensure_ready
 
 SOURCE_TEMPLATES = Path(__file__).resolve().parents[2] / "templates" / "default"
 SOURCE_COMPANY_TEMPLATES = Path(__file__).resolve().parents[2] / "templates" / "companies"
-WORK_TREE_GITIGNORE = "".join(f"{line}\n" for line in (".masterba/", *KNOWLEDGE_IGNORES))
+WORK_TREE_GITIGNORE = "".join(
+    f"{line}\n"
+    for line in (".masterba/", "templates/companies/*/*.sample.xlsx", *KNOWLEDGE_IGNORES)
+)
 
 
 @dataclass(frozen=True)
@@ -132,8 +136,26 @@ def _check_model() -> Check:
     return Check("model", False, f"no model key; {fix}", False)
 
 
+def _check_guard(root: Path) -> Check:
+    """Spec 30 section 6: a warning when a project stores a secret."""
+    found = [
+        f"{p.parent.name} ({report.secrets})"
+        for p in sorted((root / "projects").glob("*/project.json"))
+        if (report := scan_project(root, p.parent)).secrets
+    ]
+    if found:
+        fix = "run `masterba guard scan --project P` and remove them"
+        return Check("guard", False, f"secrets stored in {', '.join(found)}; {fix}", False)
+    return Check("guard", True, "no secret in stored project files")
+
+
 def run_checks(root: Path) -> list[Check]:
     checks = _check_git(root)
     if all(c.ok for c in checks):
-        checks += [_check_templates(root), _check_state(root), _check_ignores(root)]
+        checks += [
+            _check_templates(root),
+            _check_state(root),
+            _check_ignores(root),
+            _check_guard(root),
+        ]
     return [*checks, _check_model()]

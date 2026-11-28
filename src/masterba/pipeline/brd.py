@@ -17,6 +17,7 @@ from masterba.agents import (
 )
 from masterba.agents.requirements_analyst import intake_lines
 from masterba.agents.sections import line_range, to_content, validate_sections
+from masterba.guard import refuse_secret
 from masterba.intake import intake_name, intake_text
 from masterba.knowledge import open_session
 from masterba.llm import LLM
@@ -176,6 +177,7 @@ def run_brd(
     # Word, PDF and Excel are converted to Markdown; the stored intake is that text (spec 19).
     name = intake_name(intake_file.name)
     text = intake_text(intake_file)
+    refuse_secret(text, "the intake")  # spec 30 section 3.2, before any model call
     if len(text) > MAX_INTAKE_CHARS:
         raise InvalidDocumentError(f"intake is longer than {MAX_INTAKE_CHARS} characters")
     # A resumed run reads the intake it stored before; the given file must match it.

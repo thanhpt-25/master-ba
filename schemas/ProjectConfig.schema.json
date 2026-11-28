@@ -59,6 +59,21 @@
       "$ref": "#/$defs/DocLanguage",
       "default": "ja"
     },
+    "masking_terms": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 2,
+        "type": "string"
+      },
+      "maxItems": 200,
+      "title": "Masking Terms",
+      "type": "array"
+    },
+    "pii_masking": {
+      "default": true,
+      "title": "Pii Masking",
+      "type": "boolean"
+    },
     "project_id": {
       "pattern": "^PRJ-\\d{3}$",
       "title": "Project Id",

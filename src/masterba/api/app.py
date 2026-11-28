@@ -37,6 +37,7 @@ from masterba.api.jobs import Job, JobManager
 from masterba.api.settings import Settings
 from masterba.calibration import CalibrationError
 from masterba.change import LifecycleError, PatchError
+from masterba.guard import prune_transcripts, transcript_days
 from masterba.knowledge import (
     KbCommitError,
     KbError,
@@ -100,6 +101,14 @@ def create_app(settings: Settings, frontend_dir: Path | None = None) -> FastAPI:
     app.state.masterba.access.migrate()
     # Template sets get an owner too, and the built-in set is the one this app ships (spec 29).
     app.state.masterba.templates.migrate()
+    # Spec 30: shared sets that show personal data or a secret become private, and old
+    # transcripts are removed.
+    for set_id in app.state.masterba.templates.downgrade_unsafe():
+        audit.record("system", "template.private_by_guard", target=set_id, source="startup")
+        logger.warning("template set %s made private: it holds personal data or a secret", set_id)
+    pruned = prune_transcripts(settings.root, transcript_days())
+    if pruned:
+        logger.info("removed %d transcript file(s) past the retention period", pruned)
     updated = sync_builtin(settings.root)
     if updated:
         logger.info("updated %d built-in template file(s) from the app bundle", len(updated))

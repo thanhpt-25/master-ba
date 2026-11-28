@@ -2,6 +2,7 @@ import { append, badge, clear, empty, fmtTime, h, icon, liveDot, statusLabel } f
 import { foldCommits } from "./history.js";
 import { N_, t } from "../i18n.js";
 import { nextStep, PHASES, phaseTitle, workflowSteps } from "./journey.js";
+import { findingsNote, guardSettings } from "./guard.js";
 import { templateSettings } from "./library.js";
 import { projectSummary } from "./projects.js";
 import { parseComments, reviewBox } from "./review.js";
@@ -24,6 +25,8 @@ function uploadBox(ctx, { reuse, label }) {
     if (!file.files[0]) return ctx.toast(t("Choose an intake file first."), "error");
     try {
       const stored = await ctx.api.upload(`/projects/${ctx.pid}/intake`, file.files[0]);
+      const note = findingsNote(stored.findings);
+      if (note) ctx.toast(note);
       await ctx.start("brd", { intake: stored.name, reuse_intake: reuse });
     } catch (error) {
       ctx.toast(error.message, "error");
@@ -352,6 +355,7 @@ export async function render(context) {
       h("summary", {}, icon("chevron", 14), t("Project settings")),
       h("div", { class: "settings-body" },
         templateRow ??= templateSettings(pid, { api, toast, refresh }),
+        guardSettings(pid, project, { api, toast, refresh, me: context.me }),
         h("div", { class: "setting-row" },
           h("div", {}, h("h3", {}, t("Document updates after a decision")), h("p", { class: "muted" }, auto ? t("Document updates automatic") : t("Document updates manual"))),
           h("button", {

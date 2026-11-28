@@ -83,7 +83,7 @@ def test_the_whole_pipeline_runs_through_the_api_alone(
     assert [s["status"] for s in overview["stages"]] == ["not_started"] * 4
 
     upload = approver.post(f"{P}/intake", files={"file": (LOGIN, intake_path(LOGIN).read_bytes())})
-    assert upload.json() == {"name": LOGIN}
+    assert upload.json() == {"name": LOGIN, "findings": []}
 
     brd = run_stage(empty_app, approver, script, "brd", draft_for(LOGIN), qa_pass(), intake=LOGIN)
     assert brd["status"] == "done"

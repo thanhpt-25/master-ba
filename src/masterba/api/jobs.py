@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from masterba.guard.scrub import scrub
 from masterba.team import PROGRESS
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,7 @@ class JobManager:
             logger.exception("could not save job %s", job.id)
 
     def _log(self, job: Job, line: str) -> None:
-        job.log.append(line)
+        job.log.append(scrub(line))
         self._save(job)
 
     def submit(self, project_id: str, kind: str, work: Work, user: str | None = None) -> Job:
@@ -146,7 +147,7 @@ class JobManager:
         except Exception as exc:  # the worker must never die silently; the error is reported
             logger.exception("job %s failed", job.id)
             job.status = "failed"
-            job.error = f"{type(exc).__name__}: {exc}"
+            job.error = scrub(f"{type(exc).__name__}: {exc}")  # spec 30 section 4
         finally:
             PROGRESS.reset(token)
             job.finished = _now()
