@@ -21,6 +21,7 @@ from masterba.team.workspace import Team
 D = TypeVar("D", bound=BaseModel)
 T = TypeVar("T", bound=BaseModel)
 MAX_EXCHANGES = 2
+TIDY_SOURCE = "tester-scope"  # question source of the clean-up hook (see `Tidied`)
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,15 @@ class Answer:
 
 
 @dataclass(frozen=True)
+class Tidied(Generic[T]):
+    """A test draft after the deterministic clean-up, with what it changed."""
+
+    tests: T
+    notes: tuple[str, ...] = ()
+    questions: tuple[QuestionDraft, ...] = ()
+
+
+@dataclass(frozen=True)
 class DesignTestHooks(Generic[D, T]):
     """What the loop needs from the agents; keeps the loop independent of their models."""
 
@@ -47,6 +57,8 @@ class DesignTestHooks(Generic[D, T]):
     answers: Callable[[D], list[Answer]]
     review_design: Callable[[D], QaReview]
     review_tests: Callable[[D, T], QaReview]
+    # Settles contradictions in a test draft before its gate instead of sending it back.
+    tidy_tests: Callable[[T], Tidied[T]] | None = None
 
 
 @dataclass(frozen=True)
@@ -201,7 +213,7 @@ class _Loop(Generic[D, T]):
             self._done(task)
             return self._stop([request_failed("tester", exc)])
         team.charge(written.input_tokens + written.output_tokens)
-        self.tests = written.value
+        self.tests = self._tidy(written.value)
         team.write("tester", "test-draft", self.tests)
         self._done(task)
         errors = self.hooks.gate_tests(self.design, self.tests)
@@ -211,6 +223,20 @@ class _Loop(Generic[D, T]):
             return _Next.END_CYCLE
         self.to_tester = []
         return None
+
+    def _tidy(self, tests: T) -> T:
+        """Apply the clean-up hook; its notes go to the run record, its questions to the ledger."""
+        if self.hooks.tidy_tests is None:
+            return tests
+        team = self.team
+        tidied = self.hooks.tidy_tests(tests)
+        for note in tidied.notes:
+            team.post("gate", "tester", MessageType.FEEDBACK, None, note)
+            if note not in team.advisory:
+                team.advisory.append(note)
+        # Only the latest draft counts: a later draft without the conflict withdraws its questions.
+        team.offer_questions(TIDY_SOURCE, list(tidied.questions), replace=True)
+        return tidied.tests
 
     def _cycle_until_ready(self) -> _Next:
         """Designer and tester work until both gates pass and no question is open."""

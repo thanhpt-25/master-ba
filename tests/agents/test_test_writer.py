@@ -21,9 +21,9 @@ from masterba.agents import (
     write_tests,
 )
 from masterba.agents.design_writer import active_srs_items
-from masterba.agents.test_writer import cases_view
+from masterba.agents.test_writer import cases_view, dropped_note, scope_question, tidy_test_draft
 from masterba.llm import FakeLLM
-from masterba.models.enums import DocLanguage
+from masterba.models.enums import DocLanguage, QuestionOrigin
 from masterba.pipeline import assign_srs_ids
 
 IT_DOC = "DOC-TEST_IT-0001"
@@ -149,3 +149,58 @@ def test_revision_includes_previous_tests_and_feedback() -> None:
     assert "- the design was revised; re-check every case against it" in user
     assert "Questions the tester asked the designer:" in user
     assert "日本語" in llm.calls[0].system
+
+
+def contradicting_draft() -> TestDraft:
+    """Design item 1 and SRS item 2 are tested and excluded at once (the live-run failure)."""
+    return login_test_draft().model_copy(
+        update={
+            "exclusions": [
+                DraftExclusion(item_ref=design_ref(1), reason="Lockout period not stated."),
+                DraftExclusion(item_ref=srs_ref(2), reason="Message text not stated."),
+                DraftExclusion(item_ref=design_ref(1), reason="Said twice."),
+            ]
+        }
+    )
+
+
+def test_tidy_drops_every_exclusion_of_a_tested_item_and_the_gate_then_passes() -> None:
+    tidy, dropped = tidy_test_draft(contradicting_draft())
+    assert tidy.exclusions == []
+    assert tidy.it_cases == login_test_draft().it_cases
+    assert [(d.item_ref, d.reason, d.cases) for d in dropped] == [
+        (design_ref(1), "Lockout period not stated.", ("IT case 1",)),
+        (srs_ref(2), "Message text not stated.", ("ST case 2",)),
+    ]
+    assert check(tidy) == []
+    assert any("also verified by IT case 1" in e for e in check(contradicting_draft()))
+
+
+def test_tidy_keeps_the_exclusions_of_untested_items_and_returns_a_clean_draft_unchanged() -> None:
+    clean = login_test_draft_with_exclusions()
+    assert tidy_test_draft(clean) == (clean, [])
+    mixed = clean.model_copy(
+        update={
+            "exclusions": [
+                *clean.exclusions,
+                DraftExclusion(item_ref=design_ref(2), reason="Partly open."),
+            ]
+        }
+    )
+    tidy, dropped = tidy_test_draft(mixed)
+    assert tidy.exclusions == clean.exclusions
+    assert [d.item_ref for d in dropped] == [design_ref(2)]
+
+
+def test_a_dropped_exclusion_becomes_a_note_and_a_customer_question() -> None:
+    _, [dropped, _] = tidy_test_draft(contradicting_draft())
+    assert dropped_note(dropped) == (
+        f"exclusion of {design_ref(1)} removed by the gate: it is verified by IT case 1 "
+        "(reason given: Lockout period not stated.)"
+    )
+    english = scope_question(dropped, DocLanguage.EN)
+    assert english.refs == [design_ref(1)]
+    assert english.origin is QuestionOrigin.AGENT
+    assert "Lockout period not stated." in english.text
+    japanese = scope_question(dropped, DocLanguage.JA)
+    assert japanese.text.startswith(f"{design_ref(1)} はテストケースで検証していますが")

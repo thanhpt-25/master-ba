@@ -20,6 +20,7 @@ from masterba.agents.sections import (
 )
 from masterba.agents.unit_test_writer import (
     UnitTestDraft,
+    tidy_unit_test_draft,
     unit_cases_view,
     validate_unit_test_draft,
     write_unit_tests,
@@ -56,6 +57,7 @@ from masterba.pipeline.stage import (
     open_team,
     stage_result,
     store_document,
+    tidied,
     unique_links,
 )
 from masterba.rendering import render_to_project
@@ -225,6 +227,7 @@ def run_detail_design(
             *validate_unit_test_draft(t, d, DETAIL_DOC_ID, language),
             *kb_gate(session, "tester", kb_citations(UT_DOC_ID, t.ut_cases)),
         ],
+        tidy_tests=lambda t: tidied(tidy_unit_test_draft(t), language),
         questions=lambda t: [Question(q.ref, q.question) for q in t.questions],
         answers=lambda d: [Answer(a.ref, a.text) for a in d.answers],
         review_design=lambda d: review(

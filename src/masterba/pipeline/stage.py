@@ -7,14 +7,15 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
+from masterba.agents.test_writer import DroppedExclusion, dropped_note, scope_question
 from masterba.knowledge import KnowledgeSession
 from masterba.knowledge.reference import RenderedBlock
 from masterba.knowledge.trace import knowledge_links
 from masterba.models import Document, KbCitation, Payload, TeamRun, TraceLink
-from masterba.models.enums import DocStatus, DocType, TeamRunStatus
+from masterba.models.enums import DocLanguage, DocStatus, DocType, TeamRunStatus
 from masterba.questions import attach_facts, record_run_questions
 from masterba.review import initial_status
-from masterba.team import ResumeError, RunCheckpoint, Team
+from masterba.team import ResumeError, RunCheckpoint, Team, Tidied
 from masterba.trace_store import (
     NotFoundError,
     ProjectStore,
@@ -73,6 +74,16 @@ def store_document(store: ProjectStore, doc: Document, content: Payload) -> None
     nodes, links = knowledge_links(content)
     doc = doc.model_copy(update={"status": initial_status(store)})
     add_document(store, doc, content, links=links, knowledge=nodes)
+
+
+def tidied(tidy: tuple[M, list[DroppedExclusion]], language: DocLanguage) -> Tidied[M]:
+    """A test draft whose contradicting exclusions were dropped, as the loop's `Tidied`."""
+    tests, dropped = tidy
+    return Tidied(
+        tests,
+        notes=tuple(dropped_note(d) for d in dropped),
+        questions=tuple(scope_question(d, language) for d in dropped),
+    )
 
 
 def kb_citations(doc_id: str, items: Iterable[object]) -> list[tuple[str, KbCitation]]:
