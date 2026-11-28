@@ -38,8 +38,12 @@ Store = Annotated[ProjectStore, Depends(project_store)]
 Viewer = Depends(require_role("viewer"))
 
 
-def run_summaries(store: ProjectStore) -> list[dict[str, Any]]:
-    """Team run summaries, newest first."""
+def run_summaries(store: ProjectStore, busy: bool = False) -> list[dict[str, Any]]:
+    """Team run summaries, newest first.
+
+    `busy`: the project has a running job. A resumed run keeps its old `escalated`
+    summary until it finishes, so nothing is offered for resume meanwhile.
+    """
     folder = store.path / "runs"
     if not folder.exists():
         return []
@@ -55,7 +59,8 @@ def run_summaries(store: ProjectStore) -> list[dict[str, Any]]:
         ]
         summary["waiting_questions"] = [{"id": q.id, "text": q.text} for q in pending]
         summary["resumable"] = (
-            summary.get("status") in {"escalated", "waiting_for_input"}
+            not busy
+            and summary.get("status") in {"escalated", "waiting_for_input"}
             and not pending
             and (path.parent / "checkpoint.json").is_file()
         )
@@ -194,8 +199,9 @@ def read_intake_file(store: Store, name: str) -> dict[str, str]:
 
 
 @router.get("/runs", dependencies=[Viewer])
-def list_runs(store: Store) -> list[dict[str, Any]]:
-    return run_summaries(store)
+def list_runs(request: Request, store: Store) -> list[dict[str, Any]]:
+    busy = state_of(request).jobs.running(store.project_id) is not None
+    return run_summaries(store, busy)
 
 
 @router.get("/runs/{run_id}", dependencies=[Viewer])

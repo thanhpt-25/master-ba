@@ -211,7 +211,7 @@ def stage_status(store: ProjectStore, stage: str, running: bool) -> dict[str, An
             docs.append({"id": doc_id, "version": versions[-1], "status": doc.status.value})
     runs = [
         r
-        for r in run_summaries(store)
+        for r in run_summaries(store, running)
         if r["stage"] == STAGE_TYPE[stage] and r["trigger"] == "initial"
     ]
     last = runs[0] if runs else None
