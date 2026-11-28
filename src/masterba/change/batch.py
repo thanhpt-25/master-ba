@@ -44,13 +44,17 @@ class BatchResult:
 
     @property
     def status(self) -> str:
-        """`done` when every DR is propagated; `waiting_for_input` when only answers are missing."""
-        outcomes = {e.outcome for e in self.entries}
-        if outcomes <= {"propagated"}:
+        """`done`, `escalated`, or `waiting_for_input` when only answers hold the batch back.
+
+        A DR skipped behind a waiting DR waits with it; one skipped by the stop hook does not.
+        """
+        if all(e.outcome == "propagated" for e in self.entries):
             return "done"
-        if outcomes <= {"propagated", "waiting_for_input"}:
-            return "waiting_for_input"
-        return "escalated"
+        hard = [e for e in self.entries if e.outcome in ("escalated", "failed")]
+        limited = [e for e in self.entries if e.outcome == "skipped" and e.blocked_by is None]
+        if hard or limited:
+            return "escalated"
+        return "waiting_for_input"
 
     @property
     def stopped(self) -> bool:
