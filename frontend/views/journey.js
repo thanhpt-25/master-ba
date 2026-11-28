@@ -4,10 +4,10 @@
 import { N_, t } from "../i18n.js";
 
 export const PHASES = [
-  { key: "brd", title: N_("BRD"), sub: "業務要件定義書", needs: N_("Intake text"), doc: "DOC-BRD-0001" },
-  { key: "srs", title: N_("SRS"), sub: "システム要件定義書", needs: N_("BRD"), doc: "DOC-SRS-0001" },
-  { key: "basic", title: N_("Basic Design"), sub: "基本設計書", needs: N_("SRS"), doc: "DOC-BASIC_DESIGN-0001" },
-  { key: "detail", title: N_("Detail Design"), sub: "詳細設計書", needs: N_("Basic Design"), doc: "DOC-DETAIL_DESIGN-0001" },
+  { key: "brd", title: N_("BRD"), sub: "業務要件定義書", needs: N_("Intake text"), doc: "DOC-BRD-0001", short: "BRD" },
+  { key: "srs", title: N_("SRS"), sub: "システム要件定義書", needs: N_("BRD"), doc: "DOC-SRS-0001", short: "SRS" },
+  { key: "basic", title: N_("Basic Design"), sub: "基本設計書", needs: N_("SRS"), doc: "DOC-BASIC_DESIGN-0001", short: "Basic" },
+  { key: "detail", title: N_("Detail Design"), sub: "詳細設計書", needs: N_("Basic Design"), doc: "DOC-DETAIL_DESIGN-0001", short: "Detail" },
 ];
 
 // The phase whose review covers a document, from the document id.

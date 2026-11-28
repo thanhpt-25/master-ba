@@ -206,6 +206,14 @@ that calls the server, `dom.js` builds elements, and `views/` has one module per
 overview, projects, activity, documents, trace, questions, DRs, knowledge, templates, members, usage, users, admin, all projects, audit). Text is inserted only as text nodes
 and the CSP forbids inline script and style, so content from a model cannot run in the page.
 
+Spec 26 (the Workspace look) adds the shell around every screen: a project rail at the left edge
+(one square per project from `GET /projects`, read once per session), a slim sidebar with the
+project's sections, and a command palette (`palette.js`, ⌘K / Ctrl+K or the top-bar search field)
+over projects, the current project's sections, workspace and admin pages and a few actions. The
+Overview draws the V as a compact twelve-column grid (`vDiagram`) and lists the design phases with
+their documents and one action below it (`phaseList` rows); recent activity and open questions sit
+in a right column on wide screens. The interface font (Inter) is served from `frontend/fonts/`.
+
 Spec 19 part 3 shapes the pilot path:
 
 - **Next step.** `views/journey.js` `nextStep(overview)` is a pure function of `GET /projects/{pid}`

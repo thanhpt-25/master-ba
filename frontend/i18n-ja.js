@@ -41,7 +41,6 @@ export const JA = {
   "Admin": "管理者",
   "Project sections": "プロジェクトのメニュー",
   "Workspace": "ワークスペース",
-  "V-model workspace": "V字モデル ワークスペース",
   "Sign out": "サインアウト",
   "Something went wrong": "問題が発生しました",
   "The screen hit an unexpected error. Your work on the server is unaffected; reloading usually clears it.": "画面で予期しないエラーが発生しました。サーバー上の作業内容には影響ありません。再読み込みで解消することがほとんどです。",
@@ -793,7 +792,6 @@ export const JA = {
   "Client": "接続元",
 
   // Design ledger refresh (spec 25)
-  "Switch": "切り替え",
   "Show run": "表示",
   "Detail": "内容",
   "Intake": "入力資料",
@@ -835,4 +833,19 @@ export const JA = {
   "Use letters, digits, dots, dashes or underscores, without spaces (for example koyo-mfg).": "英数字・ドット・ハイフン・アンダースコアで、空白なしで入力してください（例: koyo-mfg）。",
   "Not reviewed yet": "未レビュー",
   "Start it from the next step above.": "上の「次の作業」から実行します。",
+  // Spec 26: rail, command palette, V drawing
+  "Search projects, pages and actions": "プロジェクト・画面・操作を検索",
+  "Pages": "画面",
+  "Change colour theme": "配色テーマを切り替え",
+  "Switch project": "プロジェクトを切り替え",
+  "Search or run a command…": "検索・コマンド…",
+  "Results": "検索結果",
+  "Nothing matches.": "一致するものはありません。",
+  "Command palette": "コマンドパレット",
+  "move": "移動",
+  "open": "開く",
+  "V-model: design phases and the test levels that verify them": "V字モデル: 設計工程と、それを検証するテスト",
+  "Each design phase is joined to the test level that verifies it.": "設計工程と、それを検証するテストを横線で結んでいます。",
+  "Documents, last run and the one action of each design phase.": "設計工程ごとの成果物、前回の実行、次の操作です。",
+  "Recent activity and open questions": "最近の更新と未回答の確認事項",
 };

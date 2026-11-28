@@ -3,17 +3,19 @@
 import { api, ApiError } from "./api.js";
 import { append, clear, errorBox, h, icon, shortcutsDialog, skeleton, usageNotice } from "./dom.js";
 import { lang, loadLang, N_, setLang, t } from "./i18n.js";
+import { openPalette, railLabel } from "./palette.js";
 
 // Shortcuts shown by the "?" help overlay. Views that add their own entries
 // (e.g. Overview's "P") describe them here so the list stays in one place.
 const SHORTCUTS = [
   { keys: "?", description: N_("Show this keyboard shortcut help") },
+  { keys: "⌘K / Ctrl+K", description: N_("Search projects, pages and actions") },
   { keys: "P", description: N_("Pause or resume live polling (Overview, Decision Records)") },
   { keys: "Esc", description: N_("Close an open dialog") },
 ];
 
 const app = document.getElementById("app");
-const state = { me: null, cleanup: null, seq: 0 };
+const state = { me: null, cleanup: null, seq: 0, projects: null, params: null };
 const THEMES = ["system", "light", "dark"];
 let theme = "system";
 try {
@@ -162,16 +164,105 @@ function accountMenu() {
 }
 let shellCleanup = null;
 
+// The projects this user can open, read once per session for the rail and the palette.
+async function loadProjects(force = false) {
+  if (state.projects && !force) return state.projects;
+  try {
+    state.projects = await api.get("/projects");
+  } catch {
+    state.projects = state.projects ?? [];
+  }
+  return state.projects;
+}
+
+function fillRail(rail, current) {
+  const host = rail.querySelector(".rail-projects");
+  if (!host) return;
+  clear(host);
+  append(host, (state.projects ?? []).map((project) => {
+    const pid = project.project_id;
+    return h("a", {
+      class: "rail-project",
+      href: `#/p/${encodeURIComponent(pid)}/overview`,
+      title: pid,
+      "aria-label": pid,
+      "aria-current": pid === current ? "page" : null,
+    }, railLabel(pid));
+  }));
+}
+
+// Open customer questions beside 顧客確認事項, filled after the first paint.
+async function fillCounts(sidebar, pid) {
+  try {
+    const overview = await api.get(`/projects/${encodeURIComponent(pid)}`);
+    const link = sidebar.querySelector('a[data-tab="questions"]');
+    const n = overview?.counts?.open_questions ?? 0;
+    if (link && n > 0 && !link.querySelector(".nav-count")) {
+      link.append(h("span", { class: "nav-count", "aria-label": t("{n} open customer question(s)", { n }) }, String(n)));
+    }
+    const company = sidebar.querySelector(".project-switch-sub");
+    if (company && overview?.project?.company_id) company.textContent = overview.project.company_id;
+  } catch { /* The count is a convenience; the page itself reports errors. */ }
+}
+
+// Everything the palette can jump to or do, for this user on this page.
+function paletteCommands() {
+  const params = state.params ?? { name: "projects", pid: null };
+  const commands = [];
+  const page = t("Pages");
+  if (params.pid) {
+    for (const [key, label] of TABS) {
+      commands.push({ id: `tab:${key}`, group: params.pid, label: t(label), keywords: [params.pid], icon: TAB_ICONS[key], run: () => go(`#/p/${params.pid}/${key}`) });
+    }
+  }
+  for (const project of state.projects ?? []) {
+    const pid = project.project_id;
+    commands.push({ id: `project:${pid}`, group: t("Projects"), label: pid, hint: project.company_id, keywords: [project.owner ?? ""], icon: "projects", run: () => go(`#/p/${encodeURIComponent(pid)}/overview`) });
+  }
+  commands.push(
+    { id: "page:projects", group: page, label: t("Projects"), icon: "projects", run: () => go("#/projects") },
+    { id: "page:usage", group: page, label: t("Usage"), icon: "gauge", run: () => go("#/usage") },
+  );
+  if (state.me?.role === "admin") {
+    commands.push(
+      { id: "page:admin", group: t("Administration"), label: t("Admin dashboard"), icon: "dashboard", run: () => go("#/admin") },
+      { id: "page:users", group: t("Administration"), label: t("Users"), icon: "users", run: () => go("#/users") },
+      { id: "page:admin-projects", group: t("Administration"), label: t("All projects"), icon: "projects", run: () => go("#/admin-projects") },
+      { id: "page:audit", group: t("Administration"), label: t("Audit log"), icon: "audit", run: () => go("#/audit") },
+      { id: "page:templates", group: t("Administration"), label: t("Templates"), icon: "templates", run: () => go("#/templates") },
+    );
+  }
+  const actions = t("Actions");
+  commands.push(
+    { id: "action:theme", group: actions, label: t("Change colour theme"), hint: themeLabel(), icon: "theme", run: cycleTheme },
+    { id: "action:lang", group: actions, label: lang() === "ja" ? "English" : "日本語", keywords: ["language", "言語"], icon: "language", run: switchLanguage },
+    { id: "action:shortcuts", group: actions, label: t("Keyboard shortcuts"), icon: "more", run: showShortcuts },
+    { id: "action:signout", group: actions, label: t("Sign out"), icon: "signout", run: logout },
+  );
+  return commands;
+}
+
+async function showPalette() {
+  if (!state.me) return;
+  await loadProjects();
+  openPalette(paletteCommands());
+}
+
+function showShortcuts() {
+  shortcutsDialog(SHORTCUTS.map((s) => ({ keys: s.keys, description: t(s.description) })));
+}
+
 function shell(params, content) {
   if (shellCleanup) { shellCleanup(); shellCleanup = null; }
+  state.params = params;
   const section = params.pid ? TABS.find(([key]) => key === params.name) : null;
   const crumbs = [];
   if (params.pid) {
     crumbs.push(h("a", { href: "#/projects" }, t("Projects")), h("span", { class: "crumb-slash", "aria-hidden": "true" }, "/"));
     if (section && section[0] !== "overview") {
-      crumbs.push(h("a", { href: `#/p/${params.pid}/overview` }, h("code", {}, params.pid)), h("span", { class: "crumb-slash", "aria-hidden": "true" }, "/"), h("span", { class: "crumb-current", "aria-current": "page" }, t(section[1])));
+      crumbs.push(h("a", { href: `#/p/${params.pid}/overview` }, params.pid), h("span", { class: "crumb-slash", "aria-hidden": "true" }, "/"), h("span", { class: "crumb-current", "aria-current": "page" }, t(section[1])));
     } else {
-      crumbs.push(h("code", { class: "crumb-current", "aria-current": "page" }, params.pid));
+      crumbs.push(h("span", { class: "crumb-current", "aria-current": "page" }, params.pid));
     }
   } else {
     if (ADMIN_PAGES.includes(params.name)) crumbs.push(h("span", {}, t("Administration")), h("span", { class: "crumb-slash", "aria-hidden": "true" }, "/"));
@@ -188,44 +279,61 @@ function shell(params, content) {
     : null;
   const isAdmin = state.me.role === "admin";
   const inAdmin = !params.pid && ADMIN_PAGES.includes(params.name);
+  // The rail: brand, one square per project, and the way to the project list (spec 26 section 2).
+  const rail = h("nav", { class: "rail", "aria-label": t("Switch project") },
+    h("a", { class: "rail-brand", href: "#/projects", "aria-label": t("MasterBA, go to projects") }, h("span", { class: "seal", "aria-hidden": "true" }, "要")),
+    h("div", { class: "rail-projects" }),
+    h("a", { class: "rail-add", href: "#/projects", title: t("All projects"), "aria-label": t("All projects") }, icon("plus", 16)),
+  );
+  const sidebar = h("aside", { class: "sidebar" },
+    h("a", { class: "brand", href: "#/projects", "aria-label": t("MasterBA, go to projects") }, h("span", { class: "seal", "aria-hidden": "true" }, "要"), h("span", {}, "MasterBA")),
+    // Inside a project its sections come first, so they are never below the fold.
+    params.pid
+      ? [
+          h("a", { class: "project-switch", href: "#/projects", title: t("Switch project") },
+            h("span", { class: "project-mark", "aria-hidden": "true" }, railLabel(params.pid)),
+            h("span", { class: "project-switch-text" }, h("span", { class: "project-switch-id" }, params.pid), h("span", { class: "project-switch-sub" }, t("Switch project"))),
+            icon("chevron", 14),
+          ),
+          h("nav", { class: "workspace-nav project-nav", "aria-label": t("Project navigation") },
+            TABS.map(([key, label]) => {
+              const link = navLink(`#/p/${params.pid}/${key}`, TAB_ICONS[key], t(label), params.name === key);
+              link.dataset.tab = key;
+              return link;
+            }),
+          ),
+        ]
+      : null,
+    h("p", { class: "sidebar-label" }, t("Workspace")),
+    h("nav", { class: "workspace-nav", "aria-label": t("Workspace") },
+      navLink("#/projects", "projects", t("Projects"), !params.pid && params.name === "projects"),
+      navLink("#/usage", "gauge", t("Usage"), params.name === "usage"),
+    ),
+    isAdmin
+      ? h("details", { class: "admin-group", open: inAdmin || !params.pid },
+          h("summary", {}, h("span", {}, t("Administration")), icon("chevron", 14)),
+          h("nav", { class: "workspace-nav admin-nav", "aria-label": t("Administration") },
+            navLink("#/admin", "dashboard", t("Admin dashboard"), !params.pid && params.name === "admin"),
+            navLink("#/users", "users", t("Users"), params.name === "users"),
+            navLink("#/admin-projects", "projects", t("All projects"), params.name === "admin-projects"),
+            navLink("#/audit", "audit", t("Audit log"), params.name === "audit"),
+            navLink("#/templates", "templates", t("Templates"), params.name === "templates"),
+          ),
+        )
+      : null,
+  );
+  loadProjects(params.name === "projects").then(() => fillRail(rail, params.pid));
+  if (params.pid) fillCounts(sidebar, params.pid);
+  const search = h("button", { class: "top-search", type: "button", onClick: showPalette, "aria-keyshortcuts": "Meta+K Control+K" },
+    icon("search", 15), h("span", {}, t("Search or run a command…")), h("kbd", {}, isMac() ? "⌘K" : "Ctrl K"));
   return [
     h("div", { class: "app-shell" },
-      h("aside", { class: "sidebar" },
-        h("a", { class: "brand", href: "#/projects", "aria-label": t("MasterBA, go to projects") }, h("span", { class: "seal", "aria-hidden": "true" }, "要"), h("span", {}, "MasterBA")),
-        // Inside a project its sections come first, so they are never below the fold.
-        params.pid
-          ? [
-              h("div", { class: "project-block" },
-                h("span", { class: "project-block-label" }, h("span", {}, t("Project")), h("a", { href: "#/projects" }, t("Switch"))),
-                h("span", { class: "project-block-id" }, params.pid),
-              ),
-              h("nav", { class: "workspace-nav project-nav", "aria-label": t("Project navigation") },
-                TABS.map(([key, label]) => navLink(`#/p/${params.pid}/${key}`, TAB_ICONS[key], t(label), params.name === key)),
-              ),
-            ]
-          : null,
-        h("p", { class: "sidebar-label" }, t("Workspace")),
-        h("nav", { class: "workspace-nav", "aria-label": t("Workspace") },
-          navLink("#/projects", "projects", t("Projects"), !params.pid && params.name === "projects"),
-          navLink("#/usage", "gauge", t("Usage"), params.name === "usage"),
-        ),
-        isAdmin
-          ? h("details", { class: "admin-group", open: inAdmin || !params.pid },
-              h("summary", {}, h("span", {}, t("Administration")), icon("chevron", 14)),
-              h("nav", { class: "workspace-nav admin-nav", "aria-label": t("Administration") },
-                navLink("#/admin", "dashboard", t("Admin dashboard"), !params.pid && params.name === "admin"),
-                navLink("#/users", "users", t("Users"), params.name === "users"),
-                navLink("#/admin-projects", "projects", t("All projects"), params.name === "admin-projects"),
-                navLink("#/audit", "audit", t("Audit log"), params.name === "audit"),
-                navLink("#/templates", "templates", t("Templates"), params.name === "templates"),
-              ),
-            )
-          : null,
-        h("div", { class: "sidebar-foot" }, h("span", { class: "sidebar-live", "aria-hidden": "true" }), t("V-model workspace")),
-      ),
+      rail,
+      sidebar,
       h("div", { class: "workspace" },
         h("header", { class: "top" },
           h("nav", { class: "crumb", "aria-label": t("Breadcrumb") }, crumbs),
+          search,
           h("div", { class: "who" }, accountMenu()),
         ),
         nav,
@@ -235,6 +343,8 @@ function shell(params, content) {
     ),
   ];
 }
+
+const isMac = () => /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "");
 
 // From 80 % of a usage window, and stronger once a limit is reached (spec 23 section 8).
 function usageBanner() {
@@ -267,7 +377,7 @@ async function route() {
     // Read again on every route so the role and the usage banner stay current.
     try {
       state.me = await api.get("/me");
-      if (!known) loadLang(state.me.name);
+      if (!known) { loadLang(state.me.name); state.projects = null; }
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 401) throw error;
       state.me = null;
@@ -375,7 +485,15 @@ window.addEventListener("keydown", (event) => {
   if (el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))) return;
   if (!state.me) return;
   event.preventDefault();
-  shortcutsDialog(SHORTCUTS.map((s) => ({ keys: s.keys, description: t(s.description) })));
+  showShortcuts();
+});
+
+// ⌘K / Ctrl+K opens the command palette from anywhere, even while typing in a field.
+window.addEventListener("keydown", (event) => {
+  if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+  if (!state.me) return;
+  event.preventDefault();
+  showPalette();
 });
 
 route();
