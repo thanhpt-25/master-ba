@@ -96,10 +96,10 @@ def test_srs_content_and_workbook_agree(with_brd: ProjectStore) -> None:
         "REQ-0004",
     ]
     assert result.xlsx_path is not None
-    sheet = load_workbook(result.xlsx_path)["機能要件"]
+    sheet = load_workbook(result.xlsx_path)["機能要件一覧"]
     rows = list(sheet.iter_rows(min_row=8, max_col=6, values_only=True))
     assert [r[1] for r in rows] == ["REQ-0001", "REQ-0002", "REQ-0004"]
-    non_functional = load_workbook(result.xlsx_path)["非機能要件"]
+    non_functional = load_workbook(result.xlsx_path)["非機能要件一覧"]
     assert non_functional["B8"].value == "REQ-0003"
 
 

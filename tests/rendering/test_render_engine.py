@@ -85,67 +85,76 @@ def test_brd_golden_values_header_and_scope_split() -> None:
     assert wb.sheetnames == [
         "表紙",
         "改訂履歴",
+        "目次",
         "背景・目的",
-        "業務要件",
+        "業務要件一覧",
         "システム化の範囲",
-        "対象外",
-        "制約事項",
+        "対象外業務",
+        "前提条件・制約事項",
+        "未決事項",
         "トレーサビリティ",
     ]
-    ws = wb["業務要件"]
-    assert [ws[f"B{r}"].value for r in range(2, 6)] == [BRD, 1, "PRJ-001", "作成中"]
-    assert table_rows(ws, 7) == [
-        (
-            1,
-            "REQ-0001",
-            f"{BRD}#item.1",
-            "Requirement 1",
-            LONG_DESCRIPTION,
-            "対象",
-            "intake/mail-1.txt",
-        ),
-        (
-            2,
-            "REQ-0002",
-            f"{BRD}#item.2",
-            "Requirement 2",
-            LONG_DESCRIPTION,
-            "対象外",
-            "intake/mail-1.txt",
-        ),
-    ]
-    assert [r[2] for r in table_rows(wb["システム化の範囲"], 7)] == [f"{BRD}#item.1"]
-    assert [r[2] for r in table_rows(wb["対象外"], 7)] == [f"{BRD}#item.2"]
+    ws = wb["業務要件一覧"]
+    band = {ws[f"{c}{r}"].value: ws[f"{chr(ord(c) + 1)}{r}"].value for r in (2, 3) for c in "ACEG"}
+    assert band == {
+        "システム名": "PRJ-001",
+        "文書名": "業務要件定義書",
+        "文書番号": BRD,
+        "版数": "1.0",
+        "シート名": "業務要件一覧",
+        "作成日": None,
+        "更新日": None,
+        "状態": "作成中",
+    }
+    assert table_rows(ws, 8) == [
+        (1, "REQ-0001", "Requirement 1", LONG_DESCRIPTION, "対象", "intake/mail-1.txt",
+         f"{BRD}#item.1", None),
+        (2, "REQ-0002", "Requirement 2", LONG_DESCRIPTION, "対象外", "intake/mail-1.txt",
+         f"{BRD}#item.2", None),
+    ]  # fmt: skip
+    assert [r[1] for r in table_rows(wb["システム化の範囲"], 7)] == ["REQ-0001"]
+    assert [r[1] for r in table_rows(wb["対象外業務"], 7)] == ["REQ-0002"]
+
+
+def test_the_table_of_contents_lists_every_sheet() -> None:
+    wb = render(DocType.BRD, make_brd(make_brd_item(BRD, 1)))
+    rows = table_rows(wb["目次"], 3)
+    assert [r[1] for r in rows] == wb.sheetnames
+    assert rows[0] == (1, "表紙", "文書名、版数、承認欄")
 
 
 def test_srs_functional_and_non_functional_sheets() -> None:
     nfr = make_srs_item(SRS, 2, req="REQ-0002").model_copy(update={"kind": SrsKind.NON_FUNCTIONAL})
     wb = render(DocType.SRS, make_srs(make_srs_item(SRS, 1), nfr))
     statement = "The system shall authenticate users by email and password."
-    assert table_rows(wb["機能要件"], 6) == [
-        (1, "REQ-0001", f"{SRS}#item.1", statement, None, "REQ-0001")
+    assert table_rows(wb["機能要件一覧"], 7) == [
+        (1, "REQ-0001", statement, None, "REQ-0001", f"{SRS}#item.1", None)
     ]
-    assert [r[2] for r in table_rows(wb["非機能要件"], 6)] == [f"{SRS}#item.2"]
+    assert [r[1] for r in table_rows(wb["非機能要件一覧"], 6)] == ["REQ-0002"]
 
 
-def test_basic_design_screen_sheet_and_empty_sheets() -> None:
-    wb = render(DocType.BASIC_DESIGN, make_basic(make_basic_item(BASIC, 1)))
+def test_basic_design_prints_display_codes_and_empty_sheets() -> None:
+    wb = render(DocType.BASIC_DESIGN, make_basic(make_basic_item(BASIC, 12)))
     description = "Email and password form with a submit button."
-    assert table_rows(wb["画面一覧表"], 5) == [
-        (1, f"{BASIC}#item.1", "Login screen", description, None)
+    assert table_rows(wb["画面一覧"], 7) == [
+        (1, "SCR-0012", "Login screen", description, None, f"{BASIC}#item.12", None)
     ]
-    assert table_rows(wb["機能一覧表"], 5) == []
-    assert wb["構成図・フロー図・ER図"]["A7"].value == "（図は別途添付）"
+    assert table_rows(wb["機能一覧"], 6) == []
+    assert wb["システム構成図・業務フロー"]["A7"].value == "（図は別途添付）"
+    assert wb["画面遷移図"]["A7"].value == "（画面遷移図は別途添付）"
 
 
 def test_detail_design_fills_one_sheet_per_kind() -> None:
     wb = render(DocType.DETAIL_DESIGN, detail_content())
-    assert table_rows(wb["機能仕様"], 5) == [
-        (1, f"{DETAIL}#item.1", "AuthService", "AuthService spec", f"{BASIC}#item.1")
+    assert table_rows(wb["モジュール一覧"], 6) == [
+        (1, "MOD-0001", "AuthService", "AuthService spec", f"{BASIC}#item.1", f"{DETAIL}#item.1")
     ]
-    for sheet, name in [("処理フロー", "Validate password"), ("データベース設計", "users")]:
-        assert [r[2] for r in table_rows(wb[sheet], 5)] == [name]
-    assert [r[2] for r in table_rows(wb["インターフェース設計"], 5)] == ["POST /login"]
+    for sheet, code in [
+        ("処理一覧", "PRC-0002"),
+        ("テーブル定義", "DBT-0003"),
+        ("API定義", "API-0004"),
+    ]:
+        assert [r[1] for r in table_rows(wb[sheet], 3)] == [code]
 
 
 @pytest.mark.parametrize(
@@ -158,24 +167,26 @@ def test_detail_design_fills_one_sheet_per_kind() -> None:
     ],
 )
 def test_every_test_level_renders_the_same_columns(doc_type: DocType, level: Level) -> None:
-    labels = {"UT": "単体テスト", "IT": "結合テスト", "ST": "総合テスト", "UAT": "受入テスト"}
     did = doc_id(doc_type)
     case = make_test_item(did, 1, f"TC-{level.value}-0001", level)
     wb = render(doc_type, make_test_spec(case))
-    assert table_rows(wb["テストケース"], 13) == [
+    assert wb.sheetnames[-3:] == ["テスト項目表", "消化状況", "除外項目"]
+    assert table_rows(wb["テスト項目表"], 15) == [
         (
             1,
             f"TC-{level.value}-0001",
-            f"{did}#item.1",
-            labels[level.value],
+            None,
             "A registered user exists.",
             "valid email and password",
             "1. Open the login screen\n2. Submit the form",
             "The user lands on the dashboard.",
+            "\n".join(case.verifies) or None,
             None,
             None,
             None,
             None,
+            None,
+            f"{did}#item.1",
             None,
         )
     ]
@@ -183,7 +194,7 @@ def test_every_test_level_renders_the_same_columns(doc_type: DocType, level: Lev
 
 def test_removed_items_are_hidden_unless_the_template_drops_the_filter() -> None:
     content = make_brd(make_brd_item(BRD, 1), make_brd_item(BRD, 2, status=ItemStatus.REMOVED))
-    assert len(table_rows(render(DocType.BRD, content)["業務要件"], 7)) == 1
+    assert len(table_rows(render(DocType.BRD, content)["業務要件一覧"], 7)) == 1
     template = template_for(DocType.BRD)
     open_bindings = template.bindings.model_copy(
         update={"tables": [t.model_copy(update={"where": {}}) for t in template.bindings.tables]}
@@ -191,23 +202,23 @@ def test_removed_items_are_hidden_unless_the_template_drops_the_filter() -> None
     shown = render_document(
         make_document(DocType.BRD), content, replace(template, bindings=open_bindings)
     )
-    assert len(table_rows(shown["業務要件"], 7)) == 2
+    assert len(table_rows(shown["業務要件一覧"], 7)) == 2
 
 
 def test_text_that_looks_like_a_formula_stays_text_after_saving() -> None:
     formula = '=HYPERLINK("http://example.invalid","click")'
     content = make_brd(make_brd_item(BRD, 1, description=formula))
     reloaded = load_workbook(BytesIO(workbook_bytes(render(DocType.BRD, content))))
-    cell = reloaded["業務要件"]["E8"]
+    cell = reloaded["業務要件一覧"]["D8"]
     assert (cell.value, cell.data_type) == (formula, "s")
 
 
 def test_data_rows_copy_the_shell_style() -> None:
     content = make_brd(make_brd_item(BRD, 1), make_brd_item(BRD, 2), make_brd_item(BRD, 3))
-    ws = render(DocType.BRD, content)["業務要件"]
+    ws = render(DocType.BRD, content)["業務要件一覧"]
     for row in (8, 9, 10):
-        assert ws[f"E{row}"].alignment.wrap_text is True
-        assert ws[f"E{row}"].border.left.style == "thin"
+        assert ws[f"D{row}"].alignment.wrap_text is True
+        assert ws[f"D{row}"].border.left.style == "thin"
 
 
 def test_same_content_gives_byte_identical_files() -> None:

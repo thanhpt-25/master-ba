@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from openpyxl import load_workbook
 
 from factories import build_chain
 from masterba.cli import main
@@ -94,3 +95,39 @@ def test_answering_twice_is_an_error_with_exit_code_one(
     capsys.readouterr()
     assert cli(root, *args) == 1
     assert "only an open question" in capsys.readouterr().err
+
+
+def test_export_writes_the_qa_and_change_registers(
+    root: Path, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    run_json(
+        root, capsys, "question", "answer", "Q-0002", "--project", "PRJ-001",
+        "--by", "alice", "--text", "Business days only.",
+    )  # fmt: skip
+    out = tmp_path / "qa.xlsx"
+    exported = run_json(
+        root, capsys, "export", "questions", "--project", "PRJ-001", "--out", str(out)
+    )
+    assert exported == {"register": "questions", "path": str(out)}
+    ws = load_workbook(out)["QA管理表"]
+    rows = list(ws.iter_rows(min_row=5, max_col=12, values_only=True))
+    assert [r[1] for r in rows] == ["Q-0001", "Q-0002", "Q-0003"]
+    answered = rows[1]
+    assert answered[2] == "システム要件定義書" and answered[4] == "作成担当"
+    assert answered[7:] == ("Business days only.", "alice", answered[9], "回答済", "DR-0001")
+    assert rows[2][10] == "未回答"
+
+    changes = tmp_path / "changes.xlsx"
+    run_json(root, capsys, "export", "changes", "--project", "PRJ-001", "--out", str(changes))
+    wb = load_workbook(changes)
+    assert wb.sheetnames == ["変更管理台帳", "DR-0001"]
+    entry = next(wb["変更管理台帳"].iter_rows(min_row=5, max_col=8, values_only=True))
+    assert entry[1:4] == ("DR-0001", entry[2], "顧客回答反映")
+    assert entry[5:7] == ("承認", "alice")
+    form = {r[0]: r[1] for r in wb["DR-0001"].iter_rows(min_row=4, max_col=2, values_only=True)}
+    assert form["変更管理番号"] == "DR-0001"
+    assert form["判断"] == "Business days only."
+    assert form["工数・納期への影響"] == "（手入力）"
+    first = changes.read_bytes()
+    run_json(root, capsys, "export", "changes", "--project", "PRJ-001", "--out", str(changes))
+    assert changes.read_bytes() == first  # byte-deterministic

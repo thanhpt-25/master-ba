@@ -1,9 +1,10 @@
-"""Data a workbook prints besides the payload: cover, revision history, traceability (spec 19).
+"""Data a workbook prints besides the payload: cover, history, traceability (spec 19, spec 27).
 
 Pure values only; `rendering/history.py` derives them from the store.
 """
 
-from dataclasses import dataclass, fields
+from collections.abc import Mapping
+from dataclasses import dataclass, field, fields
 
 from masterba.models.enums import DocType
 
@@ -19,6 +20,13 @@ DOC_TITLES: dict[DocType, str] = {
 }
 
 AUTHOR = "MasterBA"
+PUBLISHER = "MasterBA"
+CLASSIFICATION = "社外秘"
+
+
+def version_label(version: int) -> str:
+    """版数 as a Japanese SIer prints it: version 2 is `2.0`."""
+    return f"{version}.0"
 
 
 @dataclass(frozen=True)
@@ -32,16 +40,33 @@ class Revision:
     author: str
     approver: str | None = None
     approved_on: str | None = None
+    changed_sheets: str = ""  # 改訂箇所
+
+    @property
+    def version_label(self) -> str:
+        return version_label(self.version)
 
 
 @dataclass(frozen=True)
 class TraceRow:
     """One row of トレーサビリティ: an active item and the ends of its trace links."""
 
-    item: str
+    item: str  # the item ref (管理ID)
     name: str
     upstream: tuple[str, ...]
     downstream: tuple[str, ...]
+    code: str = ""  # REQ id, test case id or display code (spec 27 section 2)
+
+
+@dataclass(frozen=True)
+class QuestionRow:
+    """One row of 未決事項: an open customer question of the document's stage."""
+
+    id: str
+    text: str
+    refs: tuple[str, ...]
+    asked_on: str
+    status: str
 
 
 @dataclass(frozen=True)
@@ -50,6 +75,8 @@ class RenderContext:
     author: str = AUTHOR
     revisions: tuple[Revision, ...] = ()
     trace: tuple[TraceRow, ...] = ()
+    questions: tuple[QuestionRow, ...] = ()
+    names: Mapping[str, str] = field(default_factory=dict)  # item ref or REQ id to its name
 
     def revision(self, version: int) -> Revision | None:
         return next((r for r in self.revisions if r.version == version), None)
@@ -61,5 +88,6 @@ class RenderContext:
 
 EMPTY_CONTEXT = RenderContext(author="")
 
-REVISION_FIELDS = frozenset(f.name for f in fields(Revision))
+REVISION_FIELDS = frozenset({*(f.name for f in fields(Revision)), "version_label"})
 TRACE_FIELDS = frozenset(f.name for f in fields(TraceRow))
+QUESTION_FIELDS = frozenset(f.name for f in fields(QuestionRow))

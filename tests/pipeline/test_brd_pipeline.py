@@ -74,14 +74,14 @@ def test_stored_json_and_xlsx_agree(store: ProjectStore) -> None:
     _, content = get_document(store, BRD_DOC_ID)
     assert isinstance(content, BrdContent)
     workbook = load_workbook(result.xlsx_path)
-    rows = list(workbook["業務要件"].iter_rows(min_row=8, max_col=7, values_only=True))
-    assert [(r[1], r[2], r[3]) for r in rows] == [
+    rows = list(workbook["業務要件一覧"].iter_rows(min_row=8, max_col=7, values_only=True))
+    assert [(r[1], r[6], r[2]) for r in rows] == [
         (i.requirement_id, i.item_id, i.title) for i in content.items
     ]
     scope = workbook["システム化の範囲"].iter_rows(min_row=8, max_col=1, values_only=True)
     assert len(list(scope)) == 4
-    out = workbook["対象外"].iter_rows(min_row=8, max_col=4, values_only=True)
-    assert [r[3] for r in out] == ["Account administration"]
+    out = workbook["対象外業務"].iter_rows(min_row=8, max_col=4, values_only=True)
+    assert [r[2] for r in out] == ["Account administration"]
 
 
 def test_every_citation_points_inside_the_stored_intake_and_quotes_match(
@@ -255,7 +255,7 @@ def test_every_intake_fixture_produces_a_workbook_that_opens(
     store = create_project(projects_root, make_config(language=language))
     result = run_brd(store, TEMPLATES, accepted(name), intake_path(name))
     assert result.xlsx_path is not None
-    assert "業務要件" in load_workbook(result.xlsx_path).sheetnames
+    assert "業務要件一覧" in load_workbook(result.xlsx_path).sheetnames
     reopened = open_project(projects_root, "PRJ-001")
     assert len(list_requirements(reopened)) == len(result.requirement_ids)
 
@@ -265,7 +265,7 @@ def test_japanese_text_survives_to_the_workbook(projects_root: Path) -> None:
     name = "inventory_mixed_ja.txt"
     result = run_brd(store, TEMPLATES, accepted(name), intake_path(name))
     assert result.xlsx_path is not None
-    assert load_workbook(result.xlsx_path)["業務要件"]["D9"].value == "在庫数のリアルタイム確認"
+    assert load_workbook(result.xlsx_path)["業務要件一覧"]["C9"].value == "在庫数のリアルタイム確認"
 
 
 @pytest.mark.live

@@ -150,7 +150,9 @@ def test_a_requirement_change_revises_exactly_the_affected_documents(
         assert (chain.path / "xlsx" / kind / f"{doc}.v2.xlsx").exists()
     assert not (chain.path / "xlsx" / "test_st" / f"{DOCS[4]}.v2.xlsx").exists()
     assert (
-        load_workbook(chain.path / "xlsx" / "brd" / f"{DOCS[0]}.v2.xlsx")["業務要件"]["E9"].value
+        load_workbook(chain.path / "xlsx" / "brd" / f"{DOCS[0]}.v2.xlsx")["業務要件一覧"][
+            "D9"
+        ].value
         == SMS
     )
 

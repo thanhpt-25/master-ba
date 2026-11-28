@@ -58,6 +58,7 @@ from masterba.pipeline import (
 from masterba.quality.report import project_quality, to_markdown
 from masterba.questions.answer import answer_question, withdraw_question
 from masterba.rendering import RenderError
+from masterba.rendering.registers import register_bytes, register_filename
 from masterba.team import ResumeError
 from masterba.trace_store import (
     ProjectStore,
@@ -183,6 +184,12 @@ def build_parser() -> argparse.ArgumentParser:
     quality = commands.add_parser("quality", help="quality report of the latest documents")
     quality.add_argument("--project", type=_project_id, required=True)
     quality.add_argument("--out", type=Path, default=None, help="write Markdown here")
+    export = commands.add_parser(
+        "export", help="write the change register (変更管理台帳) or the Q&A register (QA管理表)"
+    )
+    export.add_argument("register", choices=["changes", "questions"])
+    export.add_argument("--project", type=_project_id, required=True)
+    export.add_argument("--out", type=Path, default=None, help="default: <project>_<name>.xlsx")
     _add_template_parsers(commands)
     add_kb_parsers(commands, _project_id)
     add_review_parsers(commands, _project_id)
@@ -502,6 +509,11 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
         return dispatch_review(args, root, llm_factory)
     if args.command == "dr":
         return _dispatch_dr(args, store, root, llm_factory)
+    if args.command == "export":
+        out = args.out or Path(register_filename(store, args.register))
+        out.write_bytes(register_bytes(store, args.register))
+        _emit({"register": args.register, "path": str(out)})
+        return 0
     if args.command == "quality":
         text = to_markdown(store.project_id, project_quality(store))
         if args.out is None:

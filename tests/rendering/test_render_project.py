@@ -30,7 +30,7 @@ def test_render_writes_xlsx_in_one_commit_and_keeps_json_untouched(
     assert commit_log()[0] == f"render(PRJ-001): xlsx {BRD} v1"
     assert len(commit_log()) == before + 1
     assert json_path.read_bytes() == before_json
-    assert load_workbook(path)["業務要件"]["B8"].value == "REQ-0001"
+    assert load_workbook(path)["業務要件一覧"]["B8"].value == "REQ-0001"
 
 
 def test_rendering_unchanged_content_again_creates_no_commit(
@@ -51,7 +51,11 @@ def test_an_older_version_can_be_rendered_and_other_versions_stay(stored: Projec
     assert v1.exists()
     assert v2.exists()
     assert (
-        len(list(load_workbook(v1)["業務要件"].iter_rows(min_row=8, max_col=2, values_only=True)))
+        len(
+            list(
+                load_workbook(v1)["業務要件一覧"].iter_rows(min_row=8, max_col=2, values_only=True)
+            )
+        )
         == 1
     )
 

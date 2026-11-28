@@ -134,7 +134,7 @@ def test_the_whole_pipeline_runs_through_the_api_alone(
     assert len(read["content"]["items"]) == 4
     file = viewer.get(f"{P}/documents/DOC-SRS-0001/xlsx")
     assert file.headers["content-disposition"].endswith('"DOC-SRS-0001.v1.xlsx"')
-    assert "機能要件" in load_workbook(BytesIO(file.content)).sheetnames
+    assert "機能要件一覧" in load_workbook(BytesIO(file.content)).sheetnames
 
     trace = viewer.get(f"{P}/rtm/REQ-0002").json()
     ends = {path[-1] for path in trace["paths"]}
