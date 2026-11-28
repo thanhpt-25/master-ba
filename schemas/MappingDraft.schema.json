@@ -84,6 +84,68 @@
       "title": "HeaderCell",
       "type": "object"
     },
+    "ListMap": {
+      "additionalProperties": false,
+      "description": "A list filled from the render context, so far only the revision history (spec 28).",
+      "properties": {
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/ColumnMap"
+          },
+          "minItems": 1,
+          "title": "Columns",
+          "type": "array"
+        },
+        "first_row": {
+          "minimum": 1,
+          "title": "First Row",
+          "type": "integer"
+        },
+        "header_row": {
+          "minimum": 1,
+          "title": "Header Row",
+          "type": "integer"
+        },
+        "key": {
+          "pattern": "^[a-z][a-z0-9_]{0,20}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "numbering": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{1,3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Numbering"
+        },
+        "sheet": {
+          "minLength": 1,
+          "title": "Sheet",
+          "type": "string"
+        },
+        "source": {
+          "const": "$revisions",
+          "default": "$revisions",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sheet",
+        "key",
+        "header_row",
+        "first_row",
+        "columns"
+      ],
+      "title": "ListMap",
+      "type": "object"
+    },
     "TableMap": {
       "additionalProperties": false,
       "properties": {
@@ -157,6 +219,13 @@
         "$ref": "#/$defs/HeaderCell"
       },
       "title": "Headers",
+      "type": "array"
+    },
+    "lists": {
+      "items": {
+        "$ref": "#/$defs/ListMap"
+      },
+      "title": "Lists",
       "type": "array"
     },
     "tables": {

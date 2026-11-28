@@ -1,5 +1,7 @@
 """Models of the calibration flow (spec 09 sections 2 and 3); none is a stored document."""
 
+from typing import Literal
+
 from pydantic import Field
 
 from masterba.models.base import FrozenModel
@@ -26,6 +28,18 @@ class TableMap(FrozenModel):
     where: dict[str, str] = Field(default_factory=dict)
 
 
+class ListMap(FrozenModel):
+    """A list filled from the render context, so far only the revision history (spec 28)."""
+
+    sheet: str = Field(min_length=1)
+    key: str = Field(pattern=r"^[a-z][a-z0-9_]{0,20}$")
+    source: Literal["$revisions"] = "$revisions"
+    header_row: int = Field(ge=1)
+    first_row: int = Field(ge=1)
+    numbering: str | None = Field(default=None, pattern=COLUMN)
+    columns: list[ColumnMap] = Field(min_length=1)
+
+
 class HeaderCell(FrozenModel):
     sheet: str = Field(min_length=1)
     cell: str = Field(pattern=CELL)
@@ -35,6 +49,7 @@ class HeaderCell(FrozenModel):
 class MappingDraft(FrozenModel):
     doc_type: DocType
     tables: list[TableMap] = Field(default_factory=list)
+    lists: list[ListMap] = Field(default_factory=list)
     headers: list[HeaderCell] = Field(default_factory=list)
     unmapped: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)

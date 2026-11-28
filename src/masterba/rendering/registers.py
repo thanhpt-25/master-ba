@@ -18,6 +18,7 @@ from masterba.rendering.catalog import VALUE_MAPS
 from masterba.rendering.codes import display_code
 from masterba.rendering.context import DOC_TITLES
 from masterba.rendering.engine import CREATOR, FIXED_TIME
+from masterba.rendering.finish import finish_workbook, print_setup
 from masterba.rendering.history import TRIGGER_LABELS
 from masterba.rendering.xlsxio import workbook_bytes
 from masterba.trace_store import (
@@ -134,9 +135,12 @@ def _title(ws: Worksheet, title: str, project_id: str) -> None:
     ws["A2"] = "プロジェクト"
     ws["A2"].font = Font(name=FONT, size=9, bold=True)
     ws["A2"].fill = _LABEL_FILL
+    ws["A2"].border = _BORDER
+    ws["A2"].alignment = Alignment(shrink_to_fit=True, vertical="center")  # column A is No.
     ws["B2"].value = project_id
     ws["B2"].data_type = "s"
     ws["B2"].font = Font(name=FONT, size=9)
+    ws["B2"].border = _BORDER
 
 
 def _table(
@@ -156,11 +160,7 @@ def _table(
 
 
 def _print_setup(ws: Worksheet) -> None:
-    ws.page_setup.paperSize = ws.PAPERSIZE_A4
-    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
-    ws.sheet_properties.pageSetUpPr.fitToPage = True  # type: ignore[union-attr]
+    print_setup(ws)
 
 
 def _form(ws: Worksheet, store: ProjectStore, dr: DecisionRecord, codes: dict[str, str]) -> None:
@@ -263,7 +263,7 @@ def _fixed(wb: Workbook) -> Workbook:
     wb.properties.lastModifiedBy = CREATOR
     wb.properties.created = FIXED_TIME
     wb.properties.modified = FIXED_TIME
-    return wb
+    return finish_workbook(wb)
 
 
 def register_bytes(store: ProjectStore, register: Register) -> bytes:

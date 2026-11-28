@@ -32,6 +32,9 @@ def test_every_sample_maps_all_its_columns_but_the_remarks(root: Path, tmp_path:
         draft = calibration.calibrate(root, "acme", doc_type, tmp_path / f"{doc_type}.xlsx").draft
 
         assert draft.warnings == [], doc_type
+        assert [(m.sheet, m.source) for m in draft.lists] == [("改版履歴", "$revisions")]
+        cover = {h.cell: h.source for h in draft.headers if h.sheet == "表紙"}
+        assert cover["C14"] == "$document.created_on" and cover["C18"] == "$document.approver"
         assert [u.split(": ")[1] for u in draft.unmapped] == ["備考"], doc_type
 
 

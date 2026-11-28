@@ -7,13 +7,11 @@ a test fails when the committed files differ from what this module generates.
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.worksheet import Worksheet
 
 from masterba.models import TemplateDefinition
@@ -60,6 +58,7 @@ from masterba.rendering.catalog import (
     DocSpec,
     SheetSpec,
 )
+from masterba.rendering.finish import finish_workbook, print_setup
 from masterba.rendering.xlsxio import workbook_bytes
 
 DEFAULT_DIR = Path("templates/default")
@@ -70,27 +69,14 @@ _BORDER = Border(left=_SIDE, right=_SIDE, top=_SIDE, bottom=_SIDE)
 _HEAD_FILL = PatternFill("solid", start_color="DDE6F0")
 _LABEL_FILL = PatternFill("solid", start_color="F2F2F2")
 _THICK = Side(style="medium", color="1F3864")
+WIDE_SHEET = 250  # total column width above which a table prints on A3
 TOC_HEADERS = ("No.", "シート名", "記載内容")
 _CENTER_TOP = Alignment(horizontal="center", vertical="top")
-FOOTER_LEFT = "&F"
-FOOTER_RIGHT = "ページ &P / &N"
 
 
 def _print_setup(ws: Worksheet, title_rows: str | None) -> None:
     """A4 landscape, one page wide, header row repeated, file name and page in the footer."""
-    ws.page_setup.paperSize = ws.PAPERSIZE_A4
-    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
-    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
-    ws.print_options.horizontalCentered = True
-    if title_rows:
-        ws.print_title_rows = title_rows
-    footer: Any = ws.oddFooter
-    footer.left.text = FOOTER_LEFT
-    footer.left.size = 8
-    footer.right.text = FOOTER_RIGHT
-    footer.right.size = 8
+    print_setup(ws, title_rows)
 
 
 def _build_cover(wb: Workbook, sheet: SheetSpec) -> None:
@@ -288,6 +274,9 @@ def _build_table(ws: Worksheet, sheet: SheetSpec) -> None:
     ws.freeze_panes = f"A{FIRST_ROW}"
     _add_judgement_list(ws, sheet)
     _print_setup(ws, f"{HEADER_ROW}:{HEADER_ROW}")
+    total = 6 + sum(c.width for c in sheet.columns)
+    if total > WIDE_SHEET:  # one A4 page wide would print too small to read (spec 28)
+        ws.page_setup.paperSize = ws.PAPERSIZE_A3
 
 
 def build_shell(spec: DocSpec) -> Workbook:
@@ -295,7 +284,7 @@ def build_shell(spec: DocSpec) -> Workbook:
     wb.remove(wb.active)  # type: ignore[arg-type]
     for sheet in spec.sheets:
         _build_sheet(wb, spec, sheet)
-    return wb
+    return finish_workbook(wb)
 
 
 def _columns(sheet: SheetSpec) -> list[ColumnBinding]:

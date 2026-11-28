@@ -9,15 +9,19 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from masterba.calibration.heuristic import (
+    MIN_REVISION_COLUMNS,
+    REVISION_KEY_FIELD,
     VALUE_MAP_FIELDS,
     doc_info_source,
     fields_for,
     is_numbering,
     match_field,
+    revision_field,
 )
 from masterba.calibration.models import (
     ColumnMap,
     HeaderCell,
+    ListMap,
     MappingDraft,
     SheetProfile,
     TableMap,
@@ -145,11 +149,19 @@ def profile_workbook(path: Path, doc_type: DocType) -> WorkbookProfile:
     return WorkbookProfile(sheets=sheets, warnings=notes)
 
 
-def info_cells(ws: Worksheet, header_row: int) -> list[tuple[str, str]]:
-    """Document-info cells above the header: (cell to fill, header source)."""
+def _is_label(text: str) -> bool:
+    return doc_info_source(text) is not None or revision_field(text) is not None
+
+
+def info_cells(ws: Worksheet, last_row: int) -> list[tuple[str, str]]:
+    """Document-info cells in rows 1 to `last_row`: (cell to fill, header source).
+
+    The cell to fill is the one right of the label (after a merge); it is skipped when it
+    holds another label, so a header row of labels is never read as label/value pairs.
+    """
     found: list[tuple[str, str]] = []
     merged = list(ws.merged_cells.ranges)
-    for row in range(1, header_row):
+    for row in range(1, last_row + 1):
         for column in range(1, min(ws.max_column, PROFILE_COLUMNS) + 1):
             source = doc_info_source(_text(ws.cell(row=row, column=column).value))
             if source is None:
@@ -158,9 +170,46 @@ def info_cells(ws: Worksheet, header_row: int) -> list[tuple[str, str]]:
             for rng in merged:
                 if rng.min_row <= row <= rng.max_row and rng.min_col <= column <= rng.max_col:
                     last = rng.max_col
+            if _is_label(_text(ws.cell(row=row, column=last + 1).value)):
+                continue
             target = f"{get_column_letter(last + 1)}{row}"
             found.append((target, source))
     return found
+
+
+def revision_list(ws: Worksheet, key: str) -> ListMap | None:
+    """The revision-history list of a sheet: a header row naming at least three revision
+    columns, one of them 版数, within the first rows (spec 28 section 3)."""
+    columns = min(ws.max_column, PROFILE_COLUMNS)
+    for row in range(1, min(ws.max_row, HEADER_SEARCH_ROWS) + 1):
+        texts = row_texts(ws, row, columns)
+        fields = [revision_field(t) if t else None for t in texts]
+        named = [f for f in fields if f]
+        if len(set(named)) < MIN_REVISION_COLUMNS or REVISION_KEY_FIELD not in named:
+            continue
+        numbering: str | None = None
+        maps: list[ColumnMap] = []
+        used: set[str] = set()
+        for index, (text, field) in enumerate(zip(texts, fields, strict=True), start=1):
+            if not text:
+                continue
+            letter = get_column_letter(index)
+            if numbering is None and not maps and is_numbering(text):
+                numbering = letter
+                continue
+            chosen = field if field and field not in used else None
+            if chosen:
+                used.add(chosen)
+            maps.append(ColumnMap(col=letter, header=text, field=chosen))
+        return ListMap(
+            sheet=ws.title,
+            key=key,
+            header_row=row,
+            first_row=row + 1,
+            numbering=numbering,
+            columns=maps,
+        )
+    return None
 
 
 def heuristic_draft(profile: WorkbookProfile, doc_type: DocType, path: Path) -> MappingDraft:
@@ -168,14 +217,23 @@ def heuristic_draft(profile: WorkbookProfile, doc_type: DocType, path: Path) -> 
     fields = fields_for(doc_type)
     wb = load_workbook(path, data_only=False, keep_vba=False)
     tables: list[TableMap] = []
+    lists: list[ListMap] = []
     headers: list[HeaderCell] = []
     unmapped: list[str] = []
     warnings = list(profile.warnings)
     for sheet in profile.sheets:
         warnings.extend(sheet.warnings)
-        if not sheet.is_table or sheet.header_row is None:
-            continue
         ws = wb[sheet.name]
+        history = revision_list(ws, f"r{len(lists) + 1}")
+        if history is not None:
+            lists.append(history)
+            continue
+        if not sheet.is_table or sheet.header_row is None:
+            headers.extend(
+                HeaderCell(sheet=sheet.name, cell=cell, source=source)
+                for cell, source in info_cells(ws, min(ws.max_row, PROFILE_ROWS))
+            )
+            continue
         used: set[str] = set()
         numbering: str | None = None
         columns: list[ColumnMap] = []
@@ -214,11 +272,12 @@ def heuristic_draft(profile: WorkbookProfile, doc_type: DocType, path: Path) -> 
         )
         headers.extend(
             HeaderCell(sheet=sheet.name, cell=cell, source=source)
-            for cell, source in info_cells(ws, sheet.header_row)
+            for cell, source in info_cells(ws, sheet.header_row - 1)
         )
     return MappingDraft(
         doc_type=doc_type,
         tables=tables,
+        lists=lists,
         headers=headers,
         unmapped=unmapped,
         warnings=list(dict.fromkeys(warnings)),
