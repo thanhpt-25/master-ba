@@ -50,12 +50,28 @@ The Documents page reads like a file manager: a tree on the left, the selected t
 
 API, read only, viewer role: `GET /api/projects/{pid}/intake` lists the intake files (name, size in bytes, line count) and `GET /api/projects/{pid}/intake/{name}` returns one file's text (404 for an unknown or invalid name). `trace_store.list_intakes(store)` returns the stored names in order.
 
-Decision Records in the tree (a 変更管理票 folder with a SIer-style form preview) are proposed separately and wait for the owner's approval.
+Decision Records are not in the tree (decided by the owner): they keep their own page, section 7, and a document links to the records that touch it.
+
+### 7. Change management page (approved 2026-11-28)
+
+The 変更管理 page uses the same two panes as Documents: a list on the left, the selected record on the right.
+
+- **List**: one row per Decision Record (id, kind, date, status), newest first. Status chips above it filter the list: すべて, 起票 (proposed), 承認済 (approved), 反映済 (propagated), 完了 (closed), each with its count; the choice is kept per browser. A filter field narrows by id, kind or description.
+- **Preview**: the record's id, kind and status, then the action band of its state above the sheets (decide while proposed, propagate once approved, close once propagated, the live job while propagating). The record prints as four sheets with tabs along the bottom, like a workbook:
+  - 変更管理票: the form (管理番号, 変更区分, 起票日, 状態, 変更内容, 対象項目, 影響文書, 判断, 理由, 承認者) with the seal boxes.
+  - 影響分析: the documents to revise in V order and the affected items (depth, link), or the preview of named documents while the record is proposed.
+  - 反映結果: propagation per document (outcome, version, run) and, once propagated, what changed per document.
+  - 履歴: the commits that touched the record, oldest first, in plain words.
+- **Links from documents**: a document's preview names the records whose affected documents include it ("変更管理票 N件"), each linking to `#/p/<pid>/drs/<DR-ID>`.
+- URLs: `#/p/<pid>/drs/<DR-ID>`; the list filter is not in the URL. Below 760 px the list takes the screen and a record opens full width with a back control.
+
+API, read only, viewer role: `GET /api/projects/{pid}/drs/{dr_id}/history` returns the commits that touched the record's files (`commit`, `author`, `time`, `subject`), oldest first.
 
 ## Acceptance
 
 - `node --test` in `frontend/` and `uv run pytest tests/test_frontend.py` pass; every new string has a Japanese entry.
 - Checked in Chromium at 1440 × 900 and 390 × 844, Japanese, light and dark: no console error, no horizontal page scroll; Projects, Overview (all stages done, and a phase in review), Documents.
 - Documents: the tree groups by phase and by kind, keyboard navigation follows the tree pattern, a file, a version, a folder and an intake file each open on the right, the review band approves and rejects; `buildTree` is unit tested; the intake endpoints have API tests.
+- 変更管理: the status chips filter the list, the four sheets show for a proposed and a propagated record, a document links to its records; the history endpoint has an API test.
 - The palette opens with ⌘K and Ctrl+K, filters, runs with Enter, closes with Escape and returns focus.
 - The CSP is unchanged: no inline style attribute (CSSOM only), no external resource; the font is served from the app's own origin.
