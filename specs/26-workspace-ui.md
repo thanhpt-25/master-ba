@@ -38,9 +38,24 @@ Order: header (id, status, project facts as one dotted line), the next step (tin
 
 They change through tokens and shared components only (panels, tables, badges, page header, toolbar): lighter table headers, row hover, softer panels. No flow changes.
 
+### 6. Documents as a folder tree (approved 2026-11-28)
+
+The Documents page reads like a file manager: a tree on the left, the selected thing on the right.
+
+- **Tree** (`views/explorer.js`, pure `buildTree(docs, intakes, mode)`): by default one folder per design phase, numbered in V order (01 業務要件定義, 02 システム要件定義, 03 基本設計 with 基本設計書 and the IT and ST specifications, 04 詳細設計 with 詳細設計書 and the UT specification), then 入力資料 with the project's intake files. A segmented switch regroups the documents by kind (設計書 / テスト仕様書); the choice is kept per browser. A document is a file whose children are its versions, newest first. Folders show the number of documents and a warning count for documents in review; files show a status mark and word. A filter field narrows the tree by name or document id.
+- **Keyboard and assistive tech**: WAI-ARIA tree pattern (`role="tree"`, `treeitem`, `aria-expanded`, `aria-level`, `aria-selected`, roving tabindex). Up and Down move, Right opens a folder or moves into it, Left closes or moves to the parent, Home and End jump, Enter opens, typing a letter jumps to the next name that starts with it. Open folders and the tree width are kept per browser (`localStorage`, wrapped in try/catch); the width changes by dragging the divider or with the arrow keys on it.
+- **Preview pane**: a file shows a Finder-style path, the document name and status, the version picker, 差分 (compare with the previous version, shown in a dialog) and Excel download, then the workbook preview with the sheet tabs along the bottom edge like Excel. When the document's phase is in review, a band above the preview carries the review: 承認 and コメントを付けて差し戻す open in place (decided by the owner: no longer at the end of the page). A version opens that version. A folder shows a details list (name, document id, latest version, status, items); a double click or Enter opens a file. An intake file shows its text with line numbers, because the BRD cites intake lines.
+- **URLs**: `#/p/<pid>/documents/<DOC-ID>[/v<n>]`, `#/p/<pid>/documents/folder/<key>` and `#/p/<pid>/documents/intake/<name>`, so a link opens the same file and version.
+- Below 760 px the tree takes the screen and a file opens the preview full width with a back control.
+
+API, read only, viewer role: `GET /api/projects/{pid}/intake` lists the intake files (name, size in bytes, line count) and `GET /api/projects/{pid}/intake/{name}` returns one file's text (404 for an unknown or invalid name). `trace_store.list_intakes(store)` returns the stored names in order.
+
+Decision Records in the tree (a 変更管理票 folder with a SIer-style form preview) are proposed separately and wait for the owner's approval.
+
 ## Acceptance
 
 - `node --test` in `frontend/` and `uv run pytest tests/test_frontend.py` pass; every new string has a Japanese entry.
 - Checked in Chromium at 1440 × 900 and 390 × 844, Japanese, light and dark: no console error, no horizontal page scroll; Projects, Overview (all stages done, and a phase in review), Documents.
+- Documents: the tree groups by phase and by kind, keyboard navigation follows the tree pattern, a file, a version, a folder and an intake file each open on the right, the review band approves and rejects; `buildTree` is unit tested; the intake endpoints have API tests.
 - The palette opens with ⌘K and Ctrl+K, filters, runs with Enter, closes with Escape and returns focus.
 - The CSP is unchanged: no inline style attribute (CSSOM only), no external resource; the font is served from the app's own origin.
