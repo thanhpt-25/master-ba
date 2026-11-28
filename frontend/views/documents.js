@@ -4,6 +4,7 @@
 
 import { badge, cellText, clear, empty, h, icon, loadError, modal, pageHeader, spinner, table } from "../dom.js";
 import { N_, t } from "../i18n.js";
+import { recordsFor } from "./drs.js";
 import { ancestorsOf, buildTree, filterTree, findNode, treeView } from "./explorer.js";
 import { phaseOfDocument, phaseTitle } from "./journey.js";
 import { reviewBox } from "./review.js";
@@ -246,6 +247,19 @@ function reviewBand(pid, docId, overview, context) {
   return band;
 }
 
+// "変更管理票 N件": the Decision Records that name this document, each a link to 変更管理.
+function relatedRecords(pid, docId, drs) {
+  const related = recordsFor(drs, docId);
+  if (!related.length) return null;
+  return h(
+    "p",
+    { class: "related-records" },
+    h("span", { "aria-hidden": "true" }, icon("drs", 15)),
+    h("span", {}, t("Change requests: {n}", { n: related.length })),
+    related.map((d) => h("a", { class: "chip-link", href: `#/p/${pid}/drs/${d.id}` }, h("code", {}, d.id), " ", badge(d.status))),
+  );
+}
+
 function docPreview(pid, node, file, folderLabel, overview, context) {
   const { api, toast } = context;
   const versions = file.children.map((v) => v.version).sort((a, b) => a - b);
@@ -278,6 +292,7 @@ function docPreview(pid, node, file, folderLabel, overview, context) {
       status,
       h("div", { class: "preview-actions" }, h("label", { class: "sr-only", for: "doc-version" }, t("Version")), versionSelect, compare, download),
     ),
+    relatedRecords(pid, file.id, context.drs ?? []),
     reviewBand(pid, file.id, overview, context),
     body,
     h("p", { class: "hint" }, t("The preview shows the standard layout; the Excel file follows the project's template.")),
@@ -321,10 +336,11 @@ function intakePreview(pid, node, folderLabel, context) {
 export async function render(context) {
   const { main, api, params } = context;
   const pid = params.pid;
-  const [docs, intakes, overview] = await Promise.all([
+  const [docs, intakes, overview, drs] = await Promise.all([
     api.get(`/projects/${pid}/documents`),
     api.get(`/projects/${pid}/intake`).catch(() => []),
     api.get(`/projects/${pid}`).catch(() => null),
+    api.get(`/projects/${pid}/drs`).catch(() => []),
   ]);
   const prefs = loadPrefs(pid);
   let tree = buildTree(docs, intakes, prefs.mode);
@@ -356,16 +372,16 @@ export async function render(context) {
     }
     const back = h("button", { type: "button", class: "explorer-back", onClick: () => { explorer.dataset.view = "tree"; treeHost.querySelector('[tabindex="0"]')?.focus(); } }, icon("back", 15), t("Files"));
     let parts;
-    if (node.kind === "folder") parts = folderPreview(pid, node, context);
-    else if (node.kind === "intake") parts = intakePreview(pid, node, folderOf(key)?.label ?? "", context);
+    if (node.kind === "folder") parts = folderPreview(pid, node, local);
+    else if (node.kind === "intake") parts = intakePreview(pid, node, folderOf(key)?.label ?? "", local);
     else {
       const file = node.kind === "doc" ? node : findNode(tree, node.id);
-      parts = docPreview(pid, node, file, folderOf(file.key)?.label ?? "", overview, context);
+      parts = docPreview(pid, node, file, folderOf(file.key)?.label ?? "", overview, local);
     }
     clear(preview).append(back, ...parts.filter(Boolean));
     history.replaceState(null, "", hashFor(pid, node));
   };
-  const local = { ...context };
+  const local = { ...context, drs };
   let redraw = () => {};
   local.openKey = (key) => {
     for (const k of ancestorsOf(tree, key)) state.expanded.add(k);

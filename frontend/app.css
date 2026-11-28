@@ -636,7 +636,12 @@ label.check { display: flex; align-items: center; gap: var(--s2); margin: var(--
 .badge.warn { color: var(--warn); background: var(--warn-soft); }
 .badge.bad { color: var(--bad); background: var(--bad-soft); }
 /* Approval is the seal: a vermilion ring around the word, as stamped in a 承認 box. */
-.badge.seal { color: var(--seal); background: var(--seal-soft); border-color: color-mix(in oklab, var(--seal) 55%, transparent); }
+.badge.seal {
+  /* Also undoes the brand .seal square, which shares the class name. */
+  display: inline-flex; width: auto; height: auto; border-radius: var(--r-pill); box-shadow: none;
+  font-family: inherit; font-size: var(--fs-xs); font-weight: 600; line-height: 1.5;
+  color: var(--seal); background: var(--seal-soft); border-color: color-mix(in oklab, var(--seal) 55%, transparent);
+}
 .badge.run [aria-hidden] { display: inline-block; animation: spin 1.4s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -1084,7 +1089,7 @@ a.vd-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-flo
 .kind-folder > .tree-label { font-weight: 600; }
 .kind-version > .tree-label { font-family: var(--mono); font-size: var(--fs-xs); }
 .tree-meta { display: flex; align-items: center; gap: var(--s1); flex: none; }
-.tree-meta .badge { font-size: var(--fs-2xs); }
+.tree-meta .badge, .tree-meta .badge.seal { font-size: var(--fs-2xs); }
 .tree-count { min-width: 20px; padding: 0 6px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--ink-2); font-size: var(--fs-2xs); font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
 .tree-count.warn { background: var(--warn-soft); color: var(--warn); }
 .tree-note { color: var(--ink-3); font-size: var(--fs-2xs); }
@@ -1130,6 +1135,47 @@ a.vd-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-flo
 .numbered-lines li:target { background: var(--accent-soft); }
 .line-no { padding-right: var(--s3); color: var(--ink-3); text-align: right; user-select: none; }
 .line-text { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: var(--s3); }
+/* 変更管理 (spec 26 section 7): the same two panes, a record list with status chips. */
+.explorer.records { grid-template-columns: 320px minmax(0, 1fr); align-items: stretch; }
+.explorer.records > .explorer-tree { position: static; max-height: none; }
+.explorer.records > .explorer-tree { border-right: 1px solid var(--line); }
+.filter-chips { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 var(--s2);
+  border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface); box-shadow: none;
+  color: var(--ink-2); font-size: var(--fs-xs); font-weight: 600;
+}
+.filter-chip .count { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.filter-chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.filter-chip[aria-pressed="true"] .count { color: var(--accent); }
+.record-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.record-list a { display: grid; gap: 2px; padding: var(--s2) var(--s3); border-radius: var(--r-sm); color: var(--ink); text-decoration: none; }
+.record-list a:hover { background: var(--surface-3); }
+.record-list a[aria-current="page"] { background: var(--accent-soft); }
+.record-list a[aria-current="page"] code { color: var(--accent); }
+.record-top { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.record-top code { font-size: var(--fs-sm); font-weight: 650; }
+.record-top .badge, .record-top .badge.seal { font-size: var(--fs-2xs); }
+.record-kind { color: var(--ink-3); font-size: var(--fs-xs); }
+.record-text { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--ink-2); font-size: var(--fs-xs); }
+.record-none { padding: var(--s3); font-size: var(--fs-sm); }
+.action-band {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s3);
+  margin-top: var(--s4); padding: var(--s3) var(--s4);
+  border: 1px solid color-mix(in oklab, var(--accent) 30%, var(--line)); border-radius: var(--r-md); background: var(--accent-soft);
+}
+.action-band h3 { margin: 0; font-size: var(--fs-md); }
+.action-band p { margin: 2px 0 0; font-size: var(--fs-sm); }
+.action-band[aria-labelledby] { display: block; }
+.action-band .field-pair { margin-top: var(--s3); }
+.band-actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.action-band textarea { background: var(--surface); }
+.action-band.job { display: block; }
+.action-band .log { max-height: 16rem; overflow: auto; }
+.related-records { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin: var(--s3) 0 0; color: var(--ink-2); font-size: var(--fs-sm); }
+.related-records .chip-link { display: inline-flex; align-items: center; gap: 4px; padding: 2px var(--s2); border: 1px solid var(--line); border-radius: var(--r-pill); text-decoration: none; }
+.related-records .chip-link:hover { border-color: var(--accent); }
+.related-records .badge, .related-records .badge.seal { font-size: var(--fs-2xs); }
 .dialog.diff-dialog { width: min(60rem, 100%); max-height: calc(100vh - 48px); overflow: auto; }
 .diff-result { margin-top: var(--s3); }
 .vcard-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2); }
@@ -1160,6 +1206,7 @@ a.vd-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-flo
 .cover-rows dt, .cover-rows dd { margin: 0; padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); }
 .cover-rows dt { background: var(--surface-2); color: var(--ink-2); font-size: var(--fs-sm); border-right: 1px solid var(--line); }
 .cover-rows dt:last-of-type, .cover-rows dd:last-of-type { border-bottom: 0; }
+.cover-rows dd { white-space: pre-line; overflow-wrap: anywhere; }
 .stamp-box { display: flex; border: 1px solid var(--line-strong); }
 .stamp-box > div { display: grid; grid-template-rows: auto 72px; width: 84px; font-size: var(--fs-sm); text-align: center; }
 .stamp-box > div + div { border-left: 1px solid var(--line-strong); }
@@ -1341,6 +1388,8 @@ svg.chart .bar-group.hover .hit { fill: color-mix(in oklab, var(--ink) 6%, trans
   .split > nav { position: static; max-height: none; }
   .explorer { grid-template-columns: minmax(0, 1fr); min-height: 0; }
   .explorer-divider { display: none; }
+  .explorer.records { grid-template-columns: minmax(0, 1fr); }
+  .explorer.records > .explorer-tree { border-right: 0; }
   .explorer-tree { position: static; max-height: none; }
   .explorer[data-view="tree"] > .explorer-preview, .explorer[data-view="preview"] > .explorer-tree { display: none; }
   .explorer-preview { padding: var(--s3) var(--s4) var(--s4); }

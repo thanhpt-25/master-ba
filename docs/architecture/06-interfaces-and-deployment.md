@@ -224,6 +224,14 @@ bottom), a folder's details list, or an intake file with line numbers. The selec
 the URL with `history.replaceState` (`.../documents/<DOC-ID>[/v<n>]`, `.../documents/folder/<key>`,
 `.../documents/intake/<name>`) so it does not re-render the page.
 
+変更管理 (spec 26 section 7) uses the same two panes: Decision Records on the left with status
+chips (all, proposed, approved, propagated, closed; the choice is kept per browser) and a text
+filter, the selected record on the right with the action of its state (decide, propagate, close,
+or the live job) above four sheets drawn by the same `sheetTabs`: 変更管理票, 影響分析, 反映結果
+and 履歴 (`drSheets` is pure). 履歴 reads `GET /projects/{pid}/drs/{dr_id}/history`, the commits
+that touched the record's files. A document's preview links to the records whose affected
+documents include it (`recordsFor`).
+
 Spec 19 part 3 shapes the pilot path:
 
 - **Next step.** `views/journey.js` `nextStep(overview)` is a pure function of `GET /projects/{pid}`
