@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from masterba.models import Document
 from masterba.rendering.engine import render_document
 from masterba.rendering.history import build_context
 from masterba.rendering.template import resolve_template
@@ -11,13 +12,26 @@ from masterba.trace_store.git import commit_paths
 
 
 def render_bytes(
-    store: ProjectStore, doc_id: str, templates_root: Path, version: int | None = None
+    store: ProjectStore,
+    doc_id: str,
+    templates_root: Path,
+    version: int | None = None,
+    company_id: str | None = None,
 ) -> bytes:
-    """The workbook of a stored version as it renders now, written nowhere (spec 28 section 4)."""
+    """The workbook of a stored version as it renders now, written nowhere (spec 28 section 4).
+
+    `company_id` renders with another template set than the project's (a preview, spec 29).
+    """
     doc, content = get_document(store, doc_id, version)
-    template = resolve_template(templates_root, get_config(store).company_id, doc.type)
+    company = company_id or get_config(store).company_id
+    template = resolve_template(templates_root, company, doc.type)
     context = build_context(store, doc, content)
     return workbook_bytes(render_document(doc, content, template, context))
+
+
+def xlsx_path(store: ProjectStore, doc: Document) -> Path:
+    """Where the committed workbook of a document version lives."""
+    return store.path / "xlsx" / doc.type.value.lower() / f"{doc.id}.v{doc.version}.xlsx"
 
 
 def render_to_project(
@@ -36,7 +50,7 @@ def render_to_project(
     template = resolve_template(templates_root, get_config(store).company_id, doc.type)
     context = build_context(store, doc, content, revised_by)
     data = workbook_bytes(render_document(doc, content, template, context))
-    path = store.path / "xlsx" / doc.type.value.lower() / f"{doc.id}.v{doc.version}.xlsx"
+    path = xlsx_path(store, doc)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
     commit_paths(store.root, [path], f"render({store.project_id}): xlsx {doc.id} v{doc.version}")

@@ -93,7 +93,7 @@ const PAGE_META = {
   questions: [N_("Customer questions"), N_("Track open questions and confirmed customer answers.")],
   knowledge: [N_("Knowledge base"), N_("Manage reference sources used by MasterBA writers.")],
   drs: [N_("Decision records"), N_("Review project decisions, impacts, and change propagation.")],
-  templates: [N_("Templates"), N_("Manage company document template mappings.")],
+  templates: [N_("Templates"), N_("Pick, share and calibrate document template sets.")],
   usage: [N_("Usage"), N_("See how many model tokens you used and when your limits reset.")],
   users: [N_("Users"), N_("Manage accounts, roles and token limits.")],
   members: [N_("Members"), N_("Choose who can open this project.")],
@@ -102,7 +102,7 @@ const PAGE_META = {
   audit: [N_("Audit log"), N_("Sign-ins and every change to accounts, limits, prices and sharing.")],
 };
 const WORKSPACE_PAGES = { projects: N_("Projects"), templates: N_("Templates"), usage: N_("Usage"), users: N_("Users"), admin: N_("Admin dashboard"), "admin-projects": N_("All projects"), audit: N_("Audit log") };
-const ADMIN_PAGES = ["admin", "users", "admin-projects", "audit", "templates"];
+const ADMIN_PAGES = ["admin", "users", "admin-projects", "audit"];
 const ROLES = { viewer: N_("Viewer"), approver: N_("Approver"), admin: N_("Admin") };
 
 export function go(hash) {
@@ -222,6 +222,7 @@ function paletteCommands() {
   commands.push(
     { id: "page:projects", group: page, label: t("Projects"), icon: "projects", run: () => go("#/projects") },
     { id: "page:usage", group: page, label: t("Usage"), icon: "gauge", run: () => go("#/usage") },
+    { id: "page:templates", group: page, label: t("Templates"), icon: "templates", run: () => go("#/templates") },
   );
   if (state.me?.role === "admin") {
     commands.push(
@@ -229,7 +230,6 @@ function paletteCommands() {
       { id: "page:users", group: t("Administration"), label: t("Users"), icon: "users", run: () => go("#/users") },
       { id: "page:admin-projects", group: t("Administration"), label: t("All projects"), icon: "projects", run: () => go("#/admin-projects") },
       { id: "page:audit", group: t("Administration"), label: t("Audit log"), icon: "audit", run: () => go("#/audit") },
-      { id: "page:templates", group: t("Administration"), label: t("Templates"), icon: "templates", run: () => go("#/templates") },
     );
   }
   const actions = t("Actions");
@@ -308,6 +308,7 @@ function shell(params, content) {
     h("nav", { class: "workspace-nav", "aria-label": t("Workspace") },
       navLink("#/projects", "projects", t("Projects"), !params.pid && params.name === "projects"),
       navLink("#/usage", "gauge", t("Usage"), params.name === "usage"),
+      navLink("#/templates", "templates", t("Templates"), params.name === "templates"),
     ),
     isAdmin
       ? h("details", { class: "admin-group", open: inAdmin || !params.pid },
@@ -317,7 +318,6 @@ function shell(params, content) {
             navLink("#/users", "users", t("Users"), params.name === "users"),
             navLink("#/admin-projects", "projects", t("All projects"), params.name === "admin-projects"),
             navLink("#/audit", "audit", t("Audit log"), params.name === "audit"),
-            navLink("#/templates", "templates", t("Templates"), params.name === "templates"),
           ),
         )
       : null,

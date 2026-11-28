@@ -8,6 +8,7 @@ from pathlib import Path
 
 from masterba.api.auth import UserStore
 from masterba.knowledge.paths import KNOWLEDGE_IGNORES
+from masterba.library.sets import sync_builtin
 from masterba.models.enums import DocType
 from masterba.rendering.errors import InvalidTemplateError
 from masterba.rendering.template import load_template
@@ -75,6 +76,8 @@ def _check_git(root: Path) -> list[Check]:
 
 def _check_templates(root: Path) -> Check:
     folder = root / "templates" / "default"
+    # The built-in set is the one this app ships (spec 29 section 1.1).
+    updated = sync_builtin(root, SOURCE_TEMPLATES.parent) if folder.is_dir() else []
     broken = []
     for doc_type in DocType:
         try:
@@ -84,7 +87,8 @@ def _check_templates(root: Path) -> Check:
     if broken:
         fix = f"copy {SOURCE_TEMPLATES} to {folder}"
         return Check("templates", False, f"missing or invalid: {', '.join(broken)}; {fix}")
-    return Check("templates", True, f"{len(DocType)} default templates")
+    note = f", {len(updated)} file(s) updated from the app" if updated else ""
+    return Check("templates", True, f"{len(DocType)} default templates{note}")
 
 
 def _check_state(root: Path) -> Check:

@@ -18,16 +18,44 @@ def upload(client, sample: bytes, name: str = "brd.xlsx", company: str = "acme",
     return client.post(f"{T}/{company}/BRD/calibrate{query}", files={"file": (name, sample, XLSX)})
 
 
-@pytest.mark.parametrize("role", [None, "viewer", "approver"])
-def test_only_an_admin_may_touch_templates(
-    empty_client: ClientFor, sample: bytes, role: str | None
+def test_signing_in_is_needed_and_a_viewer_may_not_upload(
+    empty_client: ClientFor, sample: bytes
 ) -> None:
-    client = empty_client(role)
-    expected = 401 if role is None else 403
+    anonymous = empty_client(None)
+    assert anonymous.get(T).status_code == 401
+    assert upload(anonymous, sample).status_code == 401
 
-    assert client.get(T).status_code == expected
-    assert upload(client, sample).status_code == expected
-    assert client.post(f"{T}/acme/BRD/confirm").status_code == expected
+    viewer = empty_client("viewer")
+    assert viewer.get(T).json() == []
+    assert upload(viewer, sample).status_code == 403
+
+
+def test_an_approver_owns_the_set_they_upload_and_others_do_not_see_it(
+    empty_client: ClientFor, sample: bytes
+) -> None:
+    approver, viewer, admin = (empty_client(r) for r in ("approver", "viewer", "admin"))
+
+    assert upload(approver, sample).status_code == 201
+    assert approver.get(T).json() == [{"company": "acme", "doc_type": "BRD", "state": "draft"}]
+    assert approver.post(f"{T}/acme/BRD/preview").status_code == 200
+    assert approver.post(f"{T}/acme/BRD/confirm").json()["state"] == "confirmed"
+    # Private: the viewer does not see it at all, an admin manages every set.
+    assert viewer.get(T).json() == []
+    assert viewer.get(f"{T}/acme/BRD").status_code == 404
+    assert admin.post(f"{T}/acme/BRD/unconfirm").json()["state"] == "draft"
+
+
+def test_a_user_who_only_sees_a_set_may_not_change_it(
+    empty_client: ClientFor, sample: bytes
+) -> None:
+    owner, other = empty_client("admin"), empty_client("approver")
+    assert upload(owner, sample).status_code == 201
+    made_public = owner.post("/api/template-sets/acme/visibility", json={"visibility": "public"})
+    assert made_public.status_code == 200, made_public.text
+
+    assert other.get(f"{T}/acme/BRD").status_code == 200
+    assert other.post(f"{T}/acme/BRD/confirm").status_code == 403
+    assert upload(other, sample, query="?replace=true").status_code == 403
 
 
 def test_an_admin_calibrates_reviews_edits_and_confirms(

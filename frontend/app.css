@@ -1032,6 +1032,16 @@ a.vd-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-flo
 .setting-row .muted { margin: 2px 0 0; }
 .setting-row form { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
 .setting-row input { width: 10rem; }
+/* Template picker (spec 29): the row holds the report below the select. */
+.template-setting { flex-direction: column; align-items: stretch; }
+.template-picker { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+.template-picker select { min-width: 16rem; width: min(32rem, 100%); }
+.template-setting input[type="checkbox"] { width: auto; }
+.template-coverage { display: grid; gap: var(--s2); }
+.kind-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s1); }
+.kind-dropped { padding: 1px var(--s2); border-radius: 999px; background: var(--warn-soft, #fdf3dc); color: var(--warn, #8a5a00); font-size: .85em; }
+.kind-ok { color: var(--ok, #1f7a4d); }
+.kept-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 
 /* ---- documents ---- */
 .split { display: grid; grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr); gap: var(--s6); align-items: start; }

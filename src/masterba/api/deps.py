@@ -10,6 +10,7 @@ from masterba.api.auth import RANK, LoginThrottle, SessionSigner, User, UserStor
 from masterba.api.jobs import JobManager
 from masterba.api.schemas import DOC_ID, DR_ID, PROJECT_ID, QUESTION_ID, RUN_ID, SOURCE_ID
 from masterba.api.settings import Settings
+from masterba.library import TemplateAccess
 from masterba.llm import LLM, MeteredLLM
 from masterba.trace_store import NotFoundError, ProjectStore, open_project
 
@@ -27,6 +28,7 @@ class AppState:
     usage: UsageLedger
     audit: AuditLog
     prices: PriceStore
+    templates: TemplateAccess
 
 
 def state_of(request: Request) -> AppState:

@@ -34,6 +34,13 @@ from masterba.cli_accounts import (
     dispatch_user,
 )
 from masterba.cli_kb import KB_ERRORS, add_kb_parsers, dispatch_kb
+from masterba.cli_library import (
+    LIBRARY_ERRORS,
+    add_project_parsers,
+    add_set_parsers,
+    dispatch_project,
+    dispatch_sets,
+)
 from masterba.cli_review import REVIEW_ERRORS, add_review_parsers, dispatch_review
 from masterba.doctor import init_root, run_checks
 from masterba.llm import DEFAULT_MODEL, LLM, AnthropicLLM, LLMError
@@ -191,6 +198,7 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--project", type=_project_id, required=True)
     export.add_argument("--out", type=Path, default=None, help="default: <project>_<name>.xlsx")
     _add_template_parsers(commands)
+    add_project_parsers(commands)
     add_kb_parsers(commands, _project_id)
     add_review_parsers(commands, _project_id)
     doctor = commands.add_parser("doctor", help="check this root and print what to fix")
@@ -228,6 +236,7 @@ def _add_template_parsers(commands: Any) -> None:
     setter.add_argument("--col", required=True)
     setter.add_argument("--field", default=None, help="omit to leave the column unmapped")
     subs.add_parser("list").add_argument("--company", default=None)
+    add_set_parsers(subs)
 
 
 def _dispatch_template(args: argparse.Namespace, root: Path, llm_factory: LLMFactory) -> int:
@@ -235,6 +244,8 @@ def _dispatch_template(args: argparse.Namespace, root: Path, llm_factory: LLMFac
     if command == "list":
         _emit({"templates": calibration.list_templates(root, args.company)})
         return 0
+    if command in {"sets", "share", "clone"}:
+        return dispatch_sets(args, root)
     company, doc_type = args.company, args.doc_type
     if command == "calibrate":
         model = args.model
@@ -485,6 +496,8 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
         return _dispatch_template(args, root, llm_factory)
     if args.command == "kb":
         return dispatch_kb(args, root)
+    if args.command == "project":
+        return dispatch_project(args, root)
     projects = root / "projects"
     if args.command == "init-project":
         store = create_project(
@@ -564,6 +577,7 @@ def main(argv: Sequence[str] | None = None, *, llm_factory: LLMFactory | None = 
         LLMError,
         QaOutputInvalidError,
         *KB_ERRORS,
+        *LIBRARY_ERRORS,
         *REVIEW_ERRORS,
         OSError,
         ValueError,

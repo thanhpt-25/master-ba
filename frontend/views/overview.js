@@ -2,6 +2,7 @@ import { append, badge, clear, empty, fmtTime, h, icon, liveDot, statusLabel } f
 import { foldCommits } from "./history.js";
 import { N_, t } from "../i18n.js";
 import { nextStep, PHASES, phaseTitle, workflowSteps } from "./journey.js";
+import { templateSettings } from "./library.js";
 import { projectSummary } from "./projects.js";
 import { parseComments, reviewBox } from "./review.js";
 
@@ -253,6 +254,8 @@ export async function render(context) {
   let activity = null;
   let activityAt = 0;
   let settingsOpen = false;
+  // Built once and kept across redraws, so a poll does not reset the picker (spec 29).
+  let templateRow = null;
 
   // Shared by the Pause/Resume button and the keyboard shortcut so they stay in sync.
   const togglePause = () => {
@@ -308,7 +311,7 @@ export async function render(context) {
           ),
           jobPanel(job),
           pipelinePanel(overview, pid, ctx),
-          context.me?.role === "admin" ? settingsPanel(overview) : null,
+          overview.project.my_role === "admin" ? settingsPanel(overview) : null,
         ),
         h("aside", { class: "overview-aside", "aria-label": t("Recent activity and open questions") },
           activityPanel(activity, pid),
@@ -348,6 +351,7 @@ export async function render(context) {
     const panel = h("details", { class: "panel settings-panel", open: settingsOpen, onToggle: () => { settingsOpen = panel.open; } },
       h("summary", {}, icon("chevron", 14), t("Project settings")),
       h("div", { class: "settings-body" },
+        templateRow ??= templateSettings(pid, { api, toast, refresh }),
         h("div", { class: "setting-row" },
           h("div", {}, h("h3", {}, t("Document updates after a decision")), h("p", { class: "muted" }, auto ? t("Document updates automatic") : t("Document updates manual"))),
           h("button", {

@@ -146,6 +146,8 @@ def new_project(request: Request, body: CreateProjectBody, user: Signed) -> dict
     app = state_of(request)
     settings = app.settings
     ensure_ready(settings.root)
+    if not app.templates.sees(body.company_id, user):
+        raise HTTPException(status_code=400, detail=f"no template set {body.company_id}")
     config = ProjectConfig(**body.model_dump())
     try:
         store = create_project(settings.projects, config)
