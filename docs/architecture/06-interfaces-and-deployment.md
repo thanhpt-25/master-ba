@@ -155,7 +155,7 @@ needing attention), `#/admin-projects`, `#/audit` (filters, paging, CSV) and the
 | Users and limits (admin) | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/{name}`, `POST /admin/users/{name}/reset-usage`, `.../disable`, `.../enable`, `.../signout`, `GET/PUT /admin/limits` |
 | Admin console (admin) | `GET /admin/dashboard?days=7\|30\|90&tz=`, `GET /admin/projects`, `GET /admin/audit`, `GET /admin/audit.csv`, `GET/PUT /admin/prices` |
 | Sharing | `GET /projects/{pid}/access`, `POST /projects/{pid}/members`, `DELETE /projects/{pid}/members/{name}`, `POST /projects/{pid}/owner` |
-| Projects | `GET/POST /projects`, `GET /projects/{pid}`, `POST /projects/{pid}/intake` (`.txt`, `.md`, `.docx`, `.pdf`, `.xlsx`; a binary file passes `check_upload` and is converted at once, the response names the stored `.md`) |
+| Projects | `GET/POST /projects`, `GET /projects/{pid}`, `POST /projects/{pid}/intake` (`.txt`, `.md`, `.docx`, `.pdf`, `.xlsx`; a binary file passes `check_upload` and is converted at once, the response names the stored `.md`), `GET /projects/{pid}/intake` (name, size, lines) and `GET /projects/{pid}/intake/{name}` (text; viewer) |
 | Stage runs | `POST /projects/{pid}/stages/{stage}/run` (returns `202` and a job), `GET /projects/{pid}/jobs`, `GET /jobs/{job_id}` |
 | Documents | `GET /projects/{pid}/documents`, `.../documents/{doc_id}`, `.../documents/{doc_id}/preview` (the default workbook layout as JSON, spec 19 section 14), `.../documents/{doc_id}/xlsx`, `.../documents/{doc_id}/diff` |
 | Runs and activity | `GET /projects/{pid}/runs`, `.../runs/{run_id}`, `.../activity` |
@@ -213,6 +213,16 @@ over projects, the current project's sections, workspace and admin pages and a f
 Overview draws the V as a compact twelve-column grid (`vDiagram`) and lists the design phases with
 their documents and one action below it (`phaseList` rows); recent activity and open questions sit
 in a right column on wide screens. The interface font (Inter) is served from `frontend/fonts/`.
+
+The Documents screen is a file manager (spec 26 section 6). `views/explorer.js` builds the tree
+with the pure `buildTree(docs, intakes, mode)`: one numbered folder per design phase (or, by kind,
+設計書 and テスト仕様書), each document a file whose children are its versions, then 入力資料 with
+the intake files. The tree follows the WAI-ARIA tree pattern; open folders, grouping and the tree
+width are kept per browser. The right pane shows a file (path, version picker, compare dialog,
+Excel download, the review band of a phase in review, then the workbook with its sheet tabs at the
+bottom), a folder's details list, or an intake file with line numbers. The selection is written to
+the URL with `history.replaceState` (`.../documents/<DOC-ID>[/v<n>]`, `.../documents/folder/<key>`,
+`.../documents/intake/<name>`) so it does not re-render the page.
 
 Spec 19 part 3 shapes the pilot path:
 
