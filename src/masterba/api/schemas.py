@@ -61,6 +61,13 @@ class PropagationModeBody(Body):
     propagation_mode: PropagationMode
 
 
+class GuardSettingsBody(Body):
+    """Spec 30 section 2.3."""
+
+    pii_masking: bool
+    masking_terms: list[str] = Field(default_factory=list, max_length=200)
+
+
 class ProjectBudgetBody(Body):
     team_token_budget: int | None = Field(ge=1)
 

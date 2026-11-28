@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from masterba.accounts.access import Account, Accounts
+from masterba.guard.templates import set_findings
 from masterba.rendering.template import DEFAULT_COMPANY
 
 VISIBILITIES = ("private", "shared", "public")
@@ -148,6 +149,16 @@ class TemplateAccess:
         if visibility not in VISIBILITIES:
             raise TemplateAccessError(f"visibility is one of {', '.join(VISIBILITIES)}")
         names = self._known(shared_with or []) if visibility == "shared" else None
+        if visibility != "private" and set_id != DEFAULT_COMPANY:
+            # Spec 30 section 5: a set that shows personal data or a secret stays private.
+            found = set_findings(self._companies / set_id)
+            if found:
+                shown = "; ".join(f.text() for f in found[:3])
+                more = f" and {len(found) - 3} more" if len(found) > 3 else ""
+                raise TemplateAccessError(
+                    f"the set holds personal data or a secret ({shown}{more}); "
+                    "remove it from the template before sharing"
+                )
 
         def change(sets: dict[str, Any]) -> None:
             entry = self._entry_of(sets, set_id)
@@ -157,6 +168,25 @@ class TemplateAccess:
 
         self._update(change)
         return self.entry(set_id) or {}
+
+    def downgrade_unsafe(self) -> list[str]:
+        """Make every shared or public set with findings private (spec 30 section 5)."""
+        with self._lock:
+            sets = self._load().get("sets", {})
+            unsafe = [
+                set_id
+                for set_id, entry in sets.items()
+                if entry.get("visibility", "private") != "private"
+                and set_findings(self._companies / set_id)
+            ]
+            if unsafe:
+
+                def change(data: dict[str, Any]) -> None:
+                    for set_id in unsafe:
+                        data[set_id]["visibility"] = "private"
+
+                self._update(change)
+        return unsafe
 
     def set_title(self, set_id: str, title: str | None) -> None:
         clean = (title or "").strip() or None

@@ -6,6 +6,7 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from masterba.agents.qa_reviewer import QaIssue, QaOutputInvalidError, QaReview
+from masterba.guard.scrub import scrub
 from masterba.llm import LLMConfigError, LLMError, LLMOutputError, LLMResult
 from masterba.models import QuestionDraft
 from masterba.team.models import MessageType, TaskStatus
@@ -20,12 +21,12 @@ def format_issue(issue: QaIssue) -> str:
 
 def request_failed(role: str, error: LLMError) -> str:
     """Escalation reason for a model request that failed (spec 11 section 1.6)."""
-    return f"model request failed in {role}: {' '.join(str(error).split())[:600]}"
+    return f"model request failed in {role}: {scrub(' '.join(str(error).split()))[:600]}"
 
 
 def unusable_answer(error: LLMOutputError) -> str:
     """Feedback for a model answer that does not fit its schema (spec 11 section 1.6)."""
-    return f"the last answer could not be used: {' '.join(str(error).split())[:600]}"
+    return f"the last answer could not be used: {scrub(' '.join(str(error).split()))[:600]}"
 
 
 def run_writer_review(

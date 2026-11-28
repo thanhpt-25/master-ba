@@ -43,6 +43,7 @@ def test_a_prepared_root_passes_and_warns_only_about_the_key(
         "ok   templates",
         "ok   state",
         "ok   ignores",
+        "ok   guard",
         "warn model",
     ]
 
@@ -94,6 +95,7 @@ def test_a_folder_outside_git_fails_and_init_prepares_it(
     assert template.definition.company_id == "sample-sier"
     assert (folder / ".gitignore").read_text(encoding="utf-8") == (
         ".masterba/\n"
+        "templates/companies/*/*.sample.xlsx\n"
         "projects/*/knowledge/sources/\n"
         "projects/*/knowledge/index/\n"
         "projects/*/knowledge/.lock\n"

@@ -53,7 +53,7 @@ def test_uploads_must_be_utf8_and_not_too_long(seeded_client: ClientFor) -> None
     assert big.status_code == 400
     assert "longer than" in big.json()["detail"]
     ok = approver.post(f"{P}/intake", files={"file": ("ok.md", "要件\n".encode())})
-    assert (ok.status_code, ok.json()) == (201, {"name": "ok.md"})
+    assert (ok.status_code, ok.json()) == (201, {"name": "ok.md", "findings": []})
 
 
 def test_a_hostile_dr_item_is_a_clean_error(seeded_client: ClientFor) -> None:

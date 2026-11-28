@@ -9,6 +9,7 @@ from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 from masterba.calibration.models import ListMap, MappingDraft, TableMap
+from masterba.guard.templates import clean_workbook
 from masterba.models import TemplateDefinition
 from masterba.models.enums import TemplateSource
 from masterba.rendering.bindings import (
@@ -38,6 +39,7 @@ HEADER_VALUE_MAPS = {"$document.status": "doc_status"}
 class BuiltTemplate:
     definition: TemplateDefinition
     shell: bytes
+    emptied: tuple[str, ...] = ()  # cells cleared because they held a finding (spec 30 s. 5)
 
 
 def _sheet_keys(draft: MappingDraft) -> dict[str, str]:
@@ -111,6 +113,10 @@ def _clear(ws: Worksheet, first_row: int, columns: list[str]) -> None:
 
 def build_shell(draft: MappingDraft, sample: Path) -> bytes:
     """The sample without its data values, macros, images, charts and external links."""
+    return _shell(draft, sample)[0]
+
+
+def _shell(draft: MappingDraft, sample: Path) -> tuple[bytes, list[str]]:
     wb: Any = load_workbook(sample, data_only=False, keep_vba=False)
     blocks: list[TableMap | ListMap] = [*draft.tables, *draft.lists]
     for table in blocks:
@@ -122,15 +128,18 @@ def build_shell(draft: MappingDraft, sample: Path) -> bytes:
         sheet._images = []
         sheet._charts = []
     wb._external_links = []
+    # Spec 30 section 5: comments, descriptive properties and cells with a finding go too.
+    emptied = clean_workbook(wb)
     wb.properties.creator = CREATOR
     wb.properties.lastModifiedBy = CREATOR
     wb.properties.created = FIXED_TIME
     wb.properties.modified = FIXED_TIME
-    return workbook_bytes(finish_workbook(wb))
+    return workbook_bytes(finish_workbook(wb)), emptied
 
 
 def build_template(draft: MappingDraft, sample: Path, company_id: str) -> BuiltTemplate:
-    return BuiltTemplate(build_definition(draft, company_id), build_shell(draft, sample))
+    shell, emptied = _shell(draft, sample)
+    return BuiltTemplate(build_definition(draft, company_id), shell, tuple(emptied))
 
 
 def shell_headers(shell: bytes, draft: MappingDraft) -> dict[str, list[str]]:

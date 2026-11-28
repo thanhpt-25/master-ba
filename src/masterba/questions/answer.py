@@ -5,6 +5,7 @@ import re
 import unicodedata
 
 from masterba.change.lifecycle import LifecycleError, approve_dr, new_dr
+from masterba.guard.detect import describe, has_secret
 from masterba.models import Question
 from masterba.models.enums import DrStatus, DrTrigger, ItemStatus, QuestionStatus
 from masterba.questions.ledger import Clock
@@ -38,6 +39,9 @@ def check_answer(text: str) -> str:
         raise QuestionError("an answer may not contain control characters")
     if _CLOSING_TAG.search(answer):
         raise QuestionError("an answer may not contain the closing tag of the confirmed block")
+    secret = has_secret(answer)  # spec 30 section 3.2
+    if secret is not None:
+        raise QuestionError(f"an answer may not contain a secret ({describe(secret)})")
     return answer
 
 

@@ -9,6 +9,7 @@ from masterba.agents.requirements_analyst import REPO_ROOT, load_system_prompt
 from masterba.calibration.heuristic import SYNONYMS, fields_for
 from masterba.calibration.models import MappingDraft, WorkbookProfile
 from masterba.calibration.validate import validate_mapping
+from masterba.guard import GuardedLLM, Masker, scrub
 from masterba.llm import LLM, LLMError, LLMOutputError
 from masterba.models.enums import DocType
 
@@ -66,6 +67,7 @@ def suggest_mapping(
 ) -> Suggestion:
     """The model's validated mapping, or the heuristic one with a message saying why."""
     system = load_system_prompt(PROMPT_PATH)
+    llm = GuardedLLM(llm, Masker())  # the sample's cell values are masked (spec 30 2.2)
     errors: list[str] = []
     for _ in range(MAX_ATTEMPTS):
         try:
@@ -79,7 +81,7 @@ def suggest_mapping(
             errors = [str(exc)]
             continue
         except LLMError as exc:
-            return Suggestion(heuristic, False, f"the model could not be used: {exc}")
+            return Suggestion(heuristic, False, f"the model could not be used: {scrub(str(exc))}")
         errors = validate_mapping(result.value, profile, doc_type)
         if not errors:
             kept = [*result.value.warnings, *heuristic.warnings]

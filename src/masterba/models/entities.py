@@ -167,6 +167,12 @@ class ProjectConfig(FrozenModel):
     # Spec 15: false for project.json files written before review gates, so they run as before;
     # init-project and the dashboard write true unless asked not to.
     review_gates: bool = False
+    # Spec 30: personal data and these terms are masked before each model call (true also
+    # for project.json files written before the guardrails); secrets are always masked.
+    pii_masking: bool = True
+    masking_terms: list[Annotated[str, Field(min_length=2, max_length=80)]] = Field(
+        default_factory=list, max_length=200
+    )
 
     def max_rounds_for(self, stage: DocType) -> int:
         """The round limit of one stage: its own entry, else `team_max_rounds` (spec 11 2.1)."""

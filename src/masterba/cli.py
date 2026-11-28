@@ -33,6 +33,7 @@ from masterba.cli_accounts import (
     dispatch_audit,
     dispatch_user,
 )
+from masterba.cli_guard import add_guard_parsers, dispatch_guard
 from masterba.cli_kb import KB_ERRORS, add_kb_parsers, dispatch_kb
 from masterba.cli_library import (
     LIBRARY_ERRORS,
@@ -201,6 +202,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_project_parsers(commands)
     add_kb_parsers(commands, _project_id)
     add_review_parsers(commands, _project_id)
+    add_guard_parsers(commands, _project_id)
     doctor = commands.add_parser("doctor", help="check this root and print what to fix")
     doctor.add_argument("--init", action="store_true", help="prepare an empty folder first")
     serve = commands.add_parser("serve", help="run the dashboard (API and web app)")
@@ -496,6 +498,8 @@ def _dispatch(args: argparse.Namespace, llm_factory: LLMFactory) -> int:
         return _dispatch_template(args, root, llm_factory)
     if args.command == "kb":
         return dispatch_kb(args, root)
+    if args.command == "guard":
+        return dispatch_guard(args, root)
     if args.command == "project":
         return dispatch_project(args, root)
     projects = root / "projects"
