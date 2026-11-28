@@ -45,7 +45,7 @@ def test_brd_sections_are_stored_with_intake_citations_and_rendered(store: Proje
     wb = load_workbook(result.xlsx_path)
     assert wb["背景・目的"]["A8"].value == BACKGROUND.body
     assert wb["背景・目的"]["A11"].value == f"intake/{LOGIN}#L3-L3\nintake/{LOGIN}#L6-L6"
-    assert wb["制約事項"]["A8"].value == CONSTRAINTS.body
+    assert wb["前提条件・制約事項"]["A8"].value == CONSTRAINTS.body
 
 
 def test_a_missing_section_says_the_input_does_not_state_it(store: ProjectStore) -> None:

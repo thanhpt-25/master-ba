@@ -213,7 +213,7 @@ Spec 19 part 3 shapes the pilot path:
   waits for: a running job, an approved DR to propagate, blocker questions, a run to resume, a phase
   to review, a phase to run. The Overview shows it first, with a single primary action.
 - **Document preview.** The Documents view shows `.../preview` as one tab per workbook sheet (表紙,
-  改訂履歴, the content sheets, トレーサビリティ or 除外項目), built by `rendering/preview.py` from the same
+  改訂履歴, 目次, the content sheets, トレーサビリティ or 除外項目), built by `rendering/preview.py` from the same
   catalog and render context as the shells. When the document's phase is `in_review`, approve and
   reject (`views/review.js`, shared with the Overview cards) sit below the sheets.
 - **Language.** `i18n.js` `t(text, vars)`: the English text is the key and `i18n-ja.js` maps it to
@@ -258,6 +258,17 @@ flowchart LR
   translate an enum into the label used in that company's workbook).
 - **The default set** is generated from one catalog (`rendering/catalog.py`) by
   `python -m masterba.rendering.shells`, and a test fails if the committed files drift from it.
+  It follows Japanese SIer practice (spec 26): 表紙, 改訂履歴 (with 改訂箇所) and 目次 first; a
+  header band (システム名, 文書名, 文書番号, 版数, シート名, 作成日, 更新日, 状態) on every other sheet;
+  list sheets (一覧) with No. first, 管理ID and 備考 last; display codes such as `SCR-0012` from
+  the derived field `$code` (`rendering/codes.py`, from item number and kind, never stored);
+  未決事項 from the question ledger (`$questions`) in BRD and SRS; test specifications as
+  テスト項目表 plus 消化状況, whose fixed `COUNTIF` formulas count the hand-entered 判定 column
+  (the only formulas in a default workbook; they are template text, not content).
+- **Registers.** `rendering/registers.py` prints 変更管理台帳 (every DR, then one 変更管理票 sheet
+  per DR) and QA管理表 (the question ledger) on demand, with no model and no commit:
+  `masterba export changes|questions --project P [--out f.xlsx]` and
+  `GET /api/projects/{pid}/registers/{changes|questions}.xlsx`.
 - **Bindings are parsed into typed models when a template is loaded,** so a malformed template fails
   at load, not halfway through a render. Templates also carry a `max_cell_length` validation rule at
   Excel's cell limit.

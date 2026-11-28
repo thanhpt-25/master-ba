@@ -3,9 +3,10 @@
 import json
 import subprocess
 from typing import Annotated, Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from masterba.api.deps import checked, project_store, require_role
 from masterba.change import rows
@@ -15,6 +16,7 @@ from masterba.models import payload_items
 from masterba.models.enums import QuestionOrigin, QuestionStatus
 from masterba.rendering.history import build_context
 from masterba.rendering.preview import preview_sheets
+from masterba.rendering.registers import Register, register_bytes, register_filename
 from masterba.trace_store import (
     NotFoundError,
     ProjectStore,
@@ -113,6 +115,20 @@ def download_xlsx(store: Store, doc_id: str, version: int | None = None) -> File
         path,
         filename=path.name,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@router.get("/registers/{register}.xlsx", dependencies=[Viewer])
+def download_register(store: Store, register: Register) -> Response:
+    """変更管理台帳 or QA管理表, printed from the stored DRs and questions (spec 26)."""
+    name = quote(register_filename(store, register))
+    return Response(
+        register_bytes(store, register),
+        media_type=XLSX,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{name}"},
     )
 
 

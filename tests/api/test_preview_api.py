@@ -1,6 +1,9 @@
 """Document preview and per-stage blockers on the overview (spec 19 part 3)."""
 
 import subprocess
+from io import BytesIO
+
+from openpyxl import load_workbook
 
 from api_support import ClientFor, new_project
 
@@ -22,22 +25,27 @@ def test_the_preview_lists_every_default_sheet_with_the_workbook_text(
     data = reply.json()
     names = [s["name"] for s in data["sheets"]]
     assert names == [
-        "表紙", "改訂履歴", "背景・目的", "業務要件", "システム化の範囲", "対象外", "制約事項",
-        "トレーサビリティ",
+        "表紙", "改訂履歴", "目次", "背景・目的", "業務要件一覧", "システム化の範囲", "対象外業務",
+        "前提条件・制約事項", "未決事項", "トレーサビリティ",
     ]  # fmt: skip
     cover = data["sheets"][0]
     assert cover["kind"] == "cover" and cover["title"] == "業務要件定義書"
-    assert ["文書ID", "DOC-BRD-0001"] in cover["rows"]
+    assert ["文書番号", "DOC-BRD-0001"] in cover["rows"]
     history = data["sheets"][1]
-    assert history["columns"][:3] == ["版", "改訂日", "改訂内容"]
-    assert history["rows"][0][0] == "1" and history["rows"][0][2] == "初版作成"
-    background = data["sheets"][2]
+    assert history["columns"][:4] == ["版数", "改訂日", "改訂箇所", "改訂内容"]
+    assert history["rows"][0][:4] == ["1.0", history["rows"][0][1], "全体", "初版作成"]
+    toc = data["sheets"][2]
+    assert toc["kind"] == "table" and [r[1] for r in toc["rows"]] == names
+    background = data["sheets"][3]
     assert background["kind"] == "section" and background["empty_text"]
-    requirements = data["sheets"][3]
+    requirements = data["sheets"][4]
     assert requirements["columns"][0] == "要件ID"
     assert requirements["rows"] and requirements["rows"][0][0].startswith("REQ-")
-    scope = data["sheets"][4]
-    assert all(row[4] == "対象" for row in scope["rows"])
+    scope = data["sheets"][5]
+    assert all(row[3] == "対象" for row in scope["rows"])
+    questions = next(s for s in data["sheets"] if s["key"] == "open_questions")
+    assert questions["columns"] == ["QA番号", "内容", "参照箇所", "起票日", "状態"]
+    assert all(row[4] == "未回答" for row in questions["rows"])
 
 
 def test_test_spec_preview_drops_hand_entry_columns_and_ends_with_exclusions(
@@ -46,7 +54,11 @@ def test_test_spec_preview_drops_hand_entry_columns_and_ends_with_exclusions(
     data = seeded_client("viewer").get(f"{P}/documents/DOC-TEST_IT-0001/preview").json()
     cases = next(s for s in data["sheets"] if s["key"] == "cases")
     assert "判定" not in cases["columns"] and "期待結果" in cases["columns"]
-    assert all(row[2] == "結合テスト" for row in cases["rows"])
+    assert cases["columns"][:2] == ["テスト項番", "大項目"]
+    assert all(row[0].startswith("TC-IT-") and row[1] for row in cases["rows"])
+    progress = next(s for s in data["sheets"] if s["key"] == "progress")
+    total = str(len(cases["rows"]))
+    assert progress["rows"][-2:] == [["未実施", total], ["合計", total]]
     assert data["sheets"][-1]["name"] == "除外項目"
 
 
@@ -103,3 +115,13 @@ def test_a_word_intake_is_converted_on_upload_and_bad_files_are_refused(
     assert blank.status_code == 400 and "x.pdf" in blank.json()["detail"]
     other = admin.post(f"{P}/intake", files={"file": ("mail.eml", b"From: a")})
     assert other.status_code == 400
+
+
+def test_the_registers_download_as_workbooks(seeded_client: ClientFor) -> None:
+    viewer = seeded_client("viewer")
+    for register, sheet in (("questions", "QA管理表"), ("changes", "変更管理台帳")):
+        reply = viewer.get(f"{P}/registers/{register}.xlsx")
+        assert reply.status_code == 200
+        assert "attachment; filename*=UTF-8''PRJ-001_" in reply.headers["content-disposition"]
+        assert load_workbook(BytesIO(reply.content)).sheetnames[0] == sheet
+    assert viewer.get(f"{P}/registers/secrets.xlsx").status_code == 422

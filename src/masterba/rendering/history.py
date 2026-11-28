@@ -1,14 +1,16 @@
-"""Derive a `RenderContext` from the store, with no model (spec 19 section 1)."""
+"""Derive a `RenderContext` from the store, with no model (spec 19 section 1, spec 26)."""
 
 import subprocess
 from collections import Counter
 from pathlib import Path
 
 from masterba.diff import ChangeType, diff_documents
-from masterba.models import DecisionRecord, Document, Payload, payload_items
-from masterba.models.enums import DrTrigger, ItemStatus, ReviewDecision
+from masterba.models import DecisionRecord, Document, Payload, PayloadItem, payload_items
+from masterba.models.enums import DrTrigger, ItemStatus, QuestionStatus, ReviewDecision
 from masterba.models.payloads import BasicDesignItem, BrdItem, DetailDesignItem, SrsItem
-from masterba.rendering.context import AUTHOR, RenderContext, Revision, TraceRow
+from masterba.rendering.catalog import doc_spec
+from masterba.rendering.codes import display_code
+from masterba.rendering.context import AUTHOR, QuestionRow, RenderContext, Revision, TraceRow
 from masterba.trace_store import (
     ProjectStore,
     document_versions,
@@ -16,7 +18,9 @@ from masterba.trace_store import (
     get_document,
     get_dr_extra,
     get_trace_links,
+    latest_documents,
     list_decision_records,
+    list_questions,
     list_reviews,
 )
 
@@ -30,6 +34,7 @@ TRIGGER_LABELS: dict[DrTrigger, str] = {
 }
 FIRST_SUMMARY = "初版作成"
 FIRST_REASON = "新規作成"
+FIRST_SHEETS = "全体"
 _ADDED, _CHANGED, _REMOVED = "追加", "変更", "削除"
 
 
@@ -46,8 +51,8 @@ def _added_on(root: Path, path: Path) -> str | None:
     return dates[-1].replace("-", "/") if found.returncode == 0 and dates else None
 
 
-def _summary(before: Payload, after: Payload) -> str:
-    """`追加 n件、変更 n件、削除 n件`, counted per item; setting `removed` counts as 削除."""
+def _changed_items(before: Payload, after: Payload) -> dict[str, str]:
+    """Item id to 追加 / 変更 / 削除; setting `removed` counts as 削除."""
     kinds: dict[str, str] = {}
     for change in diff_documents(before, after):
         if change.change_type is ChangeType.ADDED:
@@ -58,11 +63,41 @@ def _summary(before: Payload, after: Payload) -> str:
             kinds[change.item_id] = _REMOVED
         else:
             kinds.setdefault(change.item_id, _CHANGED)
+    return kinds
+
+
+def _summary(kinds: dict[str, str]) -> str:
+    """`追加 n件、変更 n件、削除 n件`, counted per item."""
     counts = Counter(kinds.values())
     parts = [
         f"{label} {counts[label]}件" for label in (_ADDED, _CHANGED, _REMOVED) if counts[label]
     ]
     return "、".join(parts) or "変更なし"
+
+
+def _matches_ignoring_status(item: PayloadItem, where: tuple[tuple[str, str], ...]) -> bool:
+    for key, expected in where:
+        if key == "status":
+            continue
+        actual = getattr(item, key)
+        if str(getattr(actual, "value", actual)) != expected:
+            return False
+    return True
+
+
+def _changed_sheets(doc: Document, before: Payload, after: Payload, ids: set[str]) -> str:
+    """改訂箇所: the default content sheets that list a changed item, in workbook order."""
+    items = {i.item_id: i for i in payload_items(before)}
+    items.update({i.item_id: i for i in payload_items(after)})
+    changed = [items[i] for i in sorted(ids) if i in items]
+    names = [
+        sheet.name
+        for sheet in doc_spec(doc.type).sheets
+        if sheet.columns
+        and sheet.source is None
+        and any(_matches_ignoring_status(item, sheet.where) for item in changed)
+    ]
+    return "、".join(names)
 
 
 def _reason(dr: DecisionRecord) -> str:
@@ -107,15 +142,21 @@ def revisions(
     for version in (v for v in document_versions(store, doc.id) if v <= doc.version):
         stored, content = get_document(store, doc.id, version)
         approver, approved_on = approvals.get(version, (None, None))
+        kinds = {} if previous is None else _changed_items(previous, content)
         rows.append(
             Revision(
                 version=version,
                 date=_added_on(store.root, store.path / stored.content_ref),
-                summary=FIRST_SUMMARY if previous is None else _summary(previous, content),
+                summary=FIRST_SUMMARY if previous is None else _summary(kinds),
                 reason=FIRST_REASON if previous is None else reasons.get(version, ""),
                 author=AUTHOR,
                 approver=approver,
                 approved_on=approved_on,
+                changed_sheets=(
+                    FIRST_SHEETS
+                    if previous is None
+                    else _changed_sheets(doc, previous, content, set(kinds))
+                ),
             )
         )
         previous = content
@@ -147,9 +188,41 @@ def trace_rows(store: ProjectStore, content: Payload) -> tuple[TraceRow, ...]:
             keys.add(test_id)
         upstream = sorted({link.from_id for link in links if link.to_id in keys} - keys)
         downstream = sorted({link.to_id for link in links if link.from_id in keys} - keys)
-        label = item.requirement_id if isinstance(item, BrdItem | SrsItem) else item.item_id
-        rows.append(TraceRow(label, _name(item), tuple(upstream), tuple(downstream)))
+        rows.append(
+            TraceRow(
+                item.item_id, _name(item), tuple(upstream), tuple(downstream), display_code(item)
+            )
+        )
     return tuple(rows)
+
+
+def open_question_rows(store: ProjectStore, doc: Document) -> tuple[QuestionRow, ...]:
+    """未決事項: the open questions of the document's stage, by id."""
+    return tuple(
+        QuestionRow(
+            id=q.id,
+            text=q.text,
+            refs=tuple(q.refs),
+            asked_on=q.asked_on.strftime("%Y/%m/%d"),
+            status=q.status.value,
+        )
+        for q in sorted(list_questions(store), key=lambda q: q.id)
+        if q.stage is doc.type and q.status is QuestionStatus.OPEN
+    )
+
+
+def item_names(store: ProjectStore) -> dict[str, str]:
+    """Item ref and REQ id to the name printed for it, over the latest stored documents."""
+    names: dict[str, str] = {}
+    for _, content in latest_documents(store):
+        for item in payload_items(content):
+            name = _name(item)
+            if not name:
+                continue
+            names[item.item_id] = name
+            if isinstance(item, BrdItem | SrsItem):
+                names[item.requirement_id] = name
+    return names
 
 
 def build_context(
@@ -161,4 +234,6 @@ def build_context(
         author=AUTHOR,
         revisions=revisions(store, doc, revised_by),
         trace=trace_rows(store, content),
+        questions=open_question_rows(store, doc),
+        names=item_names(store),
     )

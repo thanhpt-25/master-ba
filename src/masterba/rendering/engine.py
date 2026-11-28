@@ -20,12 +20,15 @@ from masterba.models import (
     payload_sections,
 )
 from masterba.rendering.bindings import (
+    CODE_FIELD,
     HEADER_SOURCES,
+    VERIFIES_NAME_FIELD,
     ListBinding,
     MaxCellLength,
     NonEmptyTable,
     TableBinding,
 )
+from masterba.rendering.codes import display_code
 from masterba.rendering.context import EMPTY_CONTEXT, RenderContext
 from masterba.rendering.errors import InvalidTemplateError, RenderValidationError
 from masterba.rendering.formatting import CellValue, format_value
@@ -55,7 +58,38 @@ def _list_rows(source: str, content: Payload, context: RenderContext) -> Sequenc
         return context.revisions
     if source == "$trace":
         return context.trace
+    if source == "$questions":
+        return context.questions
     return content.exclusions if isinstance(content, TestSpecContent) else ()
+
+
+def field_value(row: object, name: str, context: RenderContext) -> object:
+    """A row's field, or a derived item field (`$code`, `$verifies_name`, spec 26)."""
+    if name == CODE_FIELD and isinstance(row, PayloadItem):
+        return display_code(row)
+    if name == VERIFIES_NAME_FIELD:
+        verifies = getattr(row, "verifies", None) or []
+        return context.names.get(verifies[0]) if verifies else None
+    return getattr(row, name)
+
+
+# A merged section cell does not grow with its text in Excel, so its height is set from the
+# text: about this many half-width characters fit on one line of the merged width.
+SECTION_LINE_WIDTH = 120
+LINE_HEIGHT = 15
+MAX_ROW_HEIGHT = 409
+
+
+def _display_width(text: str) -> int:
+    return sum(1 if ord(ch) < 0x2E80 else 2 for ch in text)
+
+
+def text_height(text: str | None) -> float | None:
+    """Row height (points) for `text` in a merged section cell; None keeps the default."""
+    if not text:
+        return None
+    lines = sum(max(1, -(-_display_width(line) // SECTION_LINE_WIDTH)) for line in text.split("\n"))
+    return float(min(MAX_ROW_HEIGHT, lines * LINE_HEIGHT + 6))
 
 
 def _render_table(
@@ -63,6 +97,7 @@ def _render_table(
     table: TableBinding | ListBinding,
     rows: Sequence[object],
     value_maps: dict[str, dict[str, str]],
+    context: RenderContext,
 ) -> tuple[int, int]:
     """Write one table; return (row count, longest text length)."""
     columns = [c.col for c in table.columns]
@@ -81,11 +116,21 @@ def _render_table(
             if column.field is None:
                 continue
             value_map = value_maps[column.value_map] if column.value_map else None
-            value = format_value(column.field, getattr(item, column.field), value_map)
+            raw = field_value(item, column.field, context)
+            value = format_value(column.field, raw, value_map)
             _put(ws, f"{column.col}{row}", value)
             if isinstance(value, str):
                 longest = max(longest, len(value))
     return len(rows), longest
+
+
+def _fit_merged(ws: Worksheet, ref: str, text: str | None) -> None:
+    """Size the row of a merged cell to its text; a plain cell grows by itself in Excel."""
+    if not any(ref in merged for merged in ws.merged_cells.ranges):
+        return
+    height = text_height(text)
+    if height is not None:
+        ws.row_dimensions[ws[ref].row].height = height
 
 
 def render_document(
@@ -122,7 +167,7 @@ def render_document(
         longest = 0
         for table in template.bindings.tables:
             matched = [item for item in items if _matches(item, table.where)]
-            count, width = _render_table(wb[names[table.sheet]], table, matched, value_maps)
+            count, width = _render_table(wb[names[table.sheet]], table, matched, value_maps, ctx)
             counts[table.sheet] = counts.get(table.sheet, 0) + count
             longest = max(longest, width)
         written = {s.key: s for s in payload_sections(content)}
@@ -131,12 +176,15 @@ def render_document(
             section = written.get(binding.key)
             body = section.body if section else binding.empty_text
             _put(ws, binding.body_cell, body)
+            _fit_merged(ws, binding.body_cell, body)
             longest = max(longest, len(body or ""))
             if binding.sources_cell is not None:
-                _put(ws, binding.sources_cell, "\n".join(section.sources) if section else None)
+                sources = "\n".join(section.sources) if section else None
+                _put(ws, binding.sources_cell, sources)
+                _fit_merged(ws, binding.sources_cell, sources)
         for listed in template.bindings.lists:
             rows = _list_rows(listed.source, content, ctx)
-            _, width = _render_table(wb[names[listed.sheet]], listed, rows, value_maps)
+            _, width = _render_table(wb[names[listed.sheet]], listed, rows, value_maps, ctx)
             longest = max(longest, width)
     except IllegalCharacterError as exc:
         raise RenderValidationError(f"content has a character Excel cannot store: {exc}") from exc

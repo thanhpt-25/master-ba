@@ -14,10 +14,14 @@ from masterba.models.base import FrozenModel
 from masterba.models.enums import DocType, SectionKey
 from masterba.models.payloads import SECTIONS_BY_TYPE, TestExclusion
 from masterba.rendering.context import (
+    CLASSIFICATION,
     DOC_TITLES,
+    PUBLISHER,
+    QUESTION_FIELDS,
     REVISION_FIELDS,
     TRACE_FIELDS,
     RenderContext,
+    version_label,
 )
 from masterba.rendering.errors import InvalidTemplateError
 
@@ -34,6 +38,9 @@ HEADER_SOURCES: dict[str, Callable[[Document, RenderContext], str | int | None]]
     "$document.type": lambda d, c: d.type.value,
     "$document.title": lambda d, c: DOC_TITLES[d.type],
     "$document.version": lambda d, c: d.version,
+    "$document.version_label": lambda d, c: version_label(d.version),
+    "$document.classification": lambda d, c: CLASSIFICATION,
+    "$document.publisher": lambda d, c: PUBLISHER,
     "$document.status": lambda d, c: d.status.value,
     "$document.template_id": lambda d, c: d.template_id,
     "$document.author": lambda d, c: c.author or None,
@@ -42,15 +49,21 @@ HEADER_SOURCES: dict[str, Callable[[Document, RenderContext], str | int | None]]
     "$document.approver": lambda d, c: _this_revision(d, c, "approver"),
     "$document.approved_on": lambda d, c: _this_revision(d, c, "approved_on"),
     "$project.id": lambda d, c: d.project_id,
+    "$project.name": lambda d, c: d.project_id,
     "$project.company": lambda d, c: c.company,
 }
 
-ListSource = Literal["$revisions", "$trace", "$exclusions"]
+ListSource = Literal["$revisions", "$trace", "$exclusions", "$questions"]
 LIST_FIELDS: dict[str, frozenset[str]] = {
     "$revisions": REVISION_FIELDS,
     "$trace": TRACE_FIELDS,
     "$exclusions": frozenset(TestExclusion.model_fields),
+    "$questions": QUESTION_FIELDS,
 }
+# Derived item fields a table column may bind (spec 26 section 2).
+CODE_FIELD = "$code"
+VERIFIES_NAME_FIELD = "$verifies_name"
+VIRTUAL_FIELDS = frozenset({CODE_FIELD, VERIFIES_NAME_FIELD})
 
 _CELL = r"^[A-Z]{1,3}[1-9][0-9]*$"
 _COLUMN = r"^[A-Z]{1,3}$"
@@ -150,7 +163,10 @@ def validate_bindings(bindings: Bindings, doc_type: DocType, sheet_map: dict[str
         for key in table.where:
             if key not in fields:
                 problems.append(f"where field {key!r} is not a {doc_type.value} item field")
-        problems += _check_columns(table, bindings, set(fields), f"a {doc_type.value} item field")
+        known = set(fields) | {CODE_FIELD}
+        if PAYLOAD_BY_TYPE[doc_type] is TestSpecContent:
+            known.add(VERIFIES_NAME_FIELD)
+        problems += _check_columns(table, bindings, known, f"a {doc_type.value} item field")
     for listed in bindings.lists:
         if listed.source == "$exclusions" and PAYLOAD_BY_TYPE[doc_type] is not TestSpecContent:
             problems.append(f"{doc_type.value} has no exclusions")
