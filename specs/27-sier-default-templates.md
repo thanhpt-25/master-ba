@@ -1,4 +1,4 @@
-# Spec 26 — Japanese SIer default templates
+# Spec 27 — Japanese SIer default templates
 
 Status: v0.2 (2026-11-28), part A implemented (approved by the owner 2026-11-28); part B proposed for a later PR. Sources: [02-excel-rendering.md](02-excel-rendering.md), [19-deliverable-fit.md](19-deliverable-fit.md) part 1, [07-change-management.md](07-change-management.md), [13-customer-questions.md](13-customer-questions.md).
 

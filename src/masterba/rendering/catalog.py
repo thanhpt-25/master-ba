@@ -1,4 +1,4 @@
-"""Baseline layout of the 8 default templates (spec 02 section 4, spec 19 section 3, spec 26).
+"""Baseline layout of the 8 default templates (spec 02 section 4, spec 19 section 3, spec 27).
 
 Single source for both the committed `.xlsx` shells and the `.template.json` bindings, so the
 two cannot drift apart.
@@ -31,7 +31,7 @@ VALUE_MAPS: dict[str, dict[str, str]] = {
 
 @dataclass(frozen=True)
 class BandCell:
-    """One label/value pair of the header band (spec 26 section 1)."""
+    """One label/value pair of the header band (spec 27 section 1)."""
 
     row: int
     label_col: str

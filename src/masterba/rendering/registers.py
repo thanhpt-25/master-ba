@@ -1,4 +1,4 @@
-"""変更管理台帳 and QA管理表: the change and Q&A registers of a project (spec 26 section 4).
+"""変更管理台帳 and QA管理表: the change and Q&A registers of a project (spec 27 section 4).
 
 Printed from the Decision Records and the question ledger, with no model and no write: the
 data is already committed, so the registers are exported on demand and are byte-deterministic.

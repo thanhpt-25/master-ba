@@ -124,6 +124,14 @@ def add_intake(store: ProjectStore, name: str, text: str) -> str:
     return f"intake/{name}"
 
 
+def list_intakes(store: ProjectStore) -> list[str]:
+    """The names of the stored intake files, in name order (spec 26 section 6)."""
+    folder = store.path / "intake"
+    if not folder.is_dir():
+        return []
+    return sorted(p.name for p in folder.iterdir() if p.is_file() and _INTAKE_NAME.match(p.name))
+
+
 def get_intake(store: ProjectStore, name: str) -> str:
     path = _intake_path(store, name)
     if not path.exists():

@@ -9,7 +9,7 @@ const ROOT = new URL("..", import.meta.url).pathname;
 const CALL = /\b(?:t|tr|N_)\(\s*"((?:[^"\\]|\\.)*)"/g;
 
 function sources() {
-  const files = ["app.js", "api.js", "dom.js", "i18n.js", "charts.js"].map((f) => join(ROOT, f));
+  const files = ["app.js", "api.js", "dom.js", "i18n.js", "charts.js", "palette.js"].map((f) => join(ROOT, f));
   for (const f of readdirSync(join(ROOT, "views"))) if (f.endsWith(".js")) files.push(join(ROOT, "views", f));
   return files;
 }

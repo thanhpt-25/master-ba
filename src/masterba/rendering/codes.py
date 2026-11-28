@@ -1,4 +1,4 @@
-"""Display codes of items (spec 26 section 2), derived only from the item ref and kind."""
+"""Display codes of items (spec 27 section 2), derived only from the item ref and kind."""
 
 from enum import Enum
 

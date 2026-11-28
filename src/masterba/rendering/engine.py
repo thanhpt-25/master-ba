@@ -64,7 +64,7 @@ def _list_rows(source: str, content: Payload, context: RenderContext) -> Sequenc
 
 
 def field_value(row: object, name: str, context: RenderContext) -> object:
-    """A row's field, or a derived item field (`$code`, `$verifies_name`, spec 26)."""
+    """A row's field, or a derived item field (`$code`, `$verifies_name`, spec 27)."""
     if name == CODE_FIELD and isinstance(row, PayloadItem):
         return display_code(row)
     if name == VERIFIES_NAME_FIELD:

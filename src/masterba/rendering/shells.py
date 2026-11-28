@@ -215,7 +215,7 @@ def _head_row(ws: Worksheet, headers: tuple[str, ...] | list[str]) -> None:
 
 
 def _build_band(ws: Worksheet, sheet: SheetSpec) -> None:
-    """Sheet title in A1 and the header band at rows 2 and 3 (spec 26 section 1)."""
+    """Sheet title in A1 and the header band at rows 2 and 3 (spec 27 section 1)."""
     ws[TITLE_CELL] = sheet.name
     ws[TITLE_CELL].font = Font(name=FONT, size=14, bold=True)
     for band in HEADER_BAND:

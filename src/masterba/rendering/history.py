@@ -1,4 +1,4 @@
-"""Derive a `RenderContext` from the store, with no model (spec 19 section 1, spec 26)."""
+"""Derive a `RenderContext` from the store, with no model (spec 19 section 1, spec 27)."""
 
 import subprocess
 from collections import Counter

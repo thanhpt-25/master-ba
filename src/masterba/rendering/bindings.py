@@ -60,7 +60,7 @@ LIST_FIELDS: dict[str, frozenset[str]] = {
     "$exclusions": frozenset(TestExclusion.model_fields),
     "$questions": QUESTION_FIELDS,
 }
-# Derived item fields a table column may bind (spec 26 section 2).
+# Derived item fields a table column may bind (spec 27 section 2).
 CODE_FIELD = "$code"
 VERIFIES_NAME_FIELD = "$verifies_name"
 VIRTUAL_FIELDS = frozenset({CODE_FIELD, VERIFIES_NAME_FIELD})

@@ -18,11 +18,14 @@ from masterba.rendering.history import build_context
 from masterba.rendering.preview import preview_sheets
 from masterba.rendering.registers import Register, register_bytes, register_filename
 from masterba.trace_store import (
+    InvalidDocumentError,
     NotFoundError,
     ProjectStore,
     document_versions,
     get_document,
+    get_intake,
     latest_documents,
+    list_intakes,
     list_questions,
 )
 
@@ -123,7 +126,7 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 @router.get("/registers/{register}.xlsx", dependencies=[Viewer])
 def download_register(store: Store, register: Register) -> Response:
-    """変更管理台帳 or QA管理表, printed from the stored DRs and questions (spec 26)."""
+    """変更管理台帳 or QA管理表, printed from the stored DRs and questions (spec 27)."""
     name = quote(register_filename(store, register))
     return Response(
         register_bytes(store, register),
@@ -147,6 +150,25 @@ def diff_document(
     if structural_only:
         result = [r for r in result if r["classification"] != Classification.REWORDED_ONLY.value]
     return {"doc_id": doc_id, "from": old, "to": new, "rows": result}
+
+
+@router.get("/intake", dependencies=[Viewer])
+def list_intake_files(store: Store) -> list[dict[str, Any]]:
+    """The project's intake files for the Documents tree (spec 26 section 6)."""
+    out = []
+    for name in list_intakes(store):
+        text = get_intake(store, name)
+        size = len(text.encode("utf-8"))
+        out.append({"name": name, "size": size, "lines": len(text.splitlines())})
+    return out
+
+
+@router.get("/intake/{name}", dependencies=[Viewer])
+def read_intake_file(store: Store, name: str) -> dict[str, str]:
+    try:
+        return {"name": name, "text": get_intake(store, name)}
+    except (InvalidDocumentError, NotFoundError) as exc:
+        raise HTTPException(status_code=404, detail="no such intake file") from exc
 
 
 @router.get("/runs", dependencies=[Viewer])

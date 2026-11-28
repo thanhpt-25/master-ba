@@ -1,4 +1,4 @@
-"""Data a workbook prints besides the payload: cover, history, traceability (spec 19, spec 26).
+"""Data a workbook prints besides the payload: cover, history, traceability (spec 19, spec 27).
 
 Pure values only; `rendering/history.py` derives them from the store.
 """
@@ -55,7 +55,7 @@ class TraceRow:
     name: str
     upstream: tuple[str, ...]
     downstream: tuple[str, ...]
-    code: str = ""  # REQ id, test case id or display code (spec 26 section 2)
+    code: str = ""  # REQ id, test case id or display code (spec 27 section 2)
 
 
 @dataclass(frozen=True)

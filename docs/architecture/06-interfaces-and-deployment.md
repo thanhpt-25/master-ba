@@ -155,7 +155,7 @@ needing attention), `#/admin-projects`, `#/audit` (filters, paging, CSV) and the
 | Users and limits (admin) | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/{name}`, `POST /admin/users/{name}/reset-usage`, `.../disable`, `.../enable`, `.../signout`, `GET/PUT /admin/limits` |
 | Admin console (admin) | `GET /admin/dashboard?days=7\|30\|90&tz=`, `GET /admin/projects`, `GET /admin/audit`, `GET /admin/audit.csv`, `GET/PUT /admin/prices` |
 | Sharing | `GET /projects/{pid}/access`, `POST /projects/{pid}/members`, `DELETE /projects/{pid}/members/{name}`, `POST /projects/{pid}/owner` |
-| Projects | `GET/POST /projects`, `GET /projects/{pid}`, `POST /projects/{pid}/intake` (`.txt`, `.md`, `.docx`, `.pdf`, `.xlsx`; a binary file passes `check_upload` and is converted at once, the response names the stored `.md`) |
+| Projects | `GET/POST /projects`, `GET /projects/{pid}`, `POST /projects/{pid}/intake` (`.txt`, `.md`, `.docx`, `.pdf`, `.xlsx`; a binary file passes `check_upload` and is converted at once, the response names the stored `.md`), `GET /projects/{pid}/intake` (name, size, lines) and `GET /projects/{pid}/intake/{name}` (text; viewer) |
 | Stage runs | `POST /projects/{pid}/stages/{stage}/run` (returns `202` and a job), `GET /projects/{pid}/jobs`, `GET /jobs/{job_id}` |
 | Documents | `GET /projects/{pid}/documents`, `.../documents/{doc_id}`, `.../documents/{doc_id}/preview` (the default workbook layout as JSON, spec 19 section 14), `.../documents/{doc_id}/xlsx`, `.../documents/{doc_id}/diff` |
 | Runs and activity | `GET /projects/{pid}/runs`, `.../runs/{run_id}`, `.../activity` |
@@ -205,6 +205,32 @@ stateDiagram-v2
 that calls the server, `dom.js` builds elements, and `views/` has one module per screen (login,
 overview, projects, activity, documents, trace, questions, DRs, knowledge, templates, members, usage, users, admin, all projects, audit). Text is inserted only as text nodes
 and the CSP forbids inline script and style, so content from a model cannot run in the page.
+
+Spec 26 (the Workspace look) adds the shell around every screen: a project rail at the left edge
+(one square per project from `GET /projects`, read once per session), a slim sidebar with the
+project's sections, and a command palette (`palette.js`, ⌘K / Ctrl+K or the top-bar search field)
+over projects, the current project's sections, workspace and admin pages and a few actions. The
+Overview draws the V as a compact twelve-column grid (`vDiagram`) and lists the design phases with
+their documents and one action below it (`phaseList` rows); recent activity and open questions sit
+in a right column on wide screens. The interface font (Inter) is served from `frontend/fonts/`.
+
+The Documents screen is a file manager (spec 26 section 6). `views/explorer.js` builds the tree
+with the pure `buildTree(docs, intakes, mode)`: one numbered folder per design phase (or, by kind,
+設計書 and テスト仕様書), each document a file whose children are its versions, then 入力資料 with
+the intake files. The tree follows the WAI-ARIA tree pattern; open folders, grouping and the tree
+width are kept per browser. The right pane shows a file (path, version picker, compare dialog,
+Excel download, the review band of a phase in review, then the workbook with its sheet tabs at the
+bottom), a folder's details list, or an intake file with line numbers. The selection is written to
+the URL with `history.replaceState` (`.../documents/<DOC-ID>[/v<n>]`, `.../documents/folder/<key>`,
+`.../documents/intake/<name>`) so it does not re-render the page.
+
+変更管理 (spec 26 section 7) uses the same two panes: Decision Records on the left with status
+chips (all, proposed, approved, propagated, closed; the choice is kept per browser) and a text
+filter, the selected record on the right with the action of its state (decide, propagate, close,
+or the live job) above four sheets drawn by the same `sheetTabs`: 変更管理票, 影響分析, 反映結果
+and 履歴 (`drSheets` is pure). 履歴 reads `GET /projects/{pid}/drs/{dr_id}/history`, the commits
+that touched the record's files. A document's preview links to the records whose affected
+documents include it (`recordsFor`).
 
 Spec 19 part 3 shapes the pilot path:
 
@@ -258,7 +284,7 @@ flowchart LR
   translate an enum into the label used in that company's workbook).
 - **The default set** is generated from one catalog (`rendering/catalog.py`) by
   `python -m masterba.rendering.shells`, and a test fails if the committed files drift from it.
-  It follows Japanese SIer practice (spec 26): 表紙, 改訂履歴 (with 改訂箇所) and 目次 first; a
+  It follows Japanese SIer practice (spec 27): 表紙, 改訂履歴 (with 改訂箇所) and 目次 first; a
   header band (システム名, 文書名, 文書番号, 版数, シート名, 作成日, 更新日, 状態) on every other sheet;
   list sheets (一覧) with No. first, 管理ID and 備考 last; display codes such as `SCR-0012` from
   the derived field `$code` (`rendering/codes.py`, from item number and kind, never stored);
