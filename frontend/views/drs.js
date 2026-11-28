@@ -49,6 +49,17 @@ export function recordsFor(drs, docId) {
   return drs.filter((d) => (d.affected_documents ?? []).includes(docId)).sort((a, b) => b.id.localeCompare(a.id));
 }
 
+// The records a batch propagation can take (spec 07 section 5.2): approved, oldest first.
+export function batchCandidates(drs) {
+  return drs.filter((d) => shownStatus(d) === "approved").sort((a, b) => a.id.localeCompare(b.id));
+}
+
+// True when a propagation job covers the record: `propagate:DR-0002` or `propagate:DR-0001,DR-0002`.
+export function jobCovers(kind, drId) {
+  const [head, rest] = String(kind ?? "").split(":");
+  return head === "propagate" && (rest ?? "").split(",").includes(drId);
+}
+
 // The four sheets of a record, in the shape sheetTabs draws (pure: the tests read them).
 export function drSheets(dr, { impact = null, propagation = null, diff = null, history = [] } = {}) {
   const none = "—";
@@ -216,6 +227,47 @@ export async function render({ main, api, params, me, toast, go }) {
     );
   }, { labelledBy: "dr-create-title" });
 
+  // Several approved records in one job, so nobody has to propagate them one by one (spec 07 s. 5.2).
+  const candidates = batchCandidates(drs);
+  const openBatch = () => modal((close) => {
+    const boxes = candidates.map((d) => h("input", { type: "checkbox", value: d.id, checked: true }));
+    const submit = h("button", { type: "submit", class: "primary" }, t("Propagate"));
+    const update = () => { submit.disabled = !boxes.some((b) => b.checked); };
+    for (const box of boxes) box.addEventListener("change", update);
+    queueMicrotask(() => submit.focus({ preventScroll: true }));
+    return h(
+      "form",
+      {
+        class: "dialog create-dialog",
+        onSubmit: async (event) => {
+          event.preventDefault();
+          const ids = boxes.filter((b) => b.checked).map((b) => b.value);
+          if (!ids.length) return;
+          try {
+            await api.post(`/projects/${pid}/drs/propagate`, { dr_ids: ids });
+            close();
+            toast(t("Propagating {n} records, oldest first", { n: ids.length }));
+            go(`#/p/${pid}/drs/${ids[0]}`);
+          } catch (error) {
+            toast(error.message, "error");
+          }
+        },
+      },
+      h("div", { class: "dialog-top" },
+        h("span", { class: "dialog-icon", "aria-hidden": "true" }, icon("drs", 18)),
+        h("h2", { id: "dr-batch-title" }, t("Propagate approved records")),
+        h("button", { type: "button", class: "icon-button", "aria-label": t("Close"), onClick: close }, icon("close", 18)),
+      ),
+      h("p", { class: "muted" }, t("The models revise the affected documents of each record, oldest first, in one job. A record that stops holds back only the later records on the same documents.")),
+      h("div", { role: "group", "aria-labelledby": "dr-batch-title" },
+        candidates.map((d, i) => h("label", { class: "check" }, boxes[i], h("code", {}, d.id), " ", d.description))),
+      h("div", { class: "dialog-actions" },
+        h("button", { type: "button", onClick: close }, t("Cancel")),
+        submit,
+      ),
+    );
+  }, { labelledBy: "dr-batch-title" });
+
   const detail = h("section", { class: "explorer-preview", "aria-label": t("Preview") });
   const explorer = h("div", { class: "explorer records", "data-view": drId ? "preview" : "tree" },
     h("aside", { class: "explorer-tree", "aria-label": t("Decision Records") },
@@ -226,6 +278,9 @@ export async function render({ main, api, params, me, toast, go }) {
     pageHeader(t("Decision Records"), t("Every change request as a form: its impact, how it was carried into the documents, and its history."),
       // 変更管理台帳 (spec 27): printed on demand from the records, never committed.
       h("a", { class: "button", href: api.url(`/projects/${pid}/registers/changes.xlsx`), download: "" }, icon("download", 15), t("Change register (Excel)")),
+      canAct && candidates.length
+        ? h("button", { type: "button", onClick: openBatch }, t("Propagate approved ({n})", { n: candidates.length }))
+        : null,
       canAct ? h("button", { class: "primary", type: "button", onClick: openCreate }, icon("plus", 16), t("Propose a change")) : null),
     explorer,
   );
@@ -371,16 +426,25 @@ export async function render({ main, api, params, me, toast, go }) {
   async function poll() {
     if (stopped || paused) return;
     const jobs = await api.get(`/projects/${pid}/jobs`);
-    const job = jobs.find((j) => j.kind === `propagate:${drId}`);
+    const job = jobs.find((j) => jobCovers(j.kind, drId));
     if (job && ["queued", "running"].includes(job.status)) {
       polling = true;
       lastJob = job;
       refreshJobPanel();
       if (!document.hidden) timer = setTimeout(() => poll().catch((e) => toast(e.message, "error")), 2000);
     } else {
+      const followed = polling;  // the job ran while this page watched it
       polling = false;
       lastJob = null;
       await draw();
+      const results = job?.result?.results;
+      if (Array.isArray(results)) {
+        // A batch (spec 07 section 5.2): one summary, only when this page saw it finish.
+        if (!followed) return;
+        const done = results.filter((r) => r.outcome === "propagated").length;
+        toast(t("{done} of {n} records propagated", { done, n: results.length }), done === results.length ? "info" : "error");
+        return;
+      }
       if (job?.status === "escalated") toast(t("A document could not be revised: see the run in Activity."), "error");
       if (job?.status === "waiting_for_input") toast(t("A reviewer needs a customer answer: answer the new questions in Questions, then press Propagate again."), "error");
       if (job?.status === "failed") toast(job.error, "error");

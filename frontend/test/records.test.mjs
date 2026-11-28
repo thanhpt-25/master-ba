@@ -6,7 +6,7 @@ import { install } from "./dom-shim.js";
 install();
 const i18n = await import("../i18n.js");
 i18n.setLang("en");
-const { drSheets, filterRecords, recordsFor, shownStatus, statusCounts } = await import("../views/drs.js");
+const { batchCandidates, drSheets, filterRecords, jobCovers, recordsFor, shownStatus, statusCounts } = await import("../views/drs.js");
 
 const dr = (id, status, extra = {}) => ({
   id,
@@ -89,4 +89,19 @@ test("a record closed without an impact analysis shows and filters as rejected (
   assert.deepEqual(filterRecords(list, "rejected").map((d) => d.id), ["DR-0002"]);
   assert.deepEqual(filterRecords(list, "closed").map((d) => d.id), ["DR-0001"]);
   assert.equal(Object.fromEntries(drSheets(list[1])[0].rows)["状態"], "Rejected");
+});
+
+test("a batch takes the approved records, oldest first (spec 07 section 5.2)", () => {
+  const more = [...drs, dr("DR-0004", "approved"), dr("DR-0005", "closed", { rejected: true })];
+  assert.deepEqual(batchCandidates(more).map((d) => d.id), ["DR-0002", "DR-0004"]);
+  assert.deepEqual(batchCandidates([]), []);
+});
+
+test("a record page follows a single or a batch propagation job", () => {
+  assert.equal(jobCovers("propagate:DR-0002", "DR-0002"), true);
+  assert.equal(jobCovers("propagate:DR-0001,DR-0002", "DR-0002"), true);
+  assert.equal(jobCovers("propagate:DR-0001,DR-0002", "DR-0003"), false);
+  assert.equal(jobCovers("propagate:DR-00021", "DR-0002"), false);
+  assert.equal(jobCovers("stage:srs", "DR-0002"), false);
+  assert.equal(jobCovers(undefined, "DR-0002"), false);
 });

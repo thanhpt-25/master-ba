@@ -87,6 +87,12 @@ class DecisionBody(Body):
     rationale: str | None = Field(default=None, max_length=5000)
 
 
+class BatchPropagateBody(Body):
+    """DRs to propagate in one job; empty means every approved DR (spec 07 section 5.2)."""
+
+    dr_ids: list[str] = Field(default_factory=list, max_length=200)
+
+
 class AnswerBody(Body):
     answer: str = Field(min_length=1, max_length=2000)
     source: str | None = Field(default=None, max_length=500)

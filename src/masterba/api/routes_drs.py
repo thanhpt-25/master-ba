@@ -16,18 +16,21 @@ from masterba.api.deps import (
     state_of,
 )
 from masterba.api.jobs import Job, JobBusyError
-from masterba.api.schemas import DecisionBody, FromRunBody, NewDrBody
+from masterba.api.schemas import BatchPropagateBody, DecisionBody, FromRunBody, NewDrBody
 from masterba.change import (
     approve_dr,
+    approved_dr_ids,
     auto_propagates,
     close_dr,
     dr_diff,
     dr_from_run,
     new_dr,
     propagate_dr,
+    propagate_many,
     reject_dr,
     rows,
 )
+from masterba.guard.scrub import scrub
 from masterba.models import DecisionRecord
 from masterba.models.enums import DrStatus
 from masterba.trace_store import (
@@ -135,6 +138,49 @@ def auto_propagation(
         return {"job": submit_propagation(request, store, dr_id, user).to_json()}
     except JobBusyError as exc:
         return {"propagation_note": f"{exc}; press Propagate when it ends"}
+
+
+@router.post("/propagate", status_code=202)
+def propagate_batch(
+    request: Request, store: Store, body: BatchPropagateBody, user: Signed
+) -> dict[str, Any]:
+    """Several approved DRs in one job, oldest first (spec 07 section 5.2)."""
+    ids = sorted({checked("dr", d) for d in body.dr_ids})
+    if not ids:
+        ids = approved_dr_ids(store)
+        if not ids:
+            raise HTTPException(status_code=409, detail="no approved Decision Record to propagate")
+    others = [d for d in ids if get_decision_record(store, d).status is not DrStatus.APPROVED]
+    if others:
+        raise HTTPException(
+            status_code=409,
+            detail=f"only approved records can be propagated: {', '.join(others)}",
+        )
+    app = state_of(request)
+    require_quota(app, user)
+    settings = app.settings
+    kind = f"propagate:{','.join(ids)}"
+    llm_factory = metered(app, user, store.project_id, kind)
+
+    def stop() -> str | None:
+        reached = app.usage.blocking(user.name)
+        return None if reached is None else reached.message()
+
+    def work() -> dict[str, Any]:
+        reviser = llm_factory(settings.model)
+        qa = llm_factory(settings.qa_model) if settings.qa_model else None
+        batch = propagate_many(store, settings.templates, ids, reviser, qa_llm=qa, stop=stop)
+        payload = batch.to_json()
+        for entry in payload["results"]:  # errors may quote model output (spec 30 section 4)
+            if entry["error"]:
+                entry["error"] = scrub(entry["error"])
+        return payload
+
+    try:
+        job = app.jobs.submit(store.project_id, kind, work, user.name)
+    except JobBusyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return job.to_json()
 
 
 @router.post("/{dr_id}/propagate", status_code=202)

@@ -1,5 +1,6 @@
 """Change management: Decision Records, impact analysis, patches and propagation (spec 07)."""
 
+from masterba.change.batch import BatchEntry, BatchResult, approved_dr_ids, propagate_many
 from masterba.change.diffview import DocumentDiff, dr_diff, rows
 from masterba.change.impact import V_ORDER, Impact, ImpactEntry, analyse_impact
 from masterba.change.lifecycle import (
@@ -24,6 +25,8 @@ from masterba.change.propagate import DocOutcome, PropagationResult, auto_propag
 
 __all__ = [
     "V_ORDER",
+    "BatchEntry",
+    "BatchResult",
     "DocOutcome",
     "DocumentDiff",
     "Impact",
@@ -37,6 +40,7 @@ __all__ = [
     "RevisionPatch",
     "analyse_impact",
     "apply_patch",
+    "approved_dr_ids",
     "auto_propagates",
     "approve_dr",
     "close_dr",
@@ -46,6 +50,7 @@ __all__ = [
     "missing_links",
     "new_dr",
     "propagate_dr",
+    "propagate_many",
     "reject_dr",
     "rows",
     "validate_patch",

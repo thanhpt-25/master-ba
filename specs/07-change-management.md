@@ -168,7 +168,7 @@ tests/change/  tests/test_cli_dr.py
 - [x] The QA reviewer code is unchanged (no stage branch); a unit test shows the checklist chosen per document type.
 - [x] A live attempt (CLI with a key) is made on a demo project that has at least a BRD and SRS and is recorded in section 9.
 - [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; `RevisionPatch` schema generated and drift-tested.
-- [ ] Batch propagation (section 5.2): DRs run in id order; a stopped DR skips only later DRs that share a document; a failing DR is reported and the batch goes on; the stop hook skips the rest; CLI exit code 3 when a DR is not propagated; the API refuses unknown or not approved ids and runs one `propagate:` job.
+- [x] Batch propagation (section 5.2): DRs run in id order; a stopped DR skips only later DRs that share a document; a failing DR is reported and the batch goes on; the stop hook skips the rest; CLI exit code 3 when a DR is not propagated; the API refuses unknown or not approved ids and runs one `propagate:` job.
 
 ## 9. Manual review record
 

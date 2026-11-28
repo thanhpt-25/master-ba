@@ -120,6 +120,16 @@ Key properties:
   statement: 'old' -> 'new'`), so a design item changes consistently with the SRS item it realises.
 - **The DR stays `approved` until every document is done.** Only then does it become `propagated`.
 
+### Several DRs at once
+
+`change/batch.py` `propagate_many` runs `propagate_dr` for several approved DRs in ascending id
+order, in one call (spec 07 section 5.2): `masterba dr propagate DR-0001 DR-0003` or
+`--all-approved`, `POST /drs/propagate` (one `propagate:DR-0001,DR-0003` job), and the
+承認済みをまとめて反映 button on the 変更管理 page. Each DR behaves exactly as above. A DR that
+escalates, waits for an answer or fails is reported and the batch goes on, but a later DR that shares
+an affected document with it is `skipped` (`blocked_by`), so no document is revised on top of a
+change that did not settle. The API's `stop` hook skips the rest once the user's usage limit is reached.
+
 ## 5.5 Revising one document
 
 The model does not rewrite the document. It returns a **patch**, and code applies it.
