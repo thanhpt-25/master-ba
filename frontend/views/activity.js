@@ -14,7 +14,7 @@ function runDetail(data) {
     h("p", { class: "muted" }, `${t("Tokens")}: ${summary.tokens_used ?? 0}${summary.token_budget ? ` / ${summary.token_budget}` : ` · ${t("no cap")}`}`),
     summary.escalations.length ? h("ul", {}, summary.escalations.map((e) => h("li", {}, e))) : null,
     h("h4", {}, t("Tasks")),
-    tasks.length ? table([t("Task"), t("Title"), t("Owner"), t("Status")], tasks.map((t) => [h("code", {}, t.id), t.title, t.owner, badge(t.status === "in_progress" ? "running" : t.status === "blocked" ? "escalated" : t.status)]), t("Tasks")) : empty(t("No tasks.")),
+    tasks.length ? table([t("Task"), t("Title"), t("Owner"), t("Status")], tasks.map((task) => [h("code", {}, task.id), task.title, task.owner, badge(task.status === "in_progress" ? "running" : task.status === "blocked" ? "escalated" : task.status)]), t("Tasks")) : empty(t("No tasks.")),
     h("h4", {}, t("Mailbox")),
     mailbox.length
       ? table([t("Round"), t("From"), t("To"), t("Type"), t("About"), t("Message")], mailbox.map((m) => [m.round, m.sender, m.to, m.type, m.ref ? h("code", {}, m.ref) : "", m.body]), t("Mailbox"))

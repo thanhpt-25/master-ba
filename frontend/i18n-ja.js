@@ -65,6 +65,8 @@ export const JA = {
   "QA register (Excel)": "QA管理表（Excel）",
   "Planned": "予定",
   "Open": "未回答",
+  "View": "表示",
+  "Open template {company} {type}": "{company} の {type} テンプレートを開く",
   "Answered": "回答済",
   "In review": "レビュー中",
   "Ready": "着手可",

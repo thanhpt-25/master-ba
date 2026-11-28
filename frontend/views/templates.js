@@ -1,25 +1,23 @@
 import { badge, clear, empty, field, h, loadError, pageHeader, spinner, table } from "../dom.js";
 import { t } from "../i18n.js";
 
-const tr = t; // `t` is a mapping table inside mappingTables
-
 const DOC_TYPES = ["BRD", "SRS", "BASIC_DESIGN", "DETAIL_DESIGN", "TEST_IT", "TEST_ST", "TEST_UT"];
 const STATE_BADGE = { confirmed: "approved", draft: "proposed" };
 
 function mappingTables(data, onSet) {
-  const sections = data.mapping.tables.map((t) =>
+  const sections = data.mapping.tables.map((tbl) =>
     h(
       "section",
       { class: "panel" },
-      h("h4", {}, `${t.sheet} · ${tr("header row {n}", { n: t.header_row })}`, t.where && Object.keys(t.where).length ? ` · ${JSON.stringify(t.where)}` : ""),
+      h("h4", {}, `${tbl.sheet} · ${t("header row {n}", { n: tbl.header_row })}`, tbl.where && Object.keys(tbl.where).length ? ` · ${JSON.stringify(tbl.where)}` : ""),
       table(
-        [tr("Column"), tr("Sample header"), tr("Field")],
-        t.columns.map((c) => {
-          const input = h("input", { type: "text", value: c.field ?? "", "aria-label": tr("Field of column {col} on {sheet}", { col: c.col, sheet: t.sheet }), maxlength: "40" });
-          const save = h("button", { onClick: () => onSet(t.sheet, c.col, input.value.trim() || null) }, tr("Set"));
+        [t("Column"), t("Sample header"), t("Field")],
+        tbl.columns.map((c) => {
+          const input = h("input", { type: "text", value: c.field ?? "", "aria-label": t("Field of column {col} on {sheet}", { col: c.col, sheet: tbl.sheet }), maxlength: "40" });
+          const save = h("button", { onClick: () => onSet(tbl.sheet, c.col, input.value.trim() || null) }, t("Set"));
           return [h("code", {}, c.col), c.header, h("span", { class: "row" }, input, save)];
         }),
-        tr("Columns of {sheet}", { sheet: t.sheet }),
+        t("Columns of {sheet}", { sheet: tbl.sheet }),
         { dense: true, stickyFirst: true },
       ),
     ),
@@ -47,7 +45,7 @@ export async function render({ main, api, toast }) {
       rows.length
         ? table(
             [t("Company"), t("Type"), t("State"), ""],
-            rows.map((r) => [r.company, r.doc_type, badge(STATE_BADGE[r.state] ?? r.state), h("button", { class: "link", onClick: () => open(r.company, r.doc_type) }, t("Open"))]),
+            rows.map((r) => [r.company, r.doc_type, badge(STATE_BADGE[r.state] ?? r.state), h("button", { class: "link", onClick: () => open(r.company, r.doc_type), "aria-label": t("Open template {company} {type}", { company: r.company, type: r.doc_type }) }, t("View"))]),
             t("Company templates"),
             { dense: true, stickyFirst: true },
           )
@@ -101,14 +99,14 @@ export async function render({ main, api, toast }) {
     );
   };
 
-  const open = async (c, t) => {
+  const open = async (c, type) => {
     clear(detail).append(spinner(t("Opening template…")));
     try {
-      const data = await api.get(`/templates/${c}/${t}`);
+      const data = await api.get(`/templates/${c}/${type}`);
       clear(detail);
       show(data);
     } catch (error) {
-      clear(detail).append(loadError(error, () => open(c, t)));
+      clear(detail).append(loadError(error, () => open(c, type)));
     }
   };
 
