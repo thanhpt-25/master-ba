@@ -5,15 +5,16 @@ import subprocess
 from typing import Annotated, Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
 
-from masterba.api.deps import checked, project_store, require_role
+from masterba.api.deps import checked, project_store, require_role, state_of
 from masterba.change import rows
 from masterba.change.diffview import diff_versions
 from masterba.diff import Classification
 from masterba.models import payload_items
 from masterba.models.enums import QuestionOrigin, QuestionStatus
+from masterba.rendering import RenderError, render_bytes
 from masterba.rendering.history import build_context
 from masterba.rendering.preview import preview_sheets
 from masterba.rendering.registers import Register, register_bytes, register_filename
@@ -28,6 +29,8 @@ from masterba.trace_store import (
     list_intakes,
     list_questions,
 )
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 router = APIRouter(prefix="/api/projects/{pid}")
 Store = Annotated[ProjectStore, Depends(project_store)]
@@ -107,21 +110,28 @@ def preview_document(store: Store, doc_id: str, version: int | None = None) -> d
 
 
 @router.get("/documents/{doc_id}/xlsx", dependencies=[Viewer])
-def download_xlsx(store: Store, doc_id: str, version: int | None = None) -> FileResponse:
+def download_xlsx(
+    request: Request, store: Store, doc_id: str, version: int | None = None
+) -> Response:
+    """The workbook as it renders now (current trace links, approvals, layout; spec 28 section 4).
+
+    Nothing is written; the committed file of the version is served only if rendering fails.
+    """
     checked("doc", doc_id)
     chosen = _version(store, doc_id, version)
     doc, _ = get_document(store, doc_id, chosen)
     path = store.path / "xlsx" / doc.type.value.lower() / f"{doc_id}.v{chosen}.xlsx"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="this version was never rendered")
-    return FileResponse(
-        path,
-        filename=path.name,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    try:
+        data = render_bytes(store, doc_id, state_of(request).settings.templates, chosen)
+    except RenderError:
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="this version was never rendered") from None
+        data = path.read_bytes()
+    return Response(
+        data,
+        media_type=XLSX,
+        headers={"Content-Disposition": f'attachment; filename="{path.name}"'},
     )
-
-
-XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 @router.get("/registers/{register}.xlsx", dependencies=[Viewer])

@@ -84,7 +84,7 @@ def test_the_document_info_block_is_filled(root: Path, tmp_path: Path) -> None:
     ws = load_workbook(calibration.preview(root, COMPANY, DocType.BRD).path)["要件一覧"]
 
     assert ws["B2"].value == "DOC-BRD-0001"
-    assert ws["B3"].value == 1
+    assert ws["B3"].value == "1.0"  # 版数 as n.0 (spec 28)
 
 
 def test_sample_data_rows_are_not_left_in_the_shell(root: Path, tmp_path: Path) -> None:

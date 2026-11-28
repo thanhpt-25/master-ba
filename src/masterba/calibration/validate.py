@@ -3,21 +3,29 @@
 from openpyxl.utils import column_index_from_string
 
 from masterba.calibration.heuristic import fields_for
-from masterba.calibration.models import MappingDraft, SheetProfile, TableMap, WorkbookProfile
+from masterba.calibration.models import (
+    ListMap,
+    MappingDraft,
+    SheetProfile,
+    TableMap,
+    WorkbookProfile,
+)
 from masterba.models.enums import DocType
-from masterba.rendering.bindings import HEADER_SOURCES
+from masterba.rendering.bindings import HEADER_SOURCES, LIST_FIELDS
 
-KNOWN_VALUE_MAPS = {"scope"}
+KNOWN_VALUE_MAPS = {"scope", "level"}
 
 
 def _sheet(profile: WorkbookProfile, name: str) -> SheetProfile | None:
     return next((s for s in profile.sheets if s.name == name), None)
 
 
-def _validate_table(table: TableMap, profile: WorkbookProfile, fields: set[str]) -> list[str]:
+def _validate_table(
+    table: TableMap | ListMap, profile: WorkbookProfile, fields: set[str]
+) -> list[str]:
     errors: list[str] = []
     sheet = _sheet(profile, table.sheet)
-    where = f"table on '{table.sheet}'"
+    where = f"{'table' if isinstance(table, TableMap) else 'list'} on '{table.sheet}'"
     if sheet is None:
         return [f"{where}: the sample has no such sheet"]
     if table.first_row <= table.header_row:
@@ -38,7 +46,7 @@ def _validate_table(table: TableMap, profile: WorkbookProfile, fields: set[str])
             errors.append(f"{where}: {column.field} is not a field of this document type")
         if column.value_map and column.value_map not in KNOWN_VALUE_MAPS:
             errors.append(f"{where}: unknown value map {column.value_map}")
-    for key in table.where:
+    for key in getattr(table, "where", {}):
         if key not in fields | {"status"}:
             errors.append(f"{where}: filter field {key} is not a field of this document type")
     return errors
@@ -62,6 +70,13 @@ def validate_mapping(draft: MappingDraft, profile: WorkbookProfile, doc_type: Do
         errors.extend(_validate_table(table, profile, fields))
         if not any(c.field for c in table.columns):
             errors.append(f"table on '{table.sheet}' maps no column to a field")
+    for listed in draft.lists:
+        errors.extend(_validate_table(listed, profile, set(LIST_FIELDS[listed.source])))
+        if listed.sheet in sheets_used:
+            errors.append(f"sheet '{listed.sheet}' cannot hold both a table and a list")
+    list_keys = [t.key for t in draft.lists]
+    if len(list_keys) != len(set(list_keys)) or set(list_keys) & set(keys):
+        errors.append("list keys must be unique and differ from table keys")
     for cell in draft.headers:
         if _sheet(profile, cell.sheet) is None:
             errors.append(f"header cell {cell.cell}: the sample has no sheet '{cell.sheet}'")

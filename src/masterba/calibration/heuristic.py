@@ -43,11 +43,11 @@ DOC_INFO: dict[str, str] = {
     "文書番号": "$document.id",
     "ドキュメントid": "$document.id",
     "ドキュメント番号": "$document.id",
-    "版": "$document.version",
-    "版数": "$document.version",
-    "バージョン": "$document.version",
-    "ver": "$document.version",
-    "version": "$document.version",
+    "版": "$document.version_label",
+    "版数": "$document.version_label",
+    "バージョン": "$document.version_label",
+    "ver": "$document.version_label",
+    "version": "$document.version_label",
     "プロジェクト": "$project.id",
     "プロジェクトid": "$project.id",
     "案件": "$project.id",
@@ -55,8 +55,55 @@ DOC_INFO: dict[str, str] = {
     "状態": "$document.status",
     "ステータス": "$document.status",
     "status": "$document.status",
+    # spec 28 section 3: every field a cover or an info block usually shows
+    "文書名": "$document.title",
+    "ドキュメント名": "$document.title",
+    "システム名": "$project.name",
+    "顧客名": "$project.company",
+    "顧客": "$project.company",
+    "会社名": "$project.company",
+    "作成日": "$document.created_on",
+    "更新日": "$document.updated_on",
+    "最終更新日": "$document.updated_on",
+    "作成者": "$document.author",
+    "担当者": "$document.author",
+    "承認者": "$document.approver",
+    "承認日": "$document.approved_on",
+    "機密区分": "$document.classification",
+    "発行元": "$document.publisher",
 }
-VALUE_MAP_FIELDS = {"scope": "scope"}
+# Revision-history columns (spec 28 section 3): label -> `Revision` field.
+REVISION_LABELS: dict[str, str] = {
+    "版数": "version_label",
+    "版": "version_label",
+    "改版番号": "version_label",
+    "改訂番号": "version_label",
+    "バージョン": "version_label",
+    "改版日": "date",
+    "改訂日": "date",
+    "日付": "date",
+    "変更日": "date",
+    "改版内容": "summary",
+    "改訂内容": "summary",
+    "変更内容": "summary",
+    "内容": "summary",
+    "改版理由": "reason",
+    "改訂理由": "reason",
+    "変更理由": "reason",
+    "理由": "reason",
+    "改版者": "author",
+    "改訂者": "author",
+    "作成者": "author",
+    "変更者": "author",
+    "承認者": "approver",
+    "承認日": "approved_on",
+    "改版箇所": "changed_sheets",
+    "改訂箇所": "changed_sheets",
+    "変更箇所": "changed_sheets",
+}
+REVISION_KEY_FIELD = "version_label"
+MIN_REVISION_COLUMNS = 3
+VALUE_MAP_FIELDS = {"scope": "scope", "level": "level"}
 _STRIP = re.compile(r"[\s\.\:：・、。,;/\\()（）\[\]【】「」\-_*#]+")
 
 
@@ -93,6 +140,14 @@ def is_numbering(text: str) -> bool:
 
 def doc_info_source(text: str) -> str | None:
     return DOC_INFO.get(normalise(text))
+
+
+_NORMAL_REVISION = {normalise(label): field for label, field in REVISION_LABELS.items()}
+
+
+def revision_field(text: str) -> str | None:
+    """The `Revision` field a revision-history column header names (exact label only)."""
+    return _NORMAL_REVISION.get(normalise(text))
 
 
 def fields_for(doc_type: DocType) -> set[str]:

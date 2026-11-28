@@ -19,6 +19,8 @@ A downloaded workbook prints like a finished SIer deliverable whatever template 
 - `showGridLines = False` (the sheet prints and shows on white).
 - Page setup, only where the template set none (`orientation` empty): A4, landscape, one page wide (`fitToWidth = 1`, `fitToHeight = 0`, `fitToPage`), centred horizontally, footer with file name and `ページ &P / &N`. A template that set its own page setup keeps it.
 
+In the default shells a table sheet wider than 250 character widths (the test specifications' テスト項目表) prints on A3 instead, since one A4 page wide would be too small to read. A label cell left of a header cell shrinks to fit when its column is narrower than the label, and a date column of a table or list is at least 11 wide, so dates print on one line.
+
 It is deterministic, so re-rendering unchanged content stays a no-op in git.
 
 ## 2. Borders the template did not draw (`engine.py`)

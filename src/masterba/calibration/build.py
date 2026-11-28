@@ -8,7 +8,7 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
-from masterba.calibration.models import MappingDraft
+from masterba.calibration.models import ListMap, MappingDraft, TableMap
 from masterba.models import TemplateDefinition
 from masterba.models.enums import TemplateSource
 from masterba.rendering.bindings import (
@@ -16,13 +16,22 @@ from masterba.rendering.bindings import (
     Bindings,
     ColumnBinding,
     HeaderBinding,
+    ListBinding,
     NumberingBinding,
     TableBinding,
 )
+from masterba.rendering.catalog import VALUE_MAPS
 from masterba.rendering.engine import CREATOR, FIXED_TIME
+from masterba.rendering.finish import finish_workbook
 from masterba.rendering.xlsxio import workbook_bytes
 
-DEFAULT_VALUE_MAPS: dict[str, dict[str, str]] = {"scope": {"in": "対象", "out": "対象外"}}
+DEFAULT_VALUE_MAPS: dict[str, dict[str, str]] = {
+    "scope": VALUE_MAPS["scope"],
+    "level": VALUE_MAPS["level"],
+    "doc_status": VALUE_MAPS["doc_status"],
+}
+# Header sources printed through a value map, as the default layout prints them (spec 28).
+HEADER_VALUE_MAPS = {"$document.status": "doc_status"}
 
 
 @dataclass(frozen=True)
@@ -34,6 +43,7 @@ class BuiltTemplate:
 def _sheet_keys(draft: MappingDraft) -> dict[str, str]:
     """Logical key per sheet name: the table key for table sheets, `s<n>` for header-only sheets."""
     keys = {t.sheet: t.key for t in draft.tables}
+    keys.update({t.sheet: t.key for t in draft.lists})
     for cell in draft.headers:
         keys.setdefault(cell.sheet, f"s{len(keys) + 1}")
     return keys
@@ -54,12 +64,32 @@ def build_definition(draft: MappingDraft, company_id: str) -> TemplateDefinition
         )
         for table in draft.tables
     ]
+    lists = [
+        ListBinding(
+            sheet=listed.key,
+            start_row=listed.first_row,
+            source=listed.source,
+            numbering=NumberingBinding(column=listed.numbering) if listed.numbering else None,
+            columns=[ColumnBinding(col=c.col, field=c.field) for c in listed.columns],
+        )
+        for listed in draft.lists
+    ]
     used_maps = {c.value_map for t in draft.tables for c in t.columns if c.value_map}
+    used_maps |= {
+        HEADER_VALUE_MAPS[h.source] for h in draft.headers if h.source in HEADER_VALUE_MAPS
+    }
     bindings = Bindings(
         header=[
-            HeaderBinding(sheet=keys[h.sheet], cell=h.cell, source=h.source) for h in draft.headers
+            HeaderBinding(
+                sheet=keys[h.sheet],
+                cell=h.cell,
+                source=h.source,
+                value_map=HEADER_VALUE_MAPS.get(h.source),
+            )
+            for h in draft.headers
         ],
         tables=tables,
+        lists=lists,
         value_maps={name: DEFAULT_VALUE_MAPS[name] for name in sorted(used_maps)},
     )
     return TemplateDefinition(
@@ -82,7 +112,8 @@ def _clear(ws: Worksheet, first_row: int, columns: list[str]) -> None:
 def build_shell(draft: MappingDraft, sample: Path) -> bytes:
     """The sample without its data values, macros, images, charts and external links."""
     wb: Any = load_workbook(sample, data_only=False, keep_vba=False)
-    for table in draft.tables:
+    blocks: list[TableMap | ListMap] = [*draft.tables, *draft.lists]
+    for table in blocks:
         letters = [c.col for c in table.columns] + ([table.numbering] if table.numbering else [])
         _clear(wb[table.sheet], table.first_row, letters)
     for cell in draft.headers:
@@ -95,7 +126,7 @@ def build_shell(draft: MappingDraft, sample: Path) -> bytes:
     wb.properties.lastModifiedBy = CREATOR
     wb.properties.created = FIXED_TIME
     wb.properties.modified = FIXED_TIME
-    return workbook_bytes(wb)
+    return workbook_bytes(finish_workbook(wb))
 
 
 def build_template(draft: MappingDraft, sample: Path, company_id: str) -> BuiltTemplate:

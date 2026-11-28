@@ -10,6 +10,16 @@ from masterba.trace_store import ProjectStore, get_config, get_document
 from masterba.trace_store.git import commit_paths
 
 
+def render_bytes(
+    store: ProjectStore, doc_id: str, templates_root: Path, version: int | None = None
+) -> bytes:
+    """The workbook of a stored version as it renders now, written nowhere (spec 28 section 4)."""
+    doc, content = get_document(store, doc_id, version)
+    template = resolve_template(templates_root, get_config(store).company_id, doc.type)
+    context = build_context(store, doc, content)
+    return workbook_bytes(render_document(doc, content, template, context))
+
+
 def render_to_project(
     store: ProjectStore,
     doc_id: str,

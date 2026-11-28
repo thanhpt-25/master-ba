@@ -2,26 +2,120 @@
   "cell_bindings": {
     "header": [
       {
+        "cell": "C8",
+        "sheet": "s3",
+        "source": "$project.id",
+        "value_map": null
+      },
+      {
+        "cell": "C10",
+        "sheet": "s3",
+        "source": "$document.id",
+        "value_map": null
+      },
+      {
+        "cell": "C12",
+        "sheet": "s3",
+        "source": "$document.version_label",
+        "value_map": null
+      },
+      {
+        "cell": "C14",
+        "sheet": "s3",
+        "source": "$document.created_on",
+        "value_map": null
+      },
+      {
+        "cell": "C16",
+        "sheet": "s3",
+        "source": "$document.author",
+        "value_map": null
+      },
+      {
+        "cell": "C18",
+        "sheet": "s3",
+        "source": "$document.approver",
+        "value_map": null
+      },
+      {
         "cell": "B2",
         "sheet": "t1",
-        "source": "$document.id"
+        "source": "$document.id",
+        "value_map": null
       },
       {
         "cell": "B3",
         "sheet": "t1",
-        "source": "$document.version"
+        "source": "$document.version_label",
+        "value_map": null
       },
       {
         "cell": "B4",
         "sheet": "t1",
-        "source": "$project.id"
+        "source": "$project.id",
+        "value_map": null
       },
       {
         "cell": "B5",
         "sheet": "t1",
-        "source": "$document.status"
+        "source": "$document.status",
+        "value_map": "doc_status"
+      },
+      {
+        "cell": "B6",
+        "sheet": "t1",
+        "source": "$document.created_on",
+        "value_map": null
+      },
+      {
+        "cell": "B7",
+        "sheet": "t1",
+        "source": "$document.author",
+        "value_map": null
+      },
+      {
+        "cell": "B8",
+        "sheet": "t1",
+        "source": "$document.approver",
+        "value_map": null
       }
     ],
+    "lists": [
+      {
+        "columns": [
+          {
+            "col": "A",
+            "field": "version_label",
+            "value_map": null
+          },
+          {
+            "col": "B",
+            "field": "date",
+            "value_map": null
+          },
+          {
+            "col": "C",
+            "field": "summary",
+            "value_map": null
+          },
+          {
+            "col": "D",
+            "field": "author",
+            "value_map": null
+          },
+          {
+            "col": "E",
+            "field": "approver",
+            "value_map": null
+          }
+        ],
+        "numbering": null,
+        "sheet": "r1",
+        "source": "$revisions",
+        "start_row": 4
+      }
+    ],
+    "sections": [],
     "tables": [
       {
         "columns": [
@@ -67,11 +161,20 @@
         }
       }
     ],
-    "value_maps": {}
+    "value_maps": {
+      "doc_status": {
+        "approved": "承認済",
+        "draft": "作成中",
+        "in_review": "レビュー中",
+        "superseded": "旧版"
+      }
+    }
   },
   "company_id": "sample-sier",
   "doc_type": "BASIC_DESIGN",
   "sheet_map": {
+    "r1": "改版履歴",
+    "s3": "表紙",
     "t1": "基本設計一覧"
   },
   "source": "calibrated_from_sample",

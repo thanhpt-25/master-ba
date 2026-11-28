@@ -127,3 +127,21 @@ def test_the_registers_download_as_workbooks(seeded_client: ClientFor) -> None:
         assert "filename*=UTF-8''PRJ-001_" in disposition
         assert load_workbook(BytesIO(reply.content)).sheetnames[0] == sheet
     assert viewer.get(f"{P}/registers/secrets.xlsx").status_code == 422
+
+
+def test_a_download_renders_the_current_state_and_writes_nothing(
+    seeded_client: ClientFor, seeded_root: object
+) -> None:
+    """Spec 28 section 4: later trace links show up, every sheet is print-ready."""
+    viewer = seeded_client("viewer")
+    before = _head(str(seeded_root))
+    reply = viewer.get(f"{P}/documents/DOC-BRD-0001/xlsx")
+    assert reply.status_code == 200
+    assert reply.headers["content-disposition"] == 'attachment; filename="DOC-BRD-0001.v1.xlsx"'
+    assert _head(str(seeded_root)) == before
+    wb = load_workbook(BytesIO(reply.content))
+    assert all(ws.sheet_view.showGridLines is False for ws in wb.worksheets)
+    trace = wb["トレーサビリティ"]
+    downstream = [trace.cell(row=r, column=5).value for r in range(8, trace.max_row + 1)]
+    assert any(isinstance(v, str) and "DOC-SRS-0001" in v for v in downstream)
+    assert viewer.get(f"{P}/registers/changes.xlsx").status_code == 200

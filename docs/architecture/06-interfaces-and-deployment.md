@@ -296,6 +296,14 @@ flowchart LR
   `masterba export changes|questions --project P [--out f.xlsx]` and
   `GET /api/projects/{pid}/registers/{changes|questions}.xlsx` (ASCII `filename` plus UTF-8
   `filename*`), linked from the 変更管理 and Questions page headers.
+- **Print-ready output (spec 28).** `rendering/finish.py` `finish_workbook` runs on every
+  workbook written (documents, registers, default and calibrated shells): gridlines off, and A4
+  landscape one page wide with a file-name and page footer where the template set no page setup
+  (wide default test sheets print on A3). The engine draws borders the template left out: every
+  written table or list row gets a thin grid when the template's first data row has none, and a
+  bare label/value header pair is framed. `GET .../documents/{id}/xlsx` renders the stored version
+  on request (`render_bytes`, nothing written or committed), so trace links and approvals added
+  after the stage ran are current; the committed file is only a fallback.
 - **Bindings are parsed into typed models when a template is loaded,** so a malformed template fails
   at load, not halfway through a render. Templates also carry a `max_cell_length` validation rule at
   Excel's cell limit.

@@ -83,7 +83,11 @@ def suggest_mapping(
         errors = validate_mapping(result.value, profile, doc_type)
         if not errors:
             kept = [*result.value.warnings, *heuristic.warnings]
-            draft = result.value.model_copy(update={"warnings": list(dict.fromkeys(kept))})
+            # The model maps item tables; the revision history stays the heuristic's (spec 28).
+            lists = result.value.lists or heuristic.lists
+            draft = result.value.model_copy(
+                update={"warnings": list(dict.fromkeys(kept)), "lists": lists}
+            )
             return Suggestion(draft, True)
     return Suggestion(
         heuristic, False, "the model's mapping was rejected twice: " + "; ".join(errors)

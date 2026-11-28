@@ -146,6 +146,10 @@ tests/calibration/  (samples built in code)
 4. API upload is `multipart` with `?replace=true`; the sample is copied to a temporary folder and parsed from there; the model refinement is CLI only.
 5. A requirement label such as `要求ID` was added to the synonym table after the SRS sample showed it matched `statement` instead.
 
+## 10.2 Amendment (spec 28)
+
+Calibration also maps cover and info labels on sheets without a table, more document-info labels, and a revision-history list bound to `$revisions` (`MappingDraft.lists`); see [28-print-ready-workbooks.md](28-print-ready-workbooks.md) section 3.
+
 ## 11. Open points (do not block implementation)
 
 1. **Renderer features.** Merged data cells, several tables per sheet and multi-row headers are the usual reasons a real sample will only be approximated; each needs a renderer extension (spec 02) decided on evidence from real samples.

@@ -54,7 +54,79 @@
       "where": {}
     }
   ],
+  "lists": [
+    {
+      "sheet": "改版履歴",
+      "key": "r1",
+      "source": "$revisions",
+      "header_row": 3,
+      "first_row": 4,
+      "numbering": null,
+      "columns": [
+        {
+          "col": "A",
+          "header": "版数",
+          "field": "version_label",
+          "value_map": null
+        },
+        {
+          "col": "B",
+          "header": "改版日",
+          "field": "date",
+          "value_map": null
+        },
+        {
+          "col": "C",
+          "header": "改版内容",
+          "field": "summary",
+          "value_map": null
+        },
+        {
+          "col": "D",
+          "header": "改版者",
+          "field": "author",
+          "value_map": null
+        },
+        {
+          "col": "E",
+          "header": "承認者",
+          "field": "approver",
+          "value_map": null
+        }
+      ]
+    }
+  ],
   "headers": [
+    {
+      "sheet": "表紙",
+      "cell": "C8",
+      "source": "$project.id"
+    },
+    {
+      "sheet": "表紙",
+      "cell": "C10",
+      "source": "$document.id"
+    },
+    {
+      "sheet": "表紙",
+      "cell": "C12",
+      "source": "$document.version_label"
+    },
+    {
+      "sheet": "表紙",
+      "cell": "C14",
+      "source": "$document.created_on"
+    },
+    {
+      "sheet": "表紙",
+      "cell": "C16",
+      "source": "$document.author"
+    },
+    {
+      "sheet": "表紙",
+      "cell": "C18",
+      "source": "$document.approver"
+    },
     {
       "sheet": "システム要件一覧",
       "cell": "B2",
@@ -63,7 +135,7 @@
     {
       "sheet": "システム要件一覧",
       "cell": "B3",
-      "source": "$document.version"
+      "source": "$document.version_label"
     },
     {
       "sheet": "システム要件一覧",
@@ -74,6 +146,21 @@
       "sheet": "システム要件一覧",
       "cell": "B5",
       "source": "$document.status"
+    },
+    {
+      "sheet": "システム要件一覧",
+      "cell": "B6",
+      "source": "$document.created_on"
+    },
+    {
+      "sheet": "システム要件一覧",
+      "cell": "B7",
+      "source": "$document.author"
+    },
+    {
+      "sheet": "システム要件一覧",
+      "cell": "B8",
+      "source": "$document.approver"
     }
   ],
   "unmapped": [
