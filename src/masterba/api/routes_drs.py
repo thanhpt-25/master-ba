@@ -1,5 +1,6 @@
 """Decision Records: list, create, approve, reject, propagate, close, diff (spec 08 section 3)."""
 
+import subprocess
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -155,3 +156,33 @@ def diff(store: Store, dr_id: str, structural_only: bool = False) -> dict[str, A
             for d in dr_diff(store, dr_id, structural_only)
         ]
     }
+
+
+@router.get("/{dr_id}/history", dependencies=[Viewer])
+def history(store: Store, dr_id: str) -> list[dict[str, str]]:
+    """The commits that touched the record and its derived files, oldest first (spec 26 s. 7)."""
+    checked("dr", dr_id)
+    get_decision_record(store, dr_id)
+    folder = f"{store.project_id}/decision-records"
+    done = subprocess.run(
+        [
+            "git",
+            "log",
+            "--reverse",
+            "--format=%H%x1f%an%x1f%aI%x1f%s",
+            "--",
+            f"{folder}/{dr_id}.json",
+            f"{folder}/{dr_id}.*.json",
+        ],  # fmt: skip
+        cwd=store.root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if done.returncode != 0:
+        raise HTTPException(status_code=500, detail="the record history is unavailable")
+    entries = []
+    for line in done.stdout.splitlines():
+        sha, author, when, subject = line.split("\x1f", 3)
+        entries.append({"commit": sha[:10], "author": author, "time": when, "subject": subject})
+    return entries
