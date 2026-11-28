@@ -67,3 +67,17 @@ test("a propagated record prints the impact, the result per document and what ch
   const plain = drSheets(dr("DR-0004", "propagated"), { impact, propagation });
   assert.deepEqual(plain[2].rows, [["DOC-SRS-0001", "Revised", "v2", "", "", "", ""]]);
 });
+
+test("反映結果 lists the documents in V order, not in the order the stored keys sort", () => {
+  // The store writes JSON with sorted keys, so DOC-BASIC_DESIGN comes back before DOC-BRD.
+  const propagation = { documents: {
+    "DOC-BASIC_DESIGN-0001": { outcome: "unchanged", version: null, run_id: "RUN-0007" },
+    "DOC-BRD-0001": { outcome: "revised", version: 2, run_id: "RUN-0005" },
+    "DOC-SRS-0001": { outcome: "unchanged", version: null, run_id: "RUN-0006" },
+  } };
+  const record = dr("DR-0005", "propagated", { affected_documents: ["DOC-BRD-0001", "DOC-SRS-0001", "DOC-BASIC_DESIGN-0001"] });
+  assert.deepEqual(drSheets(record, { propagation })[2].rows.map((r) => r[0]), ["DOC-BRD-0001", "DOC-SRS-0001", "DOC-BASIC_DESIGN-0001"]);
+  // The impact analysis stored at approval wins over the record's own list.
+  const impact = { documents: ["DOC-BRD-0001", "DOC-BASIC_DESIGN-0001", "DOC-SRS-0001"], entries: [] };
+  assert.deepEqual(drSheets(record, { impact, propagation })[2].rows.map((r) => r[0]), ["DOC-BRD-0001", "DOC-BASIC_DESIGN-0001", "DOC-SRS-0001"]);
+});

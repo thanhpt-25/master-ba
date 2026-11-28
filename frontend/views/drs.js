@@ -87,7 +87,11 @@ export function drSheets(dr, { impact = null, propagation = null, diff = null, h
     result = { key: "result", kind: "note", name: "反映結果", note: t("Not propagated yet. Approve the record, then propagate it.") };
   } else {
     const changed = new Map((diff?.documents ?? []).map((d) => [d.doc_id, d]));
-    const rows = Object.entries(propagation.documents).flatMap(([doc, v]) => {
+    // The store sorts JSON keys; print the documents in V order (the impact analysis order).
+    const order = impact?.documents ?? dr.affected_documents ?? [];
+    const rank = (doc) => (order.includes(doc) ? order.indexOf(doc) : order.length);
+    const entries = Object.entries(propagation.documents).sort(([a], [b]) => rank(a) - rank(b));
+    const rows = entries.flatMap(([doc, v]) => {
       const outcome = t(OUTCOMES[v.outcome] ?? v.outcome);
       const version = v.version ? `v${v.version}` : t("unchanged");
       const d = changed.get(doc);
