@@ -43,6 +43,14 @@ _OPEN = {TaskStatus.TODO, TaskStatus.IN_PROGRESS}
 CHECKPOINT = "checkpoint.json"
 OBJECTION_CAP = 10  # objections recorded as questions per escalated run (spec 13 section 3)
 _RUN_GITIGNORE = f"transcripts/\n{CHECKPOINT}\n"
+# The text `_objections` writes; `objection_key` reads it back (spec 13 section 6.1).
+_OBJECTION = re.compile(r"^QA \(([^)]+)\), (RUN-\d{4}), (?:(\S+) of the draft|the draft): ")
+
+
+def objection_key(text: str) -> tuple[str, str, str | None] | None:
+    """(run id, checklist id, ref) of a QA objection question, None for any other text."""
+    found = _OBJECTION.match(text)
+    return (found[2], found[1], found[3]) if found else None
 
 
 class SingleWriterError(Exception):
@@ -98,6 +106,8 @@ class Team:
     question_sources: dict[str, list[QuestionDraft]] = field(default_factory=dict)
     facts: Callable[[], str] = lambda: ""  # the confirmed block for model calls (spec 13 section 5)
     objections: dict[str, list[QaIssue]] = field(default_factory=dict)
+    # (checklist id, ref) -> the question whose answer accepted the draft as it is
+    waived: dict[tuple[str, str | None], str] = field(default_factory=dict)
     # Chunk_Refs shown to each writer role in this run; shared with the KnowledgeSession
     kb_seen_refs: dict[str, set[str]] = field(default_factory=dict)
     # Spec 30: one value-to-token table per run, for model requests and transcripts.
@@ -280,7 +290,8 @@ class Team:
         """Only the first review of an artifact may raise new blocking issues (spec 11 1.5).
 
         Later reviews keep an issue blocking only when the same (checklist id, ref) was blocking
-        before; every other blocking issue becomes advisory, with a note for the mailbox.
+        before; every other blocking issue becomes advisory, with a note for the mailbox. An
+        objection the customer waived never blocks again in this run (spec 13 section 6.1).
         """
         first = artifact not in self.blocking_seen
         seen = self.blocking_seen.setdefault(artifact, set())
@@ -288,6 +299,13 @@ class Team:
         notes: list[str] = []
         for issue in issues:
             key = (issue.checklist_id, issue.ref)
+            if issue.severity == "blocking" and key in self.waived:
+                settled.append(issue.model_copy(update={"severity": "advisory"}))
+                where = issue.ref or "document"
+                notes.append(
+                    f"[{issue.checklist_id}] {where}: waived by the customer ({self.waived[key]})"
+                )
+                continue
             if issue.severity == "blocking" and not first and key not in seen:
                 settled.append(issue.model_copy(update={"severity": "advisory"}))
                 where = issue.ref or "document"

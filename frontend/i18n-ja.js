@@ -243,6 +243,8 @@ export const JA = {
   "Resume one round": "1 ラウンド再開",
   "No draft passed the checks, so it cannot be resumed. Read the escalation in Activity, answer any customer questions, then run the phase again.": "チェックを通過したドラフトがないため再開できません。実行履歴でエスカレーション理由を確認し、顧客への質問に回答してから、このフェーズを再実行してください。",
   "Run again": "再実行",
+  "Accept the draft as it is: QA may not block on this point again when the run resumes": "ドラフトをこのまま承認する（実行再開後、QAはこの点で再びブロックしない）",
+  "Draft accepted: QA no longer blocks on this point.": "ドラフト承認済み：QAはこの点でブロックしません。",
   "Read the document, then approve it or reject it with comments. The next phase starts after approval.": "成果物を確認し、承認するか、コメントを付けて差し戻してください。承認後に次の工程へ進めます。",
   "Open the document": "成果物を開く",
   "{phase} waits for the phase before it": "{phase}は前工程の完了待ちです",
