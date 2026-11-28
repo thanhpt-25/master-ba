@@ -93,11 +93,15 @@ def test_the_patch_view_names_real_item_ids_and_counts_unchanged_items() -> None
     )
     result = apply_patch(CONTENT, operations, ctx, {})
     lines = patch_view(result, CONTENT).splitlines()
-    assert lines[0].startswith(f"{SRS}#item.2 UPDATE (DR-0001): statement: ")
-    assert lines[0].endswith('-> "New."')
-    assert lines[1] == f"{SRS}#item.4 REMOVE (obsolete)"
-    assert lines[2].startswith(f"{SRS}#item.5 ADD (new): ")
-    assert lines[3] == "Unchanged items: 2"
+    assert "only for comparison" in lines[0]
+    assert lines[1].startswith(f"{SRS}#item.2 UPDATE (DR-0001): statement: ")
+    # The old value is labelled, so QA does not read it as text still in the item.
+    assert "[before, no longer in the document] " in lines[1]
+    assert lines[1].endswith('[after, now in the document] "New."')
+    assert " -> " not in lines[1]
+    assert lines[2] == f"{SRS}#item.4 REMOVE (obsolete)"
+    assert lines[3].startswith(f"{SRS}#item.5 ADD (new): ")
+    assert lines[4] == "Unchanged items: 2"
 
 
 def test_the_first_call_carries_the_dr_the_focus_and_the_document() -> None:

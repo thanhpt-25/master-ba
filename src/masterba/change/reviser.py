@@ -53,6 +53,14 @@ def item_fields_view(doc_type: DocType) -> str:
     )
 
 
+BEFORE = "[before, no longer in the document]"
+AFTER = "[after, now in the document]"
+VIEW_NOTE = (
+    "A changed field shows its before value only for comparison: the document now holds "
+    "the after value alone."
+)
+
+
 def _changed_line(change: ChangedItem) -> str:
     if change.op == "add" and change.after is not None:
         body = json.dumps(change.after.model_dump(mode="json"), ensure_ascii=False)
@@ -62,7 +70,8 @@ def _changed_line(change: ChangedItem) -> str:
     assert change.before is not None and change.after is not None
     old, new = change.before.model_dump(mode="json"), change.after.model_dump(mode="json")
     fields = [
-        f"{k}: {json.dumps(old[k], ensure_ascii=False)} -> {json.dumps(new[k], ensure_ascii=False)}"
+        f"{k}: {BEFORE} {json.dumps(old[k], ensure_ascii=False)} "
+        f"{AFTER} {json.dumps(new[k], ensure_ascii=False)}"
         for k in new
         if new[k] != old[k]
     ]
@@ -73,7 +82,7 @@ def patch_view(result: PatchResult, content: Payload) -> str:
     """What the reviewer reads: every change with its real item id, then the unchanged count."""
     touched = {c.item_id for c in result.changes}
     untouched = sum(1 for i in payload_items(content) if i.item_id not in touched)
-    lines = [_changed_line(c) for c in result.changes]
+    lines = [VIEW_NOTE, *(_changed_line(c) for c in result.changes)]
     lines.append(f"Unchanged items: {untouched}")
     return "\n".join(lines)
 
