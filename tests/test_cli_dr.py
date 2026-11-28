@@ -193,3 +193,53 @@ def test_approve_propagates_at_once_in_auto_mode(
     )  # fmt: skip
     assert out["dr"]["status"] == "approved"
     assert out["propagation"]["status"] == "propagated"
+
+
+def approve(root: Path, capsys: pytest.CaptureFixture[str], dr_id: str) -> None:
+    run_json(
+        root, capsys, "dr", "approve", dr_id, "--project", "PRJ-001",
+        "--approver", "Ms. Sato", "--decision", "Go ahead",
+    )  # fmt: skip
+
+
+def test_propagate_several_drs_at_once(root: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    first, second = propose(root, capsys), propose(root, capsys)
+    approve(root, capsys, first)
+    approve(root, capsys, second)
+    out = run_json(
+        root, capsys, "dr", "propagate", second, first, "--project", "PRJ-001",
+        llm=FakeLLM([EMPTY] * 14),
+    )  # fmt: skip
+    assert out["status"] == "done"
+    assert [(r["dr_id"], r["outcome"]) for r in out["results"]] == [
+        (first, "propagated"),
+        (second, "propagated"),
+    ]
+
+
+def test_propagate_all_approved(root: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    capsys.readouterr()
+    assert cli(root, "dr", "propagate", "--all-approved", "--project", "PRJ-001") == 1
+    assert "no approved DR to propagate" in capsys.readouterr().err
+    assert cli(root, "dr", "propagate", "--project", "PRJ-001") == 1
+    assert "--all-approved" in capsys.readouterr().err
+
+    first, second = propose(root, capsys), propose(root, capsys)
+    approve(root, capsys, first)
+    approve(root, capsys, second)
+    bad = RevisionPatch(
+        operations=[PatchOp(op="update", item_id=BRD2, fields={"colour": "red"}, reason="x")],
+        summary="bad",
+    )
+    capsys.readouterr()
+    code = cli(
+        root, "dr", "propagate", "--all-approved", "--project", "PRJ-001",
+        llm=FakeLLM([bad] * 3),
+    )  # fmt: skip
+    assert code == 3
+    out = json.loads(capsys.readouterr().out)
+    assert out["status"] == "escalated"
+    assert [(r["dr_id"], r["outcome"], r["blocked_by"]) for r in out["results"]] == [
+        (first, "escalated", None),
+        (second, "skipped", first),
+    ]

@@ -18,12 +18,14 @@ from masterba.change import (
     LifecycleError,
     PropagationResult,
     approve_dr,
+    approved_dr_ids,
     auto_propagates,
     close_dr,
     dr_diff,
     dr_from_run,
     new_dr,
     propagate_dr,
+    propagate_many,
     reject_dr,
     rows,
 )
@@ -405,7 +407,10 @@ def _add_dr_parsers(commands: Any) -> None:
             signed.add_argument("--model", default=None, help="reviser model when auto")
             signed.add_argument("--qa-model", default=None)
     propagate = with_project(drs.add_parser("propagate", help="revise the affected documents"))
-    propagate.add_argument("dr_id")
+    propagate.add_argument("dr_ids", nargs="*", metavar="dr_id", help="one or more DR-####")
+    propagate.add_argument(
+        "--all-approved", action="store_true", help="every approved DR, oldest first"
+    )
     propagate.add_argument("--model", default=None)
     propagate.add_argument("--qa-model", default=None)
     with_project(drs.add_parser("close")).add_argument("dr_id")
@@ -467,10 +472,32 @@ def _dispatch_dr(
             }
         )
     else:
-        result = _propagate(args, store, root, llm_factory, args.dr_id)
+        return _propagate_command(args, store, root, llm_factory)
+    return 0
+
+
+def _propagate_command(
+    args: argparse.Namespace, store: ProjectStore, root: Path, llm_factory: LLMFactory
+) -> int:
+    """`dr propagate` with one id (spec 07 section 5) or several (section 5.2)."""
+    ids: list[str] = list(args.dr_ids)
+    if args.all_approved:
+        ids = sorted({*ids, *approved_dr_ids(store)})
+    if not ids:
+        raise LifecycleError(
+            "no approved DR to propagate"
+            if args.all_approved
+            else "name a DR to propagate, or pass --all-approved"
+        )
+    if len(ids) == 1 and not args.all_approved:
+        result = _propagate(args, store, root, llm_factory, ids[0])
         _emit(result.to_json())
         return 3 if result.stopped else 0
-    return 0
+    model = args.model or os.environ.get("MASTERBA_MODEL") or DEFAULT_MODEL
+    reviewer = llm_factory(args.qa_model) if args.qa_model else None
+    batch = propagate_many(store, root / "templates", ids, llm_factory(model), qa_llm=reviewer)
+    _emit(batch.to_json())
+    return 3 if batch.stopped else 0
 
 
 def _default_llm(model: str) -> LLM:

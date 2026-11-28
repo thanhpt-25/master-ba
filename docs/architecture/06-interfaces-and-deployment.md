@@ -35,7 +35,7 @@ CLI refuses to run outside a work tree that can commit (only `doctor` runs witho
 | `run srs --project P` | BRD to SRS |
 | `run basic --project P` | SRS to Basic Design with IT and ST tests |
 | `run detail --project P` | Basic Design to Detail Design with UT tests |
-| `dr new / from-run / approve / reject / propagate / close / list / show / diff` | Decision Records ([document 5](05-change-management-flow.md)) |
+| `dr new / from-run / approve / reject / propagate / close / list / show / diff` | Decision Records ([document 5](05-change-management-flow.md)); `dr propagate` takes several ids or `--all-approved` |
 | `template calibrate / show / check / set / preview / confirm / unconfirm / list` | company templates from a sample workbook (6.6) |
 | `template sets / share / clone`, `project set-template / coverage / reissue` | the template library and a project's set (6.7) |
 | `question list / show / answer / withdraw` | the ledger of customer questions ([document 7](07-customer-questions.md)) |
