@@ -122,6 +122,21 @@ The new document versions are what the dashboard and `dr diff` compare with the 
 - A failed or escalated propagation never undoes the approval or the answer: the DR stays `approved` and `dr propagate` resumes from its progress file.
 - Projects without the field, or set to `manual_gate`, behave as before. Admins change the mode with `POST /projects/{pid}/settings/propagation-mode`; `init-project --propagation-mode` sets it at creation.
 
+### 5.2 Propagating several DRs at once (`masterba.change.batch`)
+
+When several DRs are approved, propagating them one by one means one click (or command) per DR and waiting for each job before the next can start (one job per project). `propagate_many(store, templates_root, dr_ids, llm, qa_llm=None, stop=None)` runs `propagate_dr` for several DRs in one call:
+
+- **Order.** The ids are deduplicated and taken in ascending DR id order (the order the decisions were made), whatever order the caller gives, so a later decision is applied on top of an earlier one. Each DR is propagated exactly as in section 5 (same runs, same commits, same progress file); nothing is merged across DRs.
+- **A stopped DR does not stop the batch.** When a DR ends `escalated` or `waiting_for_input`, or raises (a `LifecycleError` such as "not approved", or any other error), it is reported and the batch goes on. A later DR whose `affected_documents` share a document with a DR that stopped or failed in this batch is `skipped` (`blocked_by` names that DR), because revising that document now would build on a revision that did not settle. DRs on other documents still run.
+- **Stop hook.** `stop()` is called before each DR; when it returns a reason (the API passes the user's usage limit, spec 23), that DR and every later one are `skipped` with that reason.
+- **Result.** `BatchResult.entries`, one per DR in run order: `dr_id`, `outcome` (`propagated`, `escalated`, `waiting_for_input`, `failed`, `skipped`), `error` (for `failed` and `skipped`), `blocked_by`, and `propagation` (the section 5 result for DRs that ran). `status` is `done` when every DR is `propagated`, `waiting_for_input` when the only stopped DRs wait for an answer, `escalated` otherwise.
+
+Interfaces:
+
+- **CLI.** `masterba dr propagate DR-0001 DR-0003 ...` or `masterba dr propagate --all-approved` (every `approved` DR that has an impact analysis). With exactly one id the output is unchanged (section 5); otherwise it prints the batch result. Exit code 3 when any DR is not `propagated`.
+- **API.** `POST /api/projects/{pid}/drs/propagate` (approver) with `{"dr_ids": [...]}`; an empty or missing list means every approved DR with an impact analysis. Every id must exist (404) and be `approved` (409 naming the others); none left gives 409. It submits one job of kind `propagate:DR-0001,DR-0003` (202, the job), with the usage-limit check of a single propagation before it starts and as the `stop` hook. The job result is the batch result; the job status is the batch `status`.
+- **Dashboard.** The 変更管理 page header shows 承認済みをまとめて反映 (N) to approvers when N approved DRs exist. It opens a dialog listing them with check boxes (all checked); confirming submits the batch and opens the first selected DR, whose page follows the batch job (a DR page follows any `propagate:` job whose kind lists its id).
+
 ## 6. Showing the difference (`dr diff`, `dr show`)
 
 `dr diff DR` prints, for every revised document, the table `item id | field | old | new | classification` from `diff_documents` (spec 01 section 5: structural diff by stable id, `reworded_only` versus `structural_change`), with added and removed items. `--structural-only` hides `reworded_only` rows (concept-design 13.3). `dr show` prints the DR, its stored impact and the propagation progress. Both are read-only and return JSON with `--json`.
@@ -153,6 +168,7 @@ tests/change/  tests/test_cli_dr.py
 - [x] The QA reviewer code is unchanged (no stage branch); a unit test shows the checklist chosen per document type.
 - [x] A live attempt (CLI with a key) is made on a demo project that has at least a BRD and SRS and is recorded in section 9.
 - [x] `uv run pytest` (coverage >= 80%), `ruff` and `mypy --strict` pass; `RevisionPatch` schema generated and drift-tested.
+- [ ] Batch propagation (section 5.2): DRs run in id order; a stopped DR skips only later DRs that share a document; a failing DR is reported and the batch goes on; the stop hook skips the rest; CLI exit code 3 when a DR is not propagated; the API refuses unknown or not approved ids and runs one `propagate:` job.
 
 ## 9. Manual review record
 
