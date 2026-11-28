@@ -29,7 +29,7 @@ Trace links written when the team is `done` (upstream to downstream):
 
 So `rtm(REQ-####)` now reaches IT, ST and UT cases.
 
-**Coverage rule (code):** every active Basic Design item is refined by at least one detail item; every active detail item has at least one UT case or an exclusion with a reason; an item may not be both tested and excluded (the gate message names the UT cases that verify the excluded item and both ways to fix it).
+**Coverage rule (code):** every active Basic Design item is refined by at least one detail item; every active detail item has at least one UT case or an exclusion with a reason; an item may not be both tested and excluded: as in spec 05 section 1, the clean-up step (`tidy_unit_test_draft`) removes such an exclusion before the gate, records an advisory note and asks its reason as a customer question.
 
 ## 2. Roles, artifacts and drafts
 
@@ -87,7 +87,7 @@ Detail gate (`validate_detail_draft`):
 Unit-test gate (`validate_unit_test_draft`):
 
 1. Every `verifies` ref is a detail item of the current draft; every case has non-empty steps (none blank) and a non-empty `expected`.
-2. **Coverage:** every detail item has at least one UT case or an exclusion; an item is not both tested and excluded; exclusion refs are detail items with non-empty reasons.
+2. **Coverage:** every detail item has at least one UT case or an exclusion; an item is not both tested and excluded (removed by the clean-up step first); exclusion refs are detail items with non-empty reasons.
 3. Question refs are detail items; language check on case text and reasons.
 
 ## 5. QA for this stage
@@ -138,7 +138,7 @@ tests/ ...
 
 - [x] `brd -> srs -> basic -> detail` runs end `done` on the demo project (fake models): the two new documents, links, two workbooks that open with `openpyxl`, one committed run record, commit order as in section 6.
 - [x] `rtm(REQ-####)` returns paths that end at an IT case, an ST case and a UT case; `query_impact(upstream)` from a `TC-UT-####` reaches the requirement through the detail item, the design item and the SRS item.
-- [x] Every Basic Design item is refined and every detail item has a UT case or an exclusion (gate failures otherwise); an item both tested and excluded is rejected; exclusions are stored in `DOC-TEST_UT-0001`.
+- [x] Every Basic Design item is refined and every detail item has a UT case or an exclusion (gate failures otherwise); an exclusion of a tested item is removed before the gate and asked as a customer question; exclusions are stored in `DOC-TEST_UT-0001`.
 - [x] A tester question reaches the designer (mailbox `question`), the answer appears in the revised spec and as an `answer` message, the tests are revised in the same cycle; a repeated question about an answered item stops blocking and is reported in `open_questions`.
 - [x] QA issues are routed by document: detail refs to the designer, UT refs to the tester.
 - [x] Exceeding `team_max_rounds` or the token budget ends `escalated` (exit code 3) with no business artifact written.

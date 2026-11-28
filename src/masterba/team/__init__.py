@@ -7,6 +7,7 @@ from masterba.team.design_test_loop import (
     DesignTestResult,
     DesignTestStart,
     Question,
+    Tidied,
     run_design_test_team,
 )
 from masterba.team.loop import format_issue, run_writer_review
@@ -27,6 +28,7 @@ __all__ = [
     "DesignTestResult",
     "DesignTestStart",
     "Question",
+    "Tidied",
     "run_design_test_team",
     "MessageType",
     "RecordingLLM",

@@ -126,7 +126,7 @@ detail is found while the design can still change.
 | Designer | `basic-design` (skill `basic-design-from-srs`). Output: a `BasicDesignDraft` of items of kind function, screen, interface or data entity, each listing the SRS items it `realizes`; plus `answers` to tester questions. |
 | Tester | `basic-test-design` (skill `test-design-v-mapping`). Output: a `TestDraft` with `it_cases` (verify design items), `st_cases` (verify SRS items), `exclusions` (an item deliberately left untested, with a reason) and `questions` for the designer. |
 | Design gate | `validate_design_draft`: every realised SRS item exists and is active; no duplicate name within a kind; **every active SRS item is realised by some design item**; language check |
-| Test gate | `validate_test_draft`: every `verifies` reference resolves; **every design item has an IT case or an exclusion, and every SRS item has an ST case or an exclusion**; no item is both tested and excluded; questions refer to design items |
+| Test gate | `validate_test_draft`: every `verifies` reference resolves; **every design item has an IT case or an exclusion, and every SRS item has an ST case or an exclusion**; no item is both tested and excluded (before the gate, `tidy_test_draft` drops the exclusion of a tested item, notes it as advisory and asks its reason as a customer question); questions refer to design items |
 | QA | two reviews per round: the design against the `basic_design` checklist, then the tests against the `tests` checklist (upstream for the tests is the SRS plus the design) |
 | Assigns | `DOC-BASIC_DESIGN-0001#item.n`; `DOC-TEST_IT-0001#item.n` with `TC-IT-0001...`; `DOC-TEST_ST-0001#item.n` with `TC-ST-0001...`. Exclusions go to the IT or the ST document by the prefix of the excluded reference. |
 | Writes | three documents; links (`realizes` from each SRS item to each design item that realises it, `tests` from each verified item to its test case); three workbooks; the run record |
@@ -143,7 +143,7 @@ unchanged), one level down the V.
 | Reads | `DOC-BASIC_DESIGN-0001`, active items only |
 | Designer | `detail-design` (skill `detail-design-from-basic`). Output: items of kind module, processing step, DB table or API, each naming the Basic Design items it `refines` |
 | Tester | `unit-test-design` (skill `unit-test-design`). Output: UT cases verifying detail items, exclusions, questions |
-| Gates | `validate_detail_draft` (every Basic Design item is refined, references resolve) and `validate_unit_test_draft` (every detail item has a UT case or an exclusion) |
+| Gates | `validate_detail_draft` (every Basic Design item is refined, references resolve) and `validate_unit_test_draft` (every detail item has a UT case or an exclusion; `tidy_unit_test_draft` drops the exclusion of a tested item first, as for Basic Design) |
 | QA | the `detail_design` and `unit_tests` checklists |
 | Writes | `DOC-DETAIL_DESIGN-0001`, `DOC-TEST_UT-0001`, `realizes` links from Basic Design item to detail item, `tests` links from detail item to its `TC-UT-####`, two workbooks, the run record |
 

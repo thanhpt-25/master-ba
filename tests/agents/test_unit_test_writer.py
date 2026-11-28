@@ -14,7 +14,7 @@ from masterba.agents import (
     validate_unit_test_draft,
     write_unit_tests,
 )
-from masterba.agents.unit_test_writer import unit_cases_view
+from masterba.agents.unit_test_writer import tidy_unit_test_draft, unit_cases_view
 from masterba.llm import FakeLLM
 from masterba.models.enums import DocLanguage
 
@@ -117,3 +117,17 @@ def test_revision_includes_previous_tests_and_feedback() -> None:
     assert "<previous_tests>" in user
     assert "- the design was revised; re-check every case against it" in user
     assert "日本語" in llm.calls[0].system
+
+
+def test_tidy_drops_the_exclusion_of_a_tested_detail_item() -> None:
+    clean = login_unit_draft()
+    draft = clean.model_copy(
+        update={"exclusions": [DraftExclusion(item_ref=detail_ref(1), reason="Partly open.")]}
+    )
+    assert any("also verified by UT case" in e for e in check(draft))
+    tidy, [dropped] = tidy_unit_test_draft(draft)
+    assert tidy.exclusions == []
+    assert dropped.item_ref == detail_ref(1)
+    assert dropped.cases[0].startswith("UT case ")
+    assert check(tidy) == []
+    assert tidy_unit_test_draft(clean) == (clean, [])

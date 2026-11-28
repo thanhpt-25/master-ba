@@ -21,6 +21,7 @@ from masterba.agents.sections import (
 from masterba.agents.test_writer import (
     TestDraft,
     cases_view,
+    tidy_test_draft,
     validate_test_draft,
     write_tests,
 )
@@ -56,6 +57,7 @@ from masterba.pipeline.stage import (
     open_team,
     stage_result,
     store_document,
+    tidied,
     unique_links,
 )
 from masterba.rendering import render_to_project
@@ -241,6 +243,7 @@ def run_basic_design(
                 [*kb_citations(IT_DOC_ID, t.it_cases), *kb_citations(ST_DOC_ID, t.st_cases)],
             ),
         ],
+        tidy_tests=lambda t: tidied(tidy_test_draft(t), language),
         questions=lambda t: [Question(q.ref, q.question) for q in t.questions],
         answers=lambda d: [Answer(a.ref, a.text) for a in d.answers],
         review_design=lambda d: review(

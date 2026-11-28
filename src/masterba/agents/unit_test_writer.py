@@ -15,7 +15,15 @@ from masterba.agents.requirements_analyst import (
     language_problem,
     load_system_prompt,
 )
-from masterba.agents.test_writer import DesignQuestion, DraftExclusion, DraftTestCase, also_tested
+from masterba.agents.test_writer import (
+    DesignQuestion,
+    DraftExclusion,
+    DraftTestCase,
+    DroppedExclusion,
+    also_tested,
+    drop_tested_exclusions,
+    tested_by,
+)
 from masterba.llm import LLM, LLMResult
 from masterba.models import BasicDesignItem
 from masterba.models.base import FrozenModel
@@ -54,6 +62,14 @@ def unit_cases_view(draft: UnitTestDraft, ut_doc_id: str) -> str:
         lines.append("Questions the tester asked the designer:")
         lines.extend(f"- {q.ref}: {q.question}" for q in draft.questions)
     return "\n".join(lines)
+
+
+def tidy_unit_test_draft(draft: UnitTestDraft) -> tuple[UnitTestDraft, list[DroppedExclusion]]:
+    """Drop every exclusion of an item that a UT case verifies (no model call)."""
+    kept, dropped = drop_tested_exclusions(draft.exclusions, tested_by([("UT", draft.ut_cases)]))
+    if not dropped:
+        return draft, []
+    return draft.model_copy(update={"exclusions": kept}), dropped
 
 
 def validate_unit_test_draft(

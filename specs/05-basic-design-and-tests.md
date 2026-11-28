@@ -32,7 +32,7 @@ Trace links written when the team is `done` (direction: upstream to downstream, 
 
 Consequently `rtm(REQ-####)` reaches test cases through both the IT and the ST route. (`verifies` as a link type stays reserved for UAT.) The `verifies` field of a stored `TestCaseItem` holds the same targets as the links.
 
-**Gate message:** an item that is both tested and excluded is reported with the case numbers that test it and both ways to fix it, so the writer can act on one round of feedback.
+**Tested and excluded at once:** before the gate runs, the loop's clean-up step (`tidy_test_draft`, no model call) removes every exclusion of an item that an IT or ST case verifies: the cases the tester wrote win, and the exclusion only said that part of the item is open. The removal is recorded as an advisory note in the run (`exclusion of <ref> removed by the gate: ...`) and the exclusion's reason becomes a customer question in the ledger (spec 13, refs = the item), so the open part is asked instead of being retried. A later draft without the conflict withdraws that question. Sending such a draft back made live runs stop without agreement: the tester answered one gate error by breaking another. The gate check itself stays as a safety net and reports the case numbers and both ways to fix it.
 
 **Coverage rule (checked by code, section 4.2):** every active design item has at least one IT case or an exclusion with a reason; every active SRS item has at least one ST case or an exclusion with a reason; every active SRS item is realised by at least one design item.
 
@@ -153,7 +153,7 @@ Test gate (`validate_test_draft`, given the current design draft and the SRS):
 
 1. IT `verifies` refs are items of the design draft; ST `verifies` refs are active SRS items; both lists non-empty per case.
 2. Every case has non-empty `steps` (no blank step) and a non-empty `expected`.
-3. **Coverage:** every design item has at least one IT case or an exclusion; every active SRS item has at least one ST case or an exclusion. An item may not be both tested and excluded. Exclusion reasons are non-empty; exclusion refs are design items (listed under IT scope) or SRS items.
+3. **Coverage:** every design item has at least one IT case or an exclusion; every active SRS item has at least one ST case or an exclusion. An item may not be both tested and excluded (the clean-up step of section 1 removes such exclusions before the gate). Exclusion reasons are non-empty; exclusion refs are design items (listed under IT scope) or SRS items.
 4. Each question's `ref` is a design item of the draft.
 5. Language check on case text and reasons.
 
@@ -208,7 +208,7 @@ tests/ ...
 
 - [x] `brd -> srs -> basic` runs end `done` on a demo project (fake models) and writes the three documents, links, three workbooks that open with `openpyxl`, and one committed run record; commit order as in section 6.
 - [x] `rtm(REQ-####)` returns paths ending at both an IT case and an ST case; `query_impact(upstream)` from a `TC-ST-####` reaches the requirement through the SRS item.
-- [x] Every design item has an IT case or an exclusion, and every SRS item has an ST case or an exclusion, in the stored JSON (a gate failure otherwise); an item both tested and excluded is rejected.
+- [x] Every design item has an IT case or an exclusion, and every SRS item has an ST case or an exclusion, in the stored JSON (a gate failure otherwise); an exclusion of an item that a case verifies is removed before the gate, noted as advisory and asked as a customer question, without sending the tests back.
 - [x] A tester question reaches the designer as a `question` message with a design item ref; the designer's reply is an `answer` message and appears in the revised description; the tester then revises the tests within the same cycle (one exchange), and the run ends `done`.
 - [x] After two exchanges in one cycle, further questions end the cycle and carry over to the next round; unanswered questions at the round limit are listed in `escalations`.
 - [x] A blocking QA issue on a design ref goes to the designer and one on a test ref goes to the tester (mailbox `to` is correct); the next cycle revises only what was criticised and the run ends `done` with `issues_raised == issues_resolved`.

@@ -20,7 +20,14 @@ from factories import (
     qa_pass,
     srs_ref,
 )
-from masterba.agents import BasicDesignDraft, DraftDesignItem, QaIssue, QaReport, TestDraft
+from masterba.agents import (
+    BasicDesignDraft,
+    DraftDesignItem,
+    DraftExclusion,
+    QaIssue,
+    QaReport,
+    TestDraft,
+)
 from masterba.llm import FakeLLM
 from masterba.models import BasicDesignContent, TestSpecContent
 from masterba.models.enums import BasicDesignKind, TeamRunStatus
@@ -42,6 +49,7 @@ from masterba.trace_store import (
     create_project,
     get_document,
     get_trace_links,
+    list_questions,
     query_impact,
     rtm,
 )
@@ -317,3 +325,42 @@ def test_a_blocking_issue_that_names_no_action_does_not_block_the_run(
         (with_srs.path / "runs" / result.run_id / "mailbox.json").read_text("utf-8")
     )
     assert f"[TS-02] {ref}: downgraded (no action required)" in [m["body"] for m in mailbox]
+
+
+def test_an_item_both_tested_and_excluded_no_longer_sends_the_tests_back(
+    with_srs: ProjectStore,
+) -> None:
+    contradicting = login_test_draft().model_copy(
+        update={
+            "exclusions": [
+                DraftExclusion(item_ref=design_ref(1), reason="Lockout period not stated."),
+                DraftExclusion(item_ref=design_ref(4), reason="Needs monitoring."),
+            ]
+        }
+    )
+    result, _, tester, _ = basic(
+        with_srs, [login_design_draft()], [contradicting], [qa_pass(), qa_pass()]
+    )
+    assert result.status is TeamRunStatus.DONE
+    assert result.rounds == 1
+    assert len(tester.calls) == 1
+    _, it = get_document(with_srs, IT_DOC_ID)
+    assert isinstance(it, TestSpecContent)
+    assert it.exclusions == []
+    assert len(it.items) == 5
+    assert [a for a in result.advisory if a.startswith("exclusion of")] == [
+        f"exclusion of {design_ref(1)} removed by the gate: it is verified by IT case 1 "
+        "(reason given: Lockout period not stated.)",
+        f"exclusion of {design_ref(4)} removed by the gate: it is verified by IT case 4 "
+        "(reason given: Needs monitoring.)",
+    ]
+    questions = list_questions(with_srs)
+    assert [q.text for q in questions][-2:] == [
+        f"{design_ref(1)} is verified by test cases, but the tester considered part of it "
+        "untestable: Lockout period not stated. Give the missing detail, or confirm that the "
+        "tested part is enough.",
+        f"{design_ref(4)} is verified by test cases, but the tester considered part of it "
+        "untestable: Needs monitoring. Give the missing detail, or confirm that the tested "
+        "part is enough.",
+    ]
+    assert len(result.question_ids) == 2

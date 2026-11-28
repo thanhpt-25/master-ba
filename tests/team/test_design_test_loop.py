@@ -1,10 +1,12 @@
 from collections.abc import Sequence
+from dataclasses import replace
 
 import pytest
 from pydantic import BaseModel, Field
 
 from masterba.agents import QaIssue, QaOutputInvalidError, QaReport, QaReview
 from masterba.llm import LLMConfigError, LLMError, LLMOutputError, LLMResult
+from masterba.models import QuestionDraft
 from masterba.models.enums import DocType, TeamRunStatus
 from masterba.team import (
     MAX_EXCHANGES,
@@ -15,6 +17,7 @@ from masterba.team import (
     Question,
     TaskStatus,
     Team,
+    Tidied,
     run_design_test_team,
 )
 from masterba.trace_store import ProjectStore
@@ -400,3 +403,42 @@ def test_a_configuration_error_still_raises(team: Team) -> None:
 
     with pytest.raises(LLMConfigError):
         run(team, Unconfigured())
+
+
+def test_the_tidy_hook_settles_a_test_draft_before_its_gate(team: Team) -> None:
+    script = Script()
+    seen: list[int] = []
+
+    def tidy(tests: Tests) -> Tidied[Tests]:
+        seen.append(tests.version)
+        return Tidied(
+            tests.model_copy(update={"version": tests.version + 100}),
+            notes=("exclusion of item 1 removed by the gate",),
+            questions=(QuestionDraft(refs=[D_REF], text="Is the open part in scope?"),),
+        )
+
+    result = run_design_test_team(team, replace(script.hooks(), tidy_tests=tidy))
+    assert result is not None
+    assert seen == [1]
+    assert result.tests.version == 101
+    assert team.advisory == ["exclusion of item 1 removed by the gate"]
+    assert [(m.sender, m.to, m.type) for m in team.messages] == [
+        ("gate", "tester", MessageType.FEEDBACK)
+    ]
+    assert [q.text for q in team.collected_questions()] == ["Is the open part in scope?"]
+
+
+def test_a_later_clean_draft_withdraws_the_tidy_questions(team: Team) -> None:
+    script = Script(test_gates=[["gate error"]])
+    calls: list[int] = []
+
+    def tidy(tests: Tests) -> Tidied[Tests]:
+        calls.append(tests.version)
+        if tests.version == 1:
+            return Tidied(tests, notes=("note",), questions=(QuestionDraft(text="open?"),))
+        return Tidied(tests)
+
+    assert run_design_test_team(team, replace(script.hooks(), tidy_tests=tidy)) is not None
+    assert calls == [1, 2]
+    assert team.collected_questions() == []
+    assert team.advisory == ["note"]

@@ -1,6 +1,7 @@
 """basic-test-design-agent: design + SRS -> IT and ST test drafts (spec 05 sections 2 and 4)."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 from pydantic import Field, field_validator
 
@@ -16,7 +17,7 @@ from masterba.agents.requirements_analyst import (
     load_system_prompt,
 )
 from masterba.llm import LLM, LLMResult
-from masterba.models import SrsItem
+from masterba.models import QuestionDraft, SrsItem
 from masterba.models.base import FrozenModel
 from masterba.models.enums import DocLanguage
 from masterba.models.ids import ItemRef
@@ -96,6 +97,80 @@ def also_tested(index: int, item_ref: str, cases: list[str]) -> str:
         f"exclusion {index}: {item_ref} is excluded but also verified by {', '.join(cases)}; "
         "remove the exclusion, or remove the item from those cases' `verifies`"
     )
+
+
+@dataclass(frozen=True)
+class DroppedExclusion:
+    """An exclusion the gate removed because cases verify the item anyway."""
+
+    item_ref: str
+    reason: str
+    cases: tuple[str, ...]
+
+
+def tested_by(levels: Sequence[tuple[str, Sequence[DraftTestCase]]]) -> dict[str, list[str]]:
+    """Item ref -> labels of the cases that verify it, e.g. `IT case 2`."""
+    tested: dict[str, list[str]] = {}
+    for level, cases in levels:
+        for index, case in enumerate(cases, start=1):
+            for ref in case.verifies:
+                tested.setdefault(ref, []).append(f"{level} case {index}")
+    return tested
+
+
+def drop_tested_exclusions(
+    exclusions: Sequence[DraftExclusion], tested: Mapping[str, list[str]]
+) -> tuple[list[DraftExclusion], list[DroppedExclusion]]:
+    """Keep the exclusions of untested items; the cases win over a contradicting exclusion.
+
+    A tester that both tests and excludes an item has written the cases it could; the exclusion
+    only says that part of the item is open. Sending the draft back for that alone made live runs
+    stop without agreement, so the gate settles it and reports the reason instead.
+    """
+    kept: list[DraftExclusion] = []
+    dropped: list[DroppedExclusion] = []
+    for exclusion in exclusions:
+        if cases := tested.get(exclusion.item_ref):
+            if all(d.item_ref != exclusion.item_ref for d in dropped):
+                dropped.append(DroppedExclusion(exclusion.item_ref, exclusion.reason, tuple(cases)))
+        else:
+            kept.append(exclusion)
+    return kept, dropped
+
+
+def tidy_test_draft(draft: TestDraft) -> tuple[TestDraft, list[DroppedExclusion]]:
+    """Drop every exclusion of an item that an IT or ST case verifies (no model call)."""
+    tested = tested_by([("IT", draft.it_cases), ("ST", draft.st_cases)])
+    kept, dropped = drop_tested_exclusions(draft.exclusions, tested)
+    if not dropped:
+        return draft, []
+    return draft.model_copy(update={"exclusions": kept}), dropped
+
+
+def dropped_note(dropped: DroppedExclusion) -> str:
+    """What the run record says about a removed exclusion."""
+    return (
+        f"exclusion of {dropped.item_ref} removed by the gate: it is verified by "
+        f"{', '.join(dropped.cases)} (reason given: {dropped.reason})"
+    )
+
+
+def scope_question(dropped: DroppedExclusion, language: DocLanguage) -> QuestionDraft:
+    """The open part the tester named, as a question for the customer (spec 13)."""
+    reason = dropped.reason.strip().rstrip("。.")
+    if language is DocLanguage.JA:
+        text = (
+            f"{dropped.item_ref} はテストケースで検証していますが、テスト担当は次の理由で"
+            f"一部をテスト対象外と考えました：{reason}。"
+            "不足している情報を示すか、現在のテスト範囲で十分かを確認してください。"
+        )
+    else:
+        text = (
+            f"{dropped.item_ref} is verified by test cases, but the tester considered part of it "
+            f"untestable: {reason}. Give the missing detail, or confirm that the tested "
+            "part is enough."
+        )
+    return QuestionDraft(refs=[dropped.item_ref], text=text)
 
 
 def validate_test_draft(
