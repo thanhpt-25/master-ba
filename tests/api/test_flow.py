@@ -298,6 +298,8 @@ def test_a_decision_record_goes_from_proposal_to_closed_through_the_api(
     closed = approver.post(f"{P}/drs/{dr_id}/close").json()
     assert closed["status"] == "closed"
     assert viewer.get(P).json()["counts"]["open_drs"] == 0
+    # Closed after propagation is not a rejection (spec 27: 却下 only without an impact).
+    assert viewer.get(f"{P}/drs/{dr_id}").json()["dr"]["rejected"] is False
 
 
 def test_rejecting_and_the_lifecycle_rules_are_enforced(seeded_client: ClientFor) -> None:
@@ -308,6 +310,9 @@ def test_rejecting_and_the_lifecycle_rules_are_enforced(seeded_client: ClientFor
     dr_id = created.json()["id"]
     rejected = approver.post(f"{P}/drs/{dr_id}/reject", json={"decision": "Not funded"}).json()
     assert (rejected["status"], rejected["approver"]) == ("closed", "alice")
+    listed = {d["id"]: d for d in approver.get(f"{P}/drs").json()}
+    assert listed[dr_id]["rejected"] is True
+    assert approver.get(f"{P}/drs/{dr_id}").json()["dr"]["rejected"] is True
     again = approver.post(f"{P}/drs/{dr_id}/approve", json={"decision": "ok"})
     assert again.status_code == 400
     assert "only a proposed DR can be approved" in again.json()["detail"]

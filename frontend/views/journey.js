@@ -88,7 +88,8 @@ export function nextStep(overview, pid) {
   if (!step) {
     return {
       state: "approved",
-      title: t("Every phase is approved."),
+      // Without review gates nothing was approved; the phases are only done.
+      title: overview.project.review_gates ? t("Every phase is approved.") : t("Every phase is done."),
       detail: t("Changes from here go through a Decision Record, which revises the affected documents as new versions."),
       action: { kind: "link", href: `#/p/${pid}/drs`, label: t("Open Decision Records") },
     };

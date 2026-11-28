@@ -66,6 +66,7 @@ const STATUS = {
   approved: { icon: "✓", label: N_("Approved"), cls: "seal" },
   propagated: { icon: "✓", label: N_("Propagated"), cls: "ok" },
   closed: { icon: "■", label: N_("Closed"), cls: "idle" },
+  rejected: { icon: "✕", label: N_("Rejected"), cls: "idle" },
   planned: { icon: "·", label: N_("Planned"), cls: "idle" },
   open: { icon: "○", label: N_("Open"), cls: "warn" },
   answered: { icon: "✓", label: N_("Answered"), cls: "ok" },
